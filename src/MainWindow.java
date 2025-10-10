@@ -4,8 +4,8 @@ import java.awt.*;
 public class MainWindow extends JFrame {
     public final int windowWidth = 1200;
     public final int windowHeight = 800;
-    public final int subWindowWidth = 800;
-    public final int subWindowHeight = 600;
+
+    private JFrame openSubWindow = null;
 
     public MainWindow() {
         setTitle("Composite Inventory");
@@ -26,24 +26,10 @@ public class MainWindow extends JFrame {
         JButton linkButton = createIconButton("Link", "icons/link.png");
 
         // 4 main Actions
-        addButton.addActionListener(e -> { //Refresh main after subwindow closes
-            new AddWindow(this, subWindowWidth, subWindowHeight);
-            refresh();
-        });
-        removeButton.addActionListener(e -> { //Refresh main after subwindow closes
-            new RemoveWindow(this, subWindowWidth, subWindowHeight);
-            refresh();
-        });
-
-        itemButton.addActionListener(e -> {
-            new ItemWindow(this, subWindowWidth, subWindowHeight);
-            refresh();
-        });
-
-        linkButton.addActionListener(e -> {
-            new LinkWindow(this, subWindowWidth, subWindowHeight);
-            refresh();
-        });
+        addButton.addActionListener(e -> new AddWindow(this));
+        removeButton.addActionListener(e -> new RemoveWindow(this));
+        itemButton.addActionListener(e -> new ItemWindow(this));
+        linkButton.addActionListener(e -> new LinkWindow(this));
 
 
         // Add buttons
