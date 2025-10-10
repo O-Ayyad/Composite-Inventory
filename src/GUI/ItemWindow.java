@@ -1,5 +1,6 @@
+package GUI;
+
 import javax.swing.*;
-import java.awt.*;
 
 public class ItemWindow extends SubWindow {
     public static String windowName = "View Items and Update Inventory";

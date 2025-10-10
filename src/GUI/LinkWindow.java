@@ -1,5 +1,6 @@
+package GUI;
+
 import javax.swing.*;
-import java.awt.*;
 
 public class LinkWindow extends SubWindow {
     public static String windowName = "Link Account";
