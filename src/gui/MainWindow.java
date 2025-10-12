@@ -1,4 +1,4 @@
-package GUI;
+package gui;
 
 import javax.swing.*;
 import java.awt.*;
@@ -61,20 +61,20 @@ public class MainWindow extends JFrame {
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new GridLayout(1, 4, 0, 0)); // 1 row, 4 columns
 
-        JButton addButton = createIconButton("Add", "icons/plus.png");
-        JButton removeButton = createIconButton("Remove", "icons/minus.png");
-        JButton itemButton = createIconButton("Item", "icons/item.png");
-        JButton linkButton = createIconButton("Link", "icons/link.png");
+        JButton addButton = createIconButton("Add Items", "icons/windowIcons/plus.png");
+        JButton removeButton = createIconButton("Remove Items", "icons/windowIcons/remove.png");
+        JButton ViewButton = createIconButton("View Inventory", "icons/windowIcons/view.png");
+        JButton linkButton = createIconButton("Link Account", "icons/windowIcons/link.png");
 
         // Add action listeners
         addButton.addActionListener(e -> new AddWindow(this));
         removeButton.addActionListener(e -> new RemoveWindow(this));
-        itemButton.addActionListener(e -> new ItemWindow(this));
+        ViewButton.addActionListener(e -> new ViewWindow(this));
         linkButton.addActionListener(e -> new LinkWindow(this));
 
         buttonPanel.add(addButton);
         buttonPanel.add(removeButton);
-        buttonPanel.add(itemButton);
+        buttonPanel.add(ViewButton);
         buttonPanel.add(linkButton);
 
         // Combine
@@ -88,12 +88,40 @@ public class MainWindow extends JFrame {
 
     // Window Buttons
     private JButton createIconButton(String text, String iconPath) {
-        ImageIcon icon = new ImageIcon(iconPath);
-        Image scaled = icon.getImage().getScaledInstance(24, 24, Image.SCALE_SMOOTH);
-        JButton button = new JButton(text, new ImageIcon(scaled));
-        button.setMargin(new Insets(0, 0, 0, 0));
-        button.setFocusPainted(false);
+        java.net.URL imgURL = getClass().getClassLoader().getResource(iconPath);
+        ImageIcon icon = null;
+        if (imgURL == null) {
+            System.err.println("Icon not found: " + iconPath);
+            icon = new ImageIcon(iconPath);
+        }else{
+            icon = new ImageIcon(imgURL);
+        }
+        int iconWidth = 60;
+        int iconHeight = 60;
+        Image scaled = icon.getImage().getScaledInstance(60, 60, Image.SCALE_SMOOTH);
+        JButton button = new JButton();
         button.setPreferredSize(new Dimension(windowWidth / 4, windowHeight / 10));
+        button.setFocusPainted(false);
+        button.setMargin(new Insets(0, 0, 0, 0));
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+
+        button.setLayout(null);
+        button.setPreferredSize(new Dimension(windowWidth / 4, windowHeight / 10));
+
+        int buttonWidth = button.getPreferredSize().width;
+        int buttonHeight = button.getPreferredSize().height;
+
+        JLabel iconLabel = new JLabel(new ImageIcon(scaled));
+        iconLabel.setBounds(buttonWidth / 4 - iconWidth / 2, (buttonHeight - iconHeight) / 2, iconWidth, iconHeight);
+        button.add(iconLabel);
+
+        JLabel textLabel = new JLabel(text);
+        textLabel.setBounds(0, 0, buttonWidth, buttonHeight);
+        textLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        textLabel.setVerticalAlignment(SwingConstants.CENTER);
+        button.add(textLabel);
+
 
         Color normalColor = new Color(255, 255, 255);
         Color hoverColor = new Color(200, 200, 215);
