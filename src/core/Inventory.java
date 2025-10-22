@@ -8,12 +8,11 @@ public class Inventory {
     //Item packets are sent by the ItemManager to here to update inventory
     //If an item is not in MainInventory then it does not exist in any way
 
-    public Map<Item, Integer> MainInventory = new HashMap<Item,Integer>();
+    public Map<Item, Integer> MainInventory = new HashMap<>();
 
     public LogManager logManager;
 
-    public Inventory(HashMap<Item, Integer> map){
-        MainInventory = map;
+    public Inventory(){
     }
     public void setLogManager(LogManager lm){
         logManager = lm;

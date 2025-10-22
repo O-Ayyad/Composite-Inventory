@@ -2,7 +2,7 @@ package core;
 
 public class LogManager {
     public Inventory inventory;
-    public LogManager(){}; //Constructor
+    public LogManager(){} //Constructor
 
     public void setInventory(Inventory i){
         inventory = i;
@@ -21,7 +21,7 @@ public class LogManager {
     //      * apply only inventory-affecting logs
     // - Create 3 queues by criticality (Normal, Concerning, Urgent).
     // - Keep one master queue for chronological order.
-    // - In UI scroll view from top to bottom Critial->Warning->Normal, newest-> oldest.
+    // - In UI scroll view from top to bottom Critical->Warning->Normal, newest-> oldest.
     // - Display logID, type, message, and note; dim solved/reverted logs.
     // - When new log created -> append to queues + save to logs.json.
     // - Undo: create reverter log, mark target as reverted, append both to file.
@@ -29,7 +29,7 @@ public class LogManager {
     // - Optional: add filters (search, show unsolved only, export logs).
     // - Ability to solve and create alert logs
 
-    //All logs are created from the inventory except reverisons
+    //All logs are created from the inventory except reversions
     public void createLog(Log.LogType type, int amount, String message, String itemSerial) {
         Log l = new Log(type, amount, message, itemSerial);
         //Todo add to list and file
