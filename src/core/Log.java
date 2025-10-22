@@ -6,75 +6,79 @@ public class Log {
         Normal,
         Warning,
         Critical,
-        Solved
     }
     public enum LogType{
         ItemSold, //Sold
         ItemAdded, //Item added
-        ItemUpdated, //Item name/serial number changed
-        LowStock, //Item quantity lower than stock floor limit
-        ItemOutOfStock,
-        ItemSoldAndOutOfStock, //If sold on amazon/ebay and out of stock
+        ItemUpdated, //Item name/picture/SKU/Composed changed
+        LowStock, //Item quantity lower than stock floor trigger
+        ItemOutOfStock, //If an item has lowStockTrigger and the amount in inventory is 0 then this log is created
+        ItemSoldAndOutOfStock, //If sold on amazon/ebay and out of stock. Only critical Log
         NewItemCreated,
         ItemRemoved,
+        ItemBrokenDown,
+        ItemComboCreated;
     }
 
     private static int nextLogID = 1; // Auto-increment
-    private int logID;
-    private Integer amount; //Used to revert logs. Example: New log added two items, then it was reverted. This tells the new log that the amount added was two
-    private String serial; //Same as amount but for the serial number of the item
-    private LocalDateTime timestamp;
-    private LogType type;
-    private Severity severity;
+    private final int logID;
+    private final Integer amount; //Used to revert logs. Example: New log added two items, then it was reverted. This tells the new log that the amount added was two
+    private String itemSerial; //Same as amount but for the serial number of the item
+    private final LocalDateTime timestamp;
+    private final LogType type;
+    private final Severity severity;
     private String message;
-    private String itemSerial; // reference to affected item
 
     //For Alert Logs
     private boolean alert;
     private boolean suppressed; //For warning and critical logs, user is aware but doesn't care it could be suppressed
-    private boolean solved; // //For warning and criticallogs, user has solved the issue in another way.
+    private boolean solved; // //For warning and critical logs, user has solved the issue in another way.
     //For example if an item is sold and out of stock and the user cancels the order then it is marked as solved.
-    //Log will still exist but for all purposes it will not  be visible nor affect anything
-    //Log will automatically be set as solved if the condition is no longer true.
+    //This cannot be done for Low/OutOfStock logs. These must be removed in the item themselves.
+    //Log will no longer exist if it is solved.
+    //Log will automatically be set as solved if the condition that created it is no longer true.
 
     //For normal logs (Sold and Added)
     private boolean allowRevert;
+    private Integer revertedLogID = null; //Which log did this one revert?
+    private Integer revertedByLogId = null; //Which log reverted this one?
     private boolean reverter; //If this log was created to revert a previous log
     private boolean reverted; //If a log is reverted, then it will be displayed but ignored in processing
 
-    public Log(LogType type, Integer amount, String message, String itemSerial) {
-        this.logID = nextLogID++;
-        this.timestamp = LocalDateTime.now();
-        this.amount = amount;
-        this.type = type;
-        this.message = message;
-        this.itemSerial = itemSerial;
-        this.reverter = false;
-        this.reverted = false;
+    public Log(LogType Type, Integer Amount, String Message, String ItemSerial) {
+        logID = nextLogID++;
+        timestamp = LocalDateTime.now();
+        amount = Amount;
+        type = Type;
+        message = Message;
+        itemSerial = ItemSerial;
+        reverter = false;
+        reverted = false;
 
         // Automatically determine severity based on type
-        this.severity = determineSeverity(type);
+        severity = determineSeverity(type);
 
         // Allow revert only if normal and type is Sold or Added
-        this.allowRevert = (severity == Severity.Normal &&
+        allowRevert = (severity == Severity.Normal &&
                 (type == LogType.ItemSold || type == LogType.ItemAdded));
 
-        // Alert if it's not revertable and type indicates a problem
-        this.alert = !allowRevert && (
+        // Alert if it's not revertible and type indicates a problem
+        alert = !allowRevert && (
                 type == LogType.LowStock ||
                         type == LogType.ItemOutOfStock ||
                         type == LogType.ItemSoldAndOutOfStock
         );
     }
     // Constructor for reverter logs
-    public Log(LogType type, Integer amount, String message, String itemSerial, boolean reverter) {
-        this(type, amount, message, itemSerial);
-        this.reverter = reverter;
+    public Log(LogType Type, Integer Amount, String Message, String ItemSerial, boolean Reverter, int RevLID) {
+        this(Type, Amount, Message, ItemSerial);
+        reverter = Reverter; //Bool
+        revertedLogID = RevLID;
     }
     //Helper for constructors
     private Severity  determineSeverity(LogType type) {
         return switch (type) {
-            case ItemSold, ItemUpdated, ItemRemoved, NewItemCreated, ItemAdded -> Severity.Normal;
+            case ItemSold, ItemUpdated, ItemRemoved, NewItemCreated, ItemAdded, ItemBrokenDown, ItemComboCreated -> Severity.Normal;
             case LowStock, ItemOutOfStock -> Severity.Warning;
             case ItemSoldAndOutOfStock -> Severity.Critical;
         };
@@ -91,16 +95,15 @@ public class Log {
     public boolean isReverter() { return reverter; }
     public boolean isReverted() { return reverted; }
     public boolean isSuppressed() {return suppressed;}
-
-    public void setSuppressed(boolean suppressed) {this.suppressed = suppressed;}
+    public boolean isSolved() {return solved;}
 
     // --------------------------- Setters ---------------------------
     public void setMessage(String message) { this.message = message; }
     public void setItemSerial(String itemSerial) { this.itemSerial = itemSerial; }
     public void setReverted(boolean reverted) { this.reverted = reverted; }
     public void setReverter(boolean reverter) { this.reverter = reverter; }
-    public boolean isSolved() {return solved;}
     public void setSolved(boolean solved) {this.solved = solved;}
+    public void setSuppressed(boolean suppressed) {this.suppressed = suppressed;}
 
 
     // --------------------------- Methods ---------------------------
@@ -125,8 +128,8 @@ public class Log {
             return new SerialAndAmount(null,0);
         }
         return switch (this.type) {
-            case ItemSold -> new SerialAndAmount(serial, amount);
-            case ItemAdded -> new SerialAndAmount(serial, -amount);
+            case ItemSold -> new SerialAndAmount(itemSerial, amount);
+            case ItemAdded -> new SerialAndAmount(itemSerial, -amount);
             default -> new SerialAndAmount(null, 0);
         };
     }
@@ -136,8 +139,8 @@ public class Log {
         }
 
         return switch (l.type) {
-            case ItemSold -> new SerialAndAmount(l.serial, l.amount);
-            case ItemAdded -> new SerialAndAmount(l.serial, -l.amount);
+            case ItemSold -> new SerialAndAmount(l.itemSerial, l.amount);
+            case ItemAdded -> new SerialAndAmount(l.itemSerial, -l.amount);
             default -> new SerialAndAmount(null, 0);
         };
     }

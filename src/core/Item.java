@@ -18,14 +18,12 @@ public class Item {
     private String ebaySellerSKU;
 
     private ArrayList<ItemPacket> composedOf = new ArrayList<>();
-    private ArrayList<ItemPacket> composesInto = new ArrayList<>();
+    private ArrayList<Item> composesInto = new ArrayList<>();
 
     private String iconPath;   //path to image file
     private ImageIcon cachedIcon; //Actual image
     private final int iconWidth = 50; //Dimension for the image
     private final int iconHeight = 50;
-
-    private Object[] itemInfoArray = new Object[11];
 
     private final ItemManager itemManager;
 
@@ -45,7 +43,7 @@ public class Item {
     public void setEbaySellerSKU(String ebaySellerSKU) {this.ebaySellerSKU = ebaySellerSKU;}
 
     public ArrayList<ItemPacket> getComposedOf() { return composedOf; }
-    public ArrayList<ItemPacket> getComposesInto() { return composesInto; }
+    public ArrayList<Item> getComposesInto() { return composesInto; }
 
     public void setIconPath(String path) {
         this.iconPath = path;
@@ -64,6 +62,8 @@ public class Item {
         }
         return null; //no image set
     }
+    public int getLowStockTrigger() { return lowStockTrigger;}
+    public void setLowStockTrigger(int lowST){lowStockTrigger = lowST;}
 
     //-------------------------------</Getters and Setters>-------------------------------
 
@@ -72,35 +72,41 @@ public class Item {
 
     //-------------------------------<Edit Composition>-------------------------------
     //Can add sole item or multiple at once
-    public void addComposedOf(ItemPacket item) {composedOf.add(item);}
-    public void addComposesInto(ItemPacket item) {composesInto.add(item);}
-    public void addComposedOf(ArrayList<ItemPacket> items) {composedOf.addAll(items);}
-    public void addComposesInto(ArrayList<ItemPacket> items) {composesInto.addAll(items);}
-    public void removeComposedOf(ItemPacket item) {composedOf.remove(item);}
-    public void removeComposedOf(ArrayList<ItemPacket> items) {composedOf.removeAll(items);}
-    public void removeComposedInto(ItemPacket item) {composesInto.remove(item);}
-    public void removeComposedInto(ArrayList<ItemPacket> items) {composesInto.removeAll(items);}
-    public void removeComposesInto(ItemPacket item) {composesInto.remove(item);}
+    public void replaceComposedOf(ArrayList<ItemPacket> newList) {
+        if (newList == null) return;
+
+        ArrayList<ItemPacket> valid = new ArrayList<>();
+        for (ItemPacket ip : newList) {
+            if (ip == null || ip.getItem() == null) continue;
+            if (ip.getItem().equals(this)) continue;
+            valid.add(ip);
+        }
+        if (valid.isEmpty()) return;
+
+        composedOf.clear();
+        composedOf.addAll(valid);
+        syncCompositionDependencies();
+    }
     public Boolean isComposedOf(ItemPacket item){return composedOf.contains(item);}
-    public Boolean doesComposeInto(ItemPacket item){return composesInto.contains(item);}
+    public Boolean doesComposeInto(Item item){return composesInto.contains(item);}
     //-------------------------------</Edit Composition>-------------------------------
 
 
 
     //-------------------------------<Constructor>-------------------------------
+
+    //Duplicate item check is checked before creation
     public Item(String name, String serialNum, Integer lowStockTrigger,
-                ArrayList<ItemPacket> composed, ArrayList<ItemPacket> composes,
+                ArrayList<ItemPacket> composedOf,
                 String iconPath,
                 ItemManager itemManager,
                 String amazonSellerSKU,
                 String ebaySellerSKU,
                 String walmartSellerSKU) {
-
         this.name = name;
         this.serialNum = serialNum;
         this.lowStockTrigger = lowStockTrigger;
-        this.composedOf = composed;
-        this.composesInto = composes;
+        this.composedOf = composedOf != null ? composedOf : new ArrayList<>();
         this.iconPath = iconPath;
         this.cachedIcon = this.getIcon(iconWidth, iconHeight);
 
@@ -110,8 +116,29 @@ public class Item {
 
         this.itemManager = itemManager;
 
-        //Cache the inventory
-        this.itemInfoArray = this.toArray();
+        //Create dependencies of composed of and composes into
+        syncCompositionDependencies();
+    }
+    //If item A holds item B composedOf then item B should hold Item A in composed into
+    //This should be called on the item that is composed of other items. The kit/combo
+    public void syncCompositionDependencies(){
+        if (itemManager == null) return;
+        //Make sure all components of this item know what they compose into
+        for (ItemPacket IP : this.composedOf) {
+            Item component = IP.getItem();
+            if (component == null || component.equals(this)) continue;
+            boolean exists = false;
+            for (Item ci : component.getComposesInto()) {
+                if (ci.equals(this)) {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (!exists) {
+                component.getComposesInto().add(this);
+            }
+        }
     }
     //-------------------------------</Constructor>-------------------------------
 
@@ -172,8 +199,11 @@ public class Item {
     //If an item is broken down, then return a list of its composition and remove what was used.
     //Then destroy this item
     //This is all handled in ItemManager
-    public ArrayList<ItemPacket> breakDownItem(ArrayList<ItemPacket> UsedItem){
-        return itemManager.breakDownItem(this, UsedItem);
+    public void breakDownItem(ArrayList<ItemPacket> UsedItems){
+        itemManager.breakDownItem(this, UsedItems);
+    }
+    public void composeItem(Item composedItem, ArrayList<ItemPacket> usedComponents){
+        itemManager.composeItem(this, usedComponents);
     }
     //-------------------------------<Overrides>-------------------------------
     @Override
