@@ -6,30 +6,43 @@ import javax.swing.ImageIcon;
 
 
 //Blueprint for all items
-//Each item name is serial number is unique and the quantity is stored by inventory manager
+//Each item serial number is unique and the quantity is stored by inventory manager
 public class Item {
 
-    public String name;
-    public String serialNum;
+    private String name;
+    private final String serialNum; //Unique for every item. No two items can have the same serial number
+    private Integer lowStockTrigger; // Creates a log when the quantity of the item is equal or lower than this
 
-    public ArrayList<ItemPacket> composedOf = new ArrayList<>();
-    public ArrayList<ItemPacket> composesInto = new ArrayList<>();
+    private String walmartSellerSKU; //Used to connect to accounts
+    private String amazonSellerSKU;
+    private String ebaySellerSKU;
+
+    private ArrayList<ItemPacket> composedOf = new ArrayList<>();
+    private ArrayList<ItemPacket> composesInto = new ArrayList<>();
 
     private String iconPath;   //path to image file
     private ImageIcon cachedIcon; //Actual image
     private final int iconWidth = 50; //Dimension for the image
     private final int iconHeight = 50;
 
-    private Object[] itemInfoArray = new Object[8];
+    private Object[] itemInfoArray = new Object[11];
 
-    private ItemManager itemManager;
+    private final ItemManager itemManager;
 
     //-------------------------------<Getters and Setters>-------------------------------
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
     public String getSerialNum() { return serialNum; }
-    public void setSerialNum(String serial) { this.serialNum = serial; }
+
+    public String getWalmartSellerSKU() {return walmartSellerSKU;}
+    public void setWalmartSellerSKU(String walmartSellerSKU) {this.walmartSellerSKU = walmartSellerSKU;}
+
+    public String getAmazonSellerSKU() {return amazonSellerSKU;}
+    public void setAmazonSellerSKU(String amazonSellerSKU) {this.amazonSellerSKU = amazonSellerSKU;}
+
+    public String getEbaySellerSKU() {return ebaySellerSKU;}
+    public void setEbaySellerSKU(String ebaySellerSKU) {this.ebaySellerSKU = ebaySellerSKU;}
 
     public ArrayList<ItemPacket> getComposedOf() { return composedOf; }
     public ArrayList<ItemPacket> getComposesInto() { return composesInto; }
@@ -75,20 +88,30 @@ public class Item {
 
 
     //-------------------------------<Constructor>-------------------------------
-    public Item(String name, String serialNum,
+    public Item(String name, String serialNum, Integer lowStockTrigger,
                 ArrayList<ItemPacket> composed, ArrayList<ItemPacket> composes,
                 String iconPath,
-                ItemManager itemManager) {
+                ItemManager itemManager,
+                String amazonSellerSKU,
+                String ebaySellerSKU,
+                String walmartSellerSKU) {
+
         this.name = name;
         this.serialNum = serialNum;
+        this.lowStockTrigger = lowStockTrigger;
         this.composedOf = composed;
         this.composesInto = composes;
         this.iconPath = iconPath;
-        this.cachedIcon = this.getIcon(iconWidth,iconHeight);
+        this.cachedIcon = this.getIcon(iconWidth, iconHeight);
 
-        this.itemInfoArray = this.toArray();
+        this.amazonSellerSKU = amazonSellerSKU;
+        this.ebaySellerSKU = ebaySellerSKU;
+        this.walmartSellerSKU = walmartSellerSKU;
 
         this.itemManager = itemManager;
+
+        //Cache the inventory
+        this.itemInfoArray = this.toArray();
     }
     //-------------------------------</Constructor>-------------------------------
 
@@ -98,8 +121,8 @@ public class Item {
     /**
      * Returns all the information into one array.
      *
-     * @param {Item} Item being evaluated
-     * @return {Object[]} Holds all information on item
+     * param {Item} Item being evaluated
+     * return {Object[]} Holds all information on item
      *
      * Enum used to access array with more readability
      */
@@ -108,29 +131,33 @@ public class Item {
         IMAGE(0),
         NAME(1),
         SERIAL(2),
-        COMPOSED_OF(3),
-        COMPOSED_OF_SIZE(4),
-        COMPOSES_INTO(5),
-        COMPOSES_INTO_SIZE(6);
+        LOW_STOCK_TRIGGER(3),
+        COMPOSED_OF(4),
+        COMPOSED_OF_SIZE(5),
+        COMPOSES_INTO(6),
+        COMPOSES_INTO_SIZE(7),
+        AMAZON_SKU(8),
+        EBAY_SKU(9),
+        WALMART_SKU(10);
+
         private final int index;
-
-        ItemField(int index) {
-            this.index = index;
-        }
-        public int getIndex() {
-            return index;
-        }
+        ItemField(int index) { this.index = index; }
+        public int getIndex() { return index; }
     }
-    public Object[] toArray(){
-        Object[] arr = new Object[7];
+    public Object[] toArray() {
+        Object[] arr = new Object[11];
 
-        arr[ItemField.IMAGE.getIndex()] = getIcon(50,50); // or null if no image
+        arr[ItemField.IMAGE.getIndex()] = getIcon(50, 50);
         arr[ItemField.NAME.getIndex()] = name;
         arr[ItemField.SERIAL.getIndex()] = serialNum;
+        arr[ItemField.LOW_STOCK_TRIGGER.getIndex()] = lowStockTrigger; // new field
         arr[ItemField.COMPOSED_OF.getIndex()] = composedOf;
         arr[ItemField.COMPOSED_OF_SIZE.getIndex()] = composedOf.size();
         arr[ItemField.COMPOSES_INTO.getIndex()] = composesInto;
         arr[ItemField.COMPOSES_INTO_SIZE.getIndex()] = composesInto.size();
+        arr[ItemField.AMAZON_SKU.getIndex()] = amazonSellerSKU;
+        arr[ItemField.EBAY_SKU.getIndex()] = ebaySellerSKU;
+        arr[ItemField.WALMART_SKU.getIndex()] = walmartSellerSKU;
 
         return arr;
     }

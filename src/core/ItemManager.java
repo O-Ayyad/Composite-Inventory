@@ -16,7 +16,7 @@ public class ItemManager {
     //-------------------------------<Methods>-------------------------------
 
     public boolean isComposedOfItem(Item item, Item searchItem) {
-        for (ItemPacket packet : item.composedOf) {
+        for (ItemPacket packet : item.getComposedOf()) {
             if (packet.getItem().equals(searchItem)) {
                 return true; // found the item
             }
@@ -25,7 +25,7 @@ public class ItemManager {
     }
 
     public ItemPacket getItemPacket(Item item, Item searchItem) {
-        for (ItemPacket packet : item.composedOf) {
+        for (ItemPacket packet : item.getComposedOf()) {
             if (packet.getItem().equals(searchItem)) {
                 return packet; // found the item
             }

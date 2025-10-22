@@ -3,7 +3,7 @@ package gui;
 import javax.swing.*;
 
 public class LinkWindow extends SubWindow {
-    public static String windowName = "Link Account";
+    public static String windowName = "Link Account and Items";
     public LinkWindow(JFrame mainWindow) {
 
         super(mainWindow, windowName);
