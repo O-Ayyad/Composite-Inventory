@@ -12,6 +12,7 @@ public class Inventory {
     public Map<String, Item> SerialToItemMap = new HashMap<>();
 
     public LogManager logManager;
+    public ItemManager itemManager;
 
     public Inventory(){
     }
@@ -19,10 +20,13 @@ public class Inventory {
         logManager = lm;
         /// -----In main
         /// LogManager logManager = new LogManager();
-        /// Inventory inventory = new Inventory(new HashMap<>(), logManager);
+        /// Inventory inventory = new Inventory();
         ///
         /// inventory.setLogManager(logManager);
         /// logManager.setInventory(inventory);
+    }
+    public void setItemManager(ItemManager im){
+        itemManager = im;
     }
     public void createItem(
             String name,

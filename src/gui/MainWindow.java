@@ -1,8 +1,10 @@
 package gui;
-
+import core.*;
 import javax.swing.*;
+import javax.swing.text.html.InlineView;
 import java.awt.*;
 import java.net.URI;
+import java.util.HashMap;
 
 public class MainWindow extends JFrame {
     public final int windowWidth = 1200;
@@ -10,12 +12,11 @@ public class MainWindow extends JFrame {
 
     private JFrame openSubWindow = null;
 
-    public MainWindow() {
+    public MainWindow(Inventory inventory) {
         setTitle("Composite Inventory");
         setSize(windowWidth, windowHeight);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null); // center
-        setResizable(false);
 
         setLayout(new BorderLayout());
 
@@ -67,10 +68,10 @@ public class MainWindow extends JFrame {
         JButton linkButton = createIconButton("Link Account", "icons/windowIcons/link.png");
 
         // Add action listeners
-        addButton.addActionListener(e -> new AddWindow(this));
-        removeButton.addActionListener(e -> new RemoveWindow(this));
-        ViewButton.addActionListener(e -> new ViewWindow(this));
-        linkButton.addActionListener(e -> new LinkWindow(this));
+        addButton.addActionListener(e -> new AddWindow(this,inventory));
+        removeButton.addActionListener(e -> new RemoveWindow(this,inventory));
+        ViewButton.addActionListener(e -> new ViewWindow(this,inventory));
+        linkButton.addActionListener(e -> new LinkWindow(this,inventory));
 
         buttonPanel.add(addButton);
         buttonPanel.add(removeButton);
@@ -123,25 +124,7 @@ public class MainWindow extends JFrame {
         button.add(textLabel);
 
 
-        Color normalColor = new Color(255, 255, 255);
-        Color hoverColor = new Color(200, 200, 215);
-        Color textColor = new Color(50, 50, 50);
-
-        button.setBackground(normalColor);
-        button.setForeground(textColor);
-        button.setOpaque(true);
-        button.setBorderPainted(false);
-        button.setContentAreaFilled(true);
-
-        button.addMouseListener(new java.awt.event.MouseAdapter() {
-            public void mouseEntered(java.awt.event.MouseEvent evt) {
-                button.setBackground(hoverColor);
-            }
-            public void mouseExited(java.awt.event.MouseEvent evt) {
-                button.setBackground(normalColor);
-            }
-        });
-        return button;
+        return UIUtils.styleButton(button);
     }
     //Link buttons
     private JButton createLinkButton(String text, String url, String iconPath) {
@@ -178,6 +161,16 @@ public class MainWindow extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(MainWindow::new);
+
+        LogManager logManager = new LogManager();
+        Inventory inventory = new Inventory();
+
+        inventory.setLogManager(logManager);
+        logManager.setInventory(inventory);
+        ItemManager itemManager = new ItemManager(inventory);
+        inventory.setItemManager(itemManager);
+
+        //Creates main window
+        SwingUtilities.invokeLater(() -> new MainWindow(inventory));
     }
 }
