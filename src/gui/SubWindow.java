@@ -41,11 +41,12 @@ public abstract class SubWindow extends JDialog {
             private final JTextField tf = new JTextField();
             @Override public Component getEditorComponent() { return tf; }
             @Override public Object getItem() { return tf.getText(); }
-            @Override public void setItem(Object anObject) { /* Disable Swing's autofill */ }
+            @Override public void setItem(Object anObject) {  }
         });
         itemDropdown.putClientProperty("JComboBox.isTableCellEditor", Boolean.TRUE);
 
         JTextField editor = (JTextField) itemDropdown.getEditor().getEditorComponent();
+
         DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
         itemDropdown.setModel(model);
 
@@ -66,19 +67,29 @@ public abstract class SubWindow extends JDialog {
 
 
         final boolean[] rebuilding = { false};
+        final String[] selectedItem = { null};
+
         int delay = 150; // ms delay for typing
         Timer debounceTimer = new Timer(delay, e -> {
             String text = editor.getText().trim().toLowerCase();
+            if (selectedItem[0] != null && !editor.getText().equals(selectedItem[0])) {
+                selectedItem[0] = null;
+            }
 
             rebuilding[0] = true;
             model.removeAllElements();
 
             if (text.isEmpty()) {
                 // Show all items when text is cleared
-                displayList.forEach(model::addElement);
+                for (String display : displayList) {
+                    if (!display.equals(selectedItem[0])) {
+                        model.addElement(display);
+                    }
+                }
             } else {
                 // Filter items based on name or serial
                 for (String display : displayList) {
+                    if (display.equals(selectedItem[0])) continue; // skip current selection
                     String serial = displayToSerialMap.get(display).toLowerCase();
                     if (display.toLowerCase().contains(text) || serial.contains(text)) {
                         model.addElement(display);
@@ -119,6 +130,9 @@ public abstract class SubWindow extends JDialog {
                     editor.setText(selected.toString());
                     editor.setCaretPosition(editor.getText().length());
                     itemDropdown.hidePopup();
+
+                    String selectedDisplay = selected.toString();
+                    selectedItem[0] = selectedDisplay;
                 }
             }
         });

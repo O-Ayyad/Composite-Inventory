@@ -2,6 +2,7 @@ package gui;
 import core.*;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.*;
 
@@ -255,6 +256,11 @@ public class AddWindow extends SubWindow {
         gbc.anchor = GridBagConstraints.CENTER;
         JButton submitButton = new JButton("Add Item");
         panel.add(UIUtils.styleButton(submitButton), gbc);
+        panel.registerKeyboardAction(
+                e -> submitButton.doClick(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
+                JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
+        );
 
         submitButton.addActionListener(e -> {
             String name = nameField.getText().trim();
@@ -406,7 +412,7 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Amount To Add:"), gbc);
         gbc.gridx = 1;
-        JSpinner amountSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100000, 1));
+        JSpinner amountSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 100000, 1));
         panel.add(amountSpinner, gbc);
 
         // Buttons
@@ -422,13 +428,21 @@ public class AddWindow extends SubWindow {
         panel.add(buttonRow, gbc);
 
         //Button Actions
+        panel.registerKeyboardAction(
+                e -> {if((int)amountSpinner.getValue() >0) {
+                    addButton.doClick();
+                    }
+                },
+                KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
+                JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
+        );
         addButton.addActionListener(e -> {
             String selectedItem = (String) itemDropdown.getSelectedItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
             int amount = (int) amountSpinner.getValue();
 
             if (amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Amount must be positive.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Amount must be at least 1.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -440,8 +454,11 @@ public class AddWindow extends SubWindow {
             Item target = inventory.SerialToItemMap.get(selectedSerial);
             inventory.addItemAmount(target,amount);
 
+            String name = target.getName();
+            String plural = name.endsWith("s") ? name + "es" : name + "s";
+
             JOptionPane.showMessageDialog(this,
-                    "Added " + amount + " to " + target.getName() + " (Serial: " + selectedSerial + ")",
+                    "Added " + amount + " "  + (amount == 1 ? name : plural) + " to inventory (Serial: " + selectedSerial + ")",
                     "Success",
                     JOptionPane.INFORMATION_MESSAGE);
             dispose();
