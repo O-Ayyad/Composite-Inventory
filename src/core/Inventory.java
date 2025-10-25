@@ -11,6 +11,11 @@ public class Inventory {
     public Map<Item, Integer> MainInventory = new HashMap<>();
     public Map<String, Item> SerialToItemMap = new HashMap<>();
 
+    //O(1) sku lookup
+    public Map<String, Item> AmazonSKUToItemMap = new HashMap<>();
+    public Map<String, Item> EbaySKUToItemMap = new HashMap<>();
+    public Map<String, Item> WalmartSKUToItemMap = new HashMap<>();
+
     public LogManager logManager;
     public ItemManager itemManager;
 
@@ -60,8 +65,7 @@ public class Inventory {
                 walmartSellerSKU
         );
 
-        MainInventory.put(newItem, amount);
-        SerialToItemMap.put(serialNum, newItem);
+        registerItemMapping(newItem, amount);
 
         if (logManager != null) {
             logManager.createLog(Log.LogType.NewItemCreated,
@@ -135,11 +139,21 @@ public class Inventory {
         Item item = getItemBySerial(serial);
         return (item != null) && hasItem(item);
     }
+    //Only for duplicate checks since this is o(n) no 0(1)
+    public Item getItemByName(String name) {
+        if (name == null || name.isEmpty()) return null;
+
+        for (Item item : MainInventory.keySet()) {
+            if (item.getName().equalsIgnoreCase(name)) {
+                return item;
+            }
+        }
+        return null;
+    }
 
     //Rarely used to remove an item completely from inventory
-    public void RemoveItem(Item item){
-        MainInventory.remove(item);
-        SerialToItemMap.remove(item.getSerialNum());
+    public void removeItem(Item item){
+        unregisterItemMapping(item);
         if (logManager != null) {
             logManager.createLog(
                     Log.LogType.ItemRemoved,
@@ -150,10 +164,94 @@ public class Inventory {
             );
         }
     }
-    public void RemoveItem(String serial) {
+    public void removeItem(String serial) {
         Item item = getItemBySerial(serial);
         if (item != null) {
-            RemoveItem(item);
+            removeItem(item); //Not recursive
         }
+    }
+    //Ensures all 5 hashmaps are always in sync
+    private void registerItemMapping(Item item, int amount){
+        if (item == null) return;
+
+        MainInventory.put(item, amount);
+
+        if (item.getSerialNum() != null && !item.getSerialNum().isEmpty())
+            SerialToItemMap.put(item.getSerialNum(), item);
+
+        if (item.getAmazonSellerSKU() != null && !item.getAmazonSellerSKU().isEmpty())
+            AmazonSKUToItemMap.put(item.getAmazonSellerSKU(), item);
+        if (item.getEbaySellerSKU() != null && !item.getEbaySellerSKU().isEmpty())
+            EbaySKUToItemMap.put(item.getEbaySellerSKU(), item);
+        if (item.getWalmartSellerSKU() != null && !item.getWalmartSellerSKU().isEmpty())
+            WalmartSKUToItemMap.put(item.getWalmartSellerSKU(), item);
+    }
+    private void unregisterItemMapping(Item item) {
+        if (item == null) return;
+
+        MainInventory.remove(item);
+
+        if (item.getSerialNum() != null)
+            SerialToItemMap.remove(item.getSerialNum());
+        if (item.getAmazonSellerSKU() != null)
+            AmazonSKUToItemMap.remove(item.getAmazonSellerSKU());
+        if (item.getEbaySellerSKU() != null)
+            EbaySKUToItemMap.remove(item.getEbaySellerSKU());
+        if (item.getWalmartSellerSKU() != null)
+            WalmartSKUToItemMap.remove(item.getWalmartSellerSKU());
+    }
+    //Amazon SKU
+    public boolean findAmazonSKU(Item item) {
+        if (item == null || item.getAmazonSellerSKU() == null) return false;
+        return AmazonSKUToItemMap.containsKey(item.getAmazonSellerSKU());
+    }
+
+    public boolean findAmazonSKU(String amazonSKU) {
+        if (amazonSKU == null || amazonSKU.isEmpty()) return false;
+        return AmazonSKUToItemMap.containsKey(amazonSKU);
+    }
+
+    // Ebay SKU
+    public boolean findEbaySKU(Item item) {
+        if (item == null || item.getEbaySellerSKU() == null) return false;
+        return EbaySKUToItemMap.containsKey(item.getEbaySellerSKU());
+    }
+    public boolean findEbaySKU(String ebaySKU) {
+        if (ebaySKU == null || ebaySKU.isEmpty()) return false;
+        return EbaySKUToItemMap.containsKey(ebaySKU);
+    }
+
+    //Walmart SKU
+    public boolean findWalmartSKU(Item item) {
+        if (item == null || item.getWalmartSellerSKU() == null) return false;
+        return WalmartSKUToItemMap.containsKey(item.getWalmartSellerSKU());
+    }
+    public boolean findWalmartSKU(String walmartSKU) {
+        if (walmartSKU == null || walmartSKU.isEmpty()) return false;
+        return WalmartSKUToItemMap.containsKey(walmartSKU);
+    }
+
+    //Sku lookups
+    public Item getItemByAmazonSKU(String amazonSKU) {
+        if (amazonSKU == null || amazonSKU.isEmpty()) return null;
+        return AmazonSKUToItemMap.get(amazonSKU);
+    }
+    public Item getItemByEbaySKU(String ebaySKU) {
+        if (ebaySKU == null || ebaySKU.isEmpty()) return null;
+        return EbaySKUToItemMap.get(ebaySKU);
+    }
+
+    public Item getItemByWalmartSKU(String walmartSKU) {
+        if (walmartSKU == null || walmartSKU.isEmpty()) return null;
+        return WalmartSKUToItemMap.get(walmartSKU);
+    }
+
+    public boolean findSerial(Item item) {
+        if (item == null || item.getSerialNum() == null) return false;
+        return SerialToItemMap.containsKey(item.getSerialNum());
+    }
+    public boolean findSerial(String serial) {
+        if (serial == null || serial.isEmpty()) return false;
+        return SerialToItemMap.containsKey(serial);
     }
 }

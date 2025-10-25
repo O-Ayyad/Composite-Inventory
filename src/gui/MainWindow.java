@@ -1,16 +1,13 @@
 package gui;
 import core.*;
 import javax.swing.*;
-import javax.swing.text.html.InlineView;
 import java.awt.*;
+import java.awt.event.*;
 import java.net.URI;
-import java.util.HashMap;
 
 public class MainWindow extends JFrame {
     public final int windowWidth = 1200;
     public final int windowHeight = 800;
-
-    private JFrame openSubWindow = null;
 
     public MainWindow(Inventory inventory) {
         setTitle("Composite Inventory");
@@ -43,7 +40,7 @@ public class MainWindow extends JFrame {
 
         JLabel authorLabel = new JLabel("Authorship Text");
         authorLabel.setFont(new Font("Arial", Font.PLAIN, 14));
-        rightPanel.add(authorLabel);;
+        rightPanel.add(authorLabel);
 
         //Links
         JPanel linksPanel = new JPanel();
@@ -54,7 +51,7 @@ public class MainWindow extends JFrame {
         rightPanel.add(githubLink);
         rightPanel.add(docsLink);
 
-        logoPanel.add(rightPanel, BorderLayout.EAST); //Add authorship and Links
+        logoPanel.add(rightPanel, BorderLayout.EAST); //Add authorship and LinksF
 
         add(logoPanel, BorderLayout.NORTH);
 
@@ -62,20 +59,60 @@ public class MainWindow extends JFrame {
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new GridLayout(1, 4, 0, 0)); // 1 row, 4 columns
 
-        JButton addButton = createIconButton("Add Items", "icons/windowIcons/plus.png");
-        JButton removeButton = createIconButton("Remove Items", "icons/windowIcons/remove.png");
-        JButton ViewButton = createIconButton("View Inventory", "icons/windowIcons/view.png");
-        JButton linkButton = createIconButton("Link Account", "icons/windowIcons/link.png");
+        JButton addButton = createIconButton("Add or Create Items", "icons/windowIcons/plus.png");
+        JButton removeButton = createIconButton("Sell or Remove Items", "icons/windowIcons/remove.png");
+        JButton viewButton = createIconButton("View and Edit Inventory", "icons/windowIcons/view.png");
+        JButton linkButton = createIconButton("Link Accounts", "icons/windowIcons/link.png");
+
+        //Tool tip to tell user about shortcuts
+        addButton.setToolTipText("Add or Create Items (Shift+D)");
+        removeButton.setToolTipText("Sell or Remove Items (Shift+F)");
+        viewButton.setToolTipText("View and Edit Inventory (Shift+G)");
+        linkButton.setToolTipText("Link Accounts (Shift+H)");
 
         // Add action listeners
-        addButton.addActionListener(e -> new AddWindow(this,inventory));
-        removeButton.addActionListener(e -> new RemoveWindow(this,inventory));
-        ViewButton.addActionListener(e -> new ViewWindow(this,inventory));
-        linkButton.addActionListener(e -> new LinkWindow(this,inventory));
+
+        //Shift + D,FG,H opens the windows form left to right
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.isShiftDown()) {
+                    switch (e.getKeyCode()) {
+                        case KeyEvent.VK_D:
+                            new AddWindow(MainWindow.this, inventory);
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_F:
+                            new RemoveWindow(MainWindow.this, inventory);
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_G:
+                            new ViewWindow(MainWindow.this, inventory);
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_H:
+                            new LinkWindow(MainWindow.this, inventory);
+                            e.consume();
+                            break;
+                    }
+                }
+            }
+        });
+        setFocusable(true);
+        requestFocusInWindow();
+
+        addButton.addActionListener(e -> {new AddWindow(this,inventory);
+                requestFocusInWindow();});
+        removeButton.addActionListener(e -> {new RemoveWindow(this,inventory);
+                requestFocusInWindow();});
+        viewButton.addActionListener(e -> {new ViewWindow(this,inventory);
+                requestFocusInWindow();});
+        linkButton.addActionListener(e -> {new LinkWindow(this,inventory);
+                requestFocusInWindow();});
 
         buttonPanel.add(addButton);
         buttonPanel.add(removeButton);
-        buttonPanel.add(ViewButton);
+        buttonPanel.add(viewButton);
         buttonPanel.add(linkButton);
 
         // Combine
@@ -90,7 +127,7 @@ public class MainWindow extends JFrame {
     // Window Buttons
     private JButton createIconButton(String text, String iconPath) {
         java.net.URL imgURL = getClass().getClassLoader().getResource(iconPath);
-        ImageIcon icon = null;
+        ImageIcon icon;
         if (imgURL == null) {
             System.err.println("Icon not found: " + iconPath);
             icon = new ImageIcon(iconPath);
@@ -118,9 +155,10 @@ public class MainWindow extends JFrame {
         button.add(iconLabel);
 
         JLabel textLabel = new JLabel(text);
-        textLabel.setBounds(0, 0, buttonWidth, buttonHeight);
         textLabel.setHorizontalAlignment(SwingConstants.CENTER);
         textLabel.setVerticalAlignment(SwingConstants.CENTER);
+        int tLabelWidth = textLabel.getPreferredSize().width;
+        textLabel.setBounds((buttonWidth/16)+tLabelWidth/6, 0, buttonWidth, buttonHeight);
         button.add(textLabel);
 
 
@@ -128,7 +166,7 @@ public class MainWindow extends JFrame {
     }
     //Link buttons
     private JButton createLinkButton(String text, String url, String iconPath) {
-        JButton link = new JButton(text);
+        JButton link;
 
         if (!iconPath.isEmpty()) {
             // Load and scale icon

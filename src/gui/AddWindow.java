@@ -5,7 +5,7 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.*;
-
+import java.awt.event.*;
 
 
 public class AddWindow extends SubWindow {
@@ -36,7 +36,7 @@ public class AddWindow extends SubWindow {
 
         // Header
         JPanel top = new JPanel();
-        JTextArea info = new JTextArea("Add New Item or Add to Existing Item");
+        JTextArea info = new JTextArea("Create new Item");
         info.setEditable(false);
         info.setOpaque(false);
         info.setFont(new Font("Arial", Font.BOLD, 14));
@@ -60,6 +60,7 @@ public class AddWindow extends SubWindow {
         JTextField nameField = new JTextField(20);
         panel.add(nameField, gbc);
 
+
         //Item Serial
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Item Serial:"), gbc);
@@ -71,7 +72,10 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Quantity:"), gbc);
         gbc.gridx = 1;
-        JSpinner quantitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100000, 1));
+        JSpinner quantitySpinner = new JSpinner(new SpinnerNumberModel(0, 0, 100000, 1));
+        JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) quantitySpinner.getEditor();
+        editor.getTextField().setHorizontalAlignment(JTextField.LEFT);
+
         panel.add(quantitySpinner, gbc);
 
         //Low stock trigger
@@ -254,11 +258,16 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 0; gbc.gridy++;
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
-        JButton submitButton = new JButton("Add Item");
+        JButton submitButton = new JButton("Create Item");
         panel.add(UIUtils.styleButton(submitButton), gbc);
         panel.registerKeyboardAction(
                 e -> submitButton.doClick(),
                 KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
+                JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
+        );
+        panel.registerKeyboardAction(
+                e -> dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
                 JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
         );
 
@@ -318,8 +327,85 @@ public class AddWindow extends SubWindow {
                 JOptionPane.showMessageDialog(this, "Name and Serial are required.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            if(inventory.hasItem(serial)){
-                JOptionPane.showMessageDialog(this, "Item of serial: " + serial + " already exists", "Error", JOptionPane.ERROR_MESSAGE);
+
+            //Duplicate SKU, name, and serial check
+            Item duplicateSerial = inventory.getItemBySerial(serial);
+            if (duplicateSerial != null) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Item with Serial \"" + serial + "\" already exists.\n\n" +
+                                "Existing Item Details:\n\n" +
+                                "Name: " + duplicateSerial.getName() + "\n" +
+                                "Serial: " + duplicateSerial.getSerialNum(),
+                        "Duplicate Serial",
+                        JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
+            Item duplicateNameItem = inventory.getItemByName(name);
+            if (duplicateNameItem != null) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Warning: Another item already uses the name \"" + name + "\".\n\n" +
+                                "Existing Item Details:\n\n" +
+                                "Name: " + duplicateNameItem.getName() + "\n" +
+                                "Serial: " + duplicateNameItem.getSerialNum() + "\n" +
+                                "Amazon SKU: " + (duplicateNameItem.getAmazonSellerSKU() != null ? duplicateNameItem.getAmazonSellerSKU() : "N/A") + "\n" +
+                                "eBay SKU: " + (duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A") + "\n" +
+                                "Walmart SKU: " + (duplicateNameItem.getWalmartSellerSKU() != null ? duplicateNameItem.getWalmartSellerSKU() : "N/A") + "\n\n" +
+                                "You can still proceed, but it’s recommended to use a unique name.",
+                        "Duplicate Name Warning",
+                        JOptionPane.WARNING_MESSAGE
+                );
+                //No return just warn user
+            }
+
+            // Amazon SKU
+            Item duplicateAmazon = inventory.getItemByAmazonSKU(skuAmazonText);
+            if (duplicateAmazon != null) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Item with Amazon SKU \"" + skuAmazonText + "\" already exists.\n\n" +
+                                "Existing Item Details:\n\n" +
+                                "Name: " + duplicateAmazon.getName() + "\n" +
+                                "Serial: " + duplicateAmazon.getSerialNum() + "\n" +
+                                "Amazon SKU: " + duplicateAmazon.getAmazonSellerSKU(),
+                        "Duplicate Amazon SKU",
+                        JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
+            // eBay SKU
+            Item duplicateEbay = inventory.getItemByEbaySKU(skuEbayText);
+            if (duplicateEbay != null) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Item with eBay SKU \"" + skuEbayText + "\" already exists.\n\n" +
+                                "Existing Item Details:\n\n" +
+                                "Name: " + duplicateEbay.getName() + "\n" +
+                                "Serial: " + duplicateEbay.getSerialNum() + "\n" +
+                                "eBay SKU: " + duplicateEbay.getEbaySellerSKU(),
+                        "Duplicate eBay SKU",
+                        JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
+                // Walmart SKU
+            Item duplicateWalmart = inventory.getItemByWalmartSKU(skuWalmartText);
+            if (duplicateWalmart != null) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Item with Walmart SKU \"" + skuWalmartText + "\" already exists.\n\n" +
+                                "Existing Item Details:\n\n" +
+                                "Name: " + duplicateWalmart.getName() + "\n" +
+                                "Serial: " + duplicateWalmart.getSerialNum() + "\n" +
+                                "Walmart SKU: " + duplicateWalmart.getWalmartSellerSKU(),
+                        "Duplicate Walmart SKU",
+                        JOptionPane.ERROR_MESSAGE
+                );
                 return;
             }
 
@@ -379,6 +465,12 @@ public class AddWindow extends SubWindow {
         //Scroll and Add
         JScrollPane scrollPane = new JScrollPane(panel);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+        //Select the name field
+        SwingUtilities.invokeLater(() -> {
+            nameField.requestFocusInWindow();
+            nameField.selectAll();
+        });
         return mainPanel;
     }
     public JPanel addToExistingItemPanel() {
@@ -413,6 +505,9 @@ public class AddWindow extends SubWindow {
         panel.add(new JLabel("Amount To Add:"), gbc);
         gbc.gridx = 1;
         JSpinner amountSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 100000, 1));
+        JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) amountSpinner.getEditor();
+        editor.getTextField().setHorizontalAlignment(JTextField.LEFT);
+
         panel.add(amountSpinner, gbc);
 
         // Buttons
@@ -420,14 +515,16 @@ public class AddWindow extends SubWindow {
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
 
-        JButton addButton = new JButton("Add to Item");
-        JButton newItemButton = new JButton("Add New Item");
+        JButton addButton = new JButton("Add to item");
+        JButton newItemButton = new JButton("Create brand new Item");
         JPanel buttonRow = new JPanel();
         buttonRow.add(UIUtils.styleButton(addButton));
         buttonRow.add(UIUtils.styleButton(newItemButton));
         panel.add(buttonRow, gbc);
 
         //Button Actions
+
+        //If valid input then allow "enter" to add item
         panel.registerKeyboardAction(
                 e -> {if((int)amountSpinner.getValue() >0) {
                     addButton.doClick();
@@ -436,24 +533,40 @@ public class AddWindow extends SubWindow {
                 KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
                 JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
         );
+        panel.registerKeyboardAction(
+                e -> dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
+        );
+
+        amountSpinner.addChangeListener(e -> updateAddButtonText(addButton,itemDropdown,displayToSerialMap,amountSpinner));
+
+
         addButton.addActionListener(e -> {
-            String selectedItem = (String) itemDropdown.getSelectedItem();
+
+            String selectedItem = (String) itemDropdown.getEditor().getItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
             int amount = (int) amountSpinner.getValue();
+            Item target = inventory.SerialToItemMap.get(selectedSerial);
+
+            updateAddButtonText(addButton,itemDropdown,displayToSerialMap,amountSpinner);
+
 
             if (amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Amount must be at least 1.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Amount must be at least 1.", "Invalid amount", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
             if (selectedSerial == null || !inventory.SerialToItemMap.containsKey(selectedSerial)) {
-                JOptionPane.showMessageDialog(this, "Please select a valid item.", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Please select a valid item.", "Invalid Item", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (target == null){
+                JOptionPane.showMessageDialog(this, "Error: Item could not be accessed.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            Item target = inventory.SerialToItemMap.get(selectedSerial);
             inventory.addItemAmount(target,amount);
-
             String name = target.getName();
             String plural = name.endsWith("s") ? name + "es" : name + "s";
 
@@ -474,5 +587,24 @@ public class AddWindow extends SubWindow {
         });
 
         return panel;
+    }
+    String UpdateAddText( Item target, int amount){
+        String addButtonText;
+        if (target == null) {
+            addButtonText = "Add " + amount + " to this item";
+        } else {
+            String name = target.getName();
+            String plural = name.endsWith("s") ? name + "es" : name + "s";
+            addButtonText = (amount > 1? "Add " + amount + " " + plural : "Add " + amount + " "  + name);
+        }
+        return addButtonText;
+    }
+    void updateAddButtonText(JButton addButton,JComboBox<String> itemDropdown, Map<String,String> displayToSerialMap, JSpinner amountSpinner){
+        String currentItem = (String) itemDropdown.getEditor().getItem();
+        String currentSerial = displayToSerialMap.get(currentItem);
+        int currentAmount = (int) amountSpinner.getValue();
+        Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
+
+        addButton.setText(UpdateAddText(currentTarget, currentAmount));
     }
 }

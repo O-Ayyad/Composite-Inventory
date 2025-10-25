@@ -4,7 +4,6 @@ import core.Inventory;
 import core.Item;
 
 import java.awt.*;
-import java.awt.event.ItemEvent;
 import java.util.*;
 import javax.swing.*;
 import javax.swing.Timer;
@@ -19,10 +18,10 @@ public abstract class SubWindow extends JDialog {
     public SubWindow(JFrame mainWindow, String name, Inventory inventory) {
         super(mainWindow, name, true);
         this.inventory = inventory;
-        setLocationRelativeTo(mainWindow);
         setSize(subWindowWidth, subWindowHeight);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setLocationRelativeTo(mainWindow);
+
+        Point mouseLocation = MouseInfo.getPointerInfo().getLocation();
+        setLocation(mouseLocation.x - 10, mouseLocation.y -30);
     }
     public abstract void setupUI();
 
@@ -143,7 +142,10 @@ public abstract class SubWindow extends JDialog {
                 if (model.getSize() > 0) itemDropdown.showPopup();
             }
         });
-
+        SwingUtilities.invokeLater(() -> {
+            editor.requestFocusInWindow();
+            editor.selectAll();
+        });
         return new DropdownResult(itemDropdown, displayToSerialMap);
     }
 }
