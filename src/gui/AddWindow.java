@@ -142,98 +142,71 @@ public class AddWindow extends SubWindow {
         tagPanel.setBorder(BorderFactory.createLineBorder(Color.GRAY));
         tagPanel.setPreferredSize(new Dimension(200, 80));
 
-        JTextField searchField = new JTextField(15);
-        JPopupMenu suggestionPopup = new JPopupMenu();
-
-        DefaultListModel<String> suggestionModel = new DefaultListModel<>();
-        for (String name : inventory.SerialToItemMap.keySet()) suggestionModel.addElement(name);
-
-        JList<String> suggestionList = new JList<>(suggestionModel);
-        suggestionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        suggestionPopup.add(new JScrollPane(suggestionList));
+        DropdownResult DDRObj = getDropDownMenuAllItems();
+        JComboBox<String> searchField = DDRObj.menu;
+        Map<String, String> componentSerialMap = DDRObj.serialMap;
 
         Set<String> selectedTags = new LinkedHashSet<>();
 
-        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            private void updateSuggestions() {
-                String text = searchField.getText().trim().toLowerCase();
-                suggestionModel.clear();
-                for (String name : inventory.SerialToItemMap.keySet()) {
-                    if (name.toLowerCase().contains(text) && !selectedTags.contains(name)) {
-                        suggestionModel.addElement(name);
-                    }
-                }
-                if (!suggestionModel.isEmpty()) {
-                    suggestionPopup.show(searchField, 0, searchField.getHeight());
-                } else {
-                    suggestionPopup.setVisible(false);
-                }
-            }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { updateSuggestions(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { updateSuggestions(); }
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { updateSuggestions(); }
-        });
+        searchField.addActionListener(e -> {
+            String selectedDisplay = (String) searchField.getEditor().getItem();
+            String selectedSerial = componentSerialMap.get(selectedDisplay);
 
-        suggestionList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                String selected = suggestionList.getSelectedValue();
-                if (selected != null && !selectedTags.contains(selected)) {
-                    selectedTags.add(selected);
-                    composedComponents.put(selected, 1);
+            if (selectedSerial != null && !selectedTags.contains(selectedSerial)) {
+                Item selectedItem = inventory.SerialToItemMap.get(selectedSerial);
+                if (selectedItem == null) return;
 
-                    JPanel tag = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
-                    tag.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+                selectedTags.add(selectedSerial);
+                composedComponents.put(selectedSerial, 1);
+                searchField.getEditor().setItem("");
 
-                    JLabel nameLabel = new JLabel(selected + " x1");
-                    JButton editBtn = new JButton("Edit");
-                    editBtn.setMargin(new Insets(0, 2, 0, 2));
-                    JButton removeBtn = new JButton("x");
-                    removeBtn.setMargin(new Insets(0, 2, 0, 2));
+                JPanel tag = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
+                tag.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
 
-                    // Edit quantity
-                    editBtn.addActionListener(ev -> {
-                        String input = JOptionPane.showInputDialog(
-                                tagPanel,
-                                "Enter quantity for " + selected + ":",
-                                composedComponents.get(selected)
-                        );
-                        if (input != null && !input.trim().isEmpty()) {
-                            try {
-                                int newQty = Integer.parseInt(input.trim());
-                                if (newQty <= 0) throw new NumberFormatException();
-                                composedComponents.put(selected, newQty);
-                                nameLabel.setText(selected + " ×" + newQty);
-                                tagPanel.revalidate();
-                                tagPanel.repaint();
-                            } catch (NumberFormatException ex) {
-                                JOptionPane.showMessageDialog(tagPanel,
-                                        "Please enter a valid positive number.",
-                                        "Invalid Quantity",
-                                        JOptionPane.ERROR_MESSAGE);
-                            }
+                JLabel nameLabel = new JLabel(selectedItem.getName() + " ×1");
+                JButton editBtn = new JButton("Edit");
+                editBtn.setMargin(new Insets(0, 2, 0, 2));
+                JButton removeBtn = new JButton("×");
+                removeBtn.setMargin(new Insets(0, 2, 0, 2));
+
+                editBtn.addActionListener(ev -> {
+                    String input = JOptionPane.showInputDialog(
+                            tagPanel,
+                            "Enter quantity for " + selectedItem.getName() + ":",
+                            composedComponents.get(selectedSerial)
+                    );
+                    if (input != null && !input.trim().isEmpty()) {
+                        try {
+                            int newQty = Integer.parseInt(input.trim());
+                            if (newQty <= 0) throw new NumberFormatException();
+                            composedComponents.put(selectedSerial, newQty);
+                            nameLabel.setText(selectedItem.getName() + " ×" + newQty);
+                            tagPanel.revalidate();
+                            tagPanel.repaint();
+                        } catch (NumberFormatException ex) {
+                            JOptionPane.showMessageDialog(tagPanel,
+                                    "Please enter a valid positive number.",
+                                    "Invalid Quantity",
+                                    JOptionPane.ERROR_MESSAGE);
                         }
-                    });
-
-                    //Remove
-                    removeBtn.addActionListener(ev -> {
-                        composedComponents.remove(selected);
-                        tagPanel.remove(tag);
-                        tagPanel.revalidate();
-                        tagPanel.repaint();
-                    });
-
-                    tag.add(nameLabel);
-                    tag.add(editBtn);
-                    tag.add(removeBtn);
-
-                    tagPanel.add(tag);
+                    }
+                });
+                removeBtn.addActionListener(ev -> {
+                    composedComponents.remove(selectedSerial);
+                    selectedTags.remove(selectedSerial);
+                    tagPanel.remove(tag);
                     tagPanel.revalidate();
                     tagPanel.repaint();
-                }
+                });
+                tag.add(nameLabel);
+                tag.add(editBtn);
+                tag.add(removeBtn);
+                tagPanel.add(tag);
+                tagPanel.revalidate();
+                tagPanel.repaint();
 
-                suggestionPopup.setVisible(false);
-                searchField.setText("");
+
+                searchField.getEditor().setItem("");
             }
         });
 
@@ -245,13 +218,25 @@ public class AddWindow extends SubWindow {
         composedLabel.setVisible(false);
         composedContainer.setVisible(false);
 
+        SwingUtilities.invokeLater(() -> {
+            final int originalWidth = getWidth();
+            final int originalHeight = getHeight();
 
-        compositeCheck.addActionListener(e -> {
-            boolean visible = compositeCheck.isSelected();
-            composedLabel.setVisible(visible);
-            composedContainer.setVisible(visible);
-            panel.revalidate();
-            panel.repaint();
+            compositeCheck.addActionListener(e -> {
+                boolean visible = compositeCheck.isSelected();
+                composedLabel.setVisible(visible);
+                composedContainer.setVisible(visible);
+
+                pack();
+                if (visible) {
+                    setSize(originalWidth * 4 / 3, originalHeight * 4 / 3);
+                } else {
+                    setSize(originalWidth, originalHeight);
+                }
+
+                revalidate();
+                repaint();
+            });
         });
 
         //Submit Button
@@ -426,11 +411,16 @@ public class AddWindow extends SubWindow {
 
             StringBuilder composedText = new StringBuilder();
             for (Map.Entry<String, Integer> entry : composedComponents.entrySet()) {
-                composedText.append(entry.getKey()).append(" x").append(entry.getValue()).append(", ");
+                String serialKey = entry.getKey();
+                int qty = entry.getValue();
+                Item component = inventory.SerialToItemMap.get(serialKey);
+                if (component != null) {
+                    composedText.append("\n  • ")
+                            .append(component.getName())
+                            .append(" x")
+                            .append(qty);
+                }
             }
-            if (composedText.length() > 2)
-                composedText.setLength(composedText.length() - 2); //Remove last comma
-
             String summary = "Item Name: " + name +
                     "\nSerial: " + serial +
                     "\nQuantity: " + quantity +
@@ -438,8 +428,7 @@ public class AddWindow extends SubWindow {
                     "\nAmazon SKU: " + skuAmazonText +
                     "\nEbay SKU: " + skuEbayText +
                     "\nWalmart SKU: " + skuWalmartText +
-                    "\nIs Composite: " + (isComposite ? "Yes" : "No") +
-                    "\nComposed Of: " + composedText;
+                    "\nIs Composite: " + (isComposite ? "Yes \nComposed Of:" + composedText : "No");
 
             if (lowStockTrigger == null) {
                 lowStockTrigger = 0;

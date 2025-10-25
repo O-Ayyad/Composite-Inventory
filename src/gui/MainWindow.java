@@ -53,7 +53,6 @@ public class MainWindow extends JFrame {
 
         logoPanel.add(rightPanel, BorderLayout.EAST); //Add authorship and LinksF
 
-        add(logoPanel, BorderLayout.NORTH);
 
         // Button Panel
         JPanel buttonPanel = new JPanel();
@@ -73,32 +72,26 @@ public class MainWindow extends JFrame {
         // Add action listeners
 
         //Shift + D,FG,H opens the windows form left to right
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.isShiftDown()) {
-                    switch (e.getKeyCode()) {
-                        case KeyEvent.VK_D:
-                            new AddWindow(MainWindow.this, inventory);
-                            e.consume();
-                            break;
-                        case KeyEvent.VK_F:
-                            new RemoveWindow(MainWindow.this, inventory);
-                            e.consume();
-                            break;
-                        case KeyEvent.VK_G:
-                            new ViewWindow(MainWindow.this, inventory);
-                            e.consume();
-                            break;
-                        case KeyEvent.VK_H:
-                            new LinkWindow(MainWindow.this, inventory);
-                            e.consume();
-                            break;
-                    }
-                }
-            }
+        InputMap im = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap am = getRootPane().getActionMap();
+
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.SHIFT_DOWN_MASK), "openAdd");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.SHIFT_DOWN_MASK), "openRemove");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.SHIFT_DOWN_MASK), "openView");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, InputEvent.SHIFT_DOWN_MASK), "openLink");
+
+        am.put("openAdd", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { new AddWindow(MainWindow.this, inventory); }
         });
-        setFocusable(true);
+        am.put("openRemove", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { new RemoveWindow(MainWindow.this, inventory); }
+        });
+        am.put("openView", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { new ViewWindow(MainWindow.this, inventory); }
+        });
+        am.put("openLink", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { new LinkWindow(MainWindow.this, inventory); }
+        });
         requestFocusInWindow();
 
         addButton.addActionListener(e -> {new AddWindow(this,inventory);
@@ -189,6 +182,10 @@ public class MainWindow extends JFrame {
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+        });
+        link.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { link.setForeground(new Color(0, 102, 204)); }
+            @Override public void mouseExited(MouseEvent e) { link.setForeground(Color.BLUE); }
         });
 
         return link;

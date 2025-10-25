@@ -3,6 +3,7 @@ import core.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
 import java.util.Map;
 
 public class RemoveWindow extends SubWindow {
@@ -102,48 +103,59 @@ public class RemoveWindow extends SubWindow {
             String selectedItem = (String) itemDropdown.getEditor().getItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
             int amount = Math.abs((int)amountSpinner.getValue());
-            Item target = inventory.SerialToItemMap.get(selectedSerial);
+
 
             updateReduceButtonText(reduceButton,itemDropdown,displayToSerialMap,amountSpinner);
 
 
             if (amount == 0) {
-                JOptionPane.showMessageDialog(this, "Amount can not be 0.", "Invalid amount", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Amount cannot be 0.", "Invalid amount", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            if (inventory.getQuantity(target) == 0){
-                JOptionPane.showMessageDialog(this, "Item stock is already 0", "Error", JOptionPane.ERROR_MESSAGE);
-                itemDropdown.setSelectedItem("");
-                return;
-            }
-            if(amount > inventory.getQuantity(target)){
-                JOptionPane.showMessageDialog(this,
-                        "Cannot reduce stock by " + amount + ".\n" +
-                                "Current stock: " + inventory.getQuantity(target) + "\n" +
-                                "Maximum you can reduce: " + inventory.getQuantity(target),
-                        "Insufficient Stock",
-                        JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+
             if (selectedSerial == null || !inventory.SerialToItemMap.containsKey(selectedSerial)) {
                 JOptionPane.showMessageDialog(this, "Please select a valid item.", "Invalid item", JOptionPane.ERROR_MESSAGE);
                 return;
             }
+
+            Item target = inventory.SerialToItemMap.get(selectedSerial);
             if (target == null){
                 JOptionPane.showMessageDialog(this, "Error: Item could not be accessed.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            inventory.decreaseItemAmount(target,amount);
-            String name = target.getName();
+            int currentStock = inventory.getQuantity(target);
+            if (currentStock == 0){
+                JOptionPane.showMessageDialog(this, "Item stock is already 0", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-            JOptionPane.showMessageDialog(this,
-                    String.format("Reduced stock of %s by %d (Serial: %s)\nNew Stock: %d",
-                            name, amount, selectedSerial, inventory.getQuantity(target)),
-                    "Success",
-                    JOptionPane.INFORMATION_MESSAGE);
-            dispose();
+            if(amount > currentStock){
+                JOptionPane.showMessageDialog(this,
+                        String.format("Cannot reduce stock by %d.\nCurrent stock: %d\nMaximum you can reduce: %d",
+                                amount, currentStock, currentStock),
+                        "Insufficient Stock",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            //Success
+            try {
+                inventory.decreaseItemAmount(target, amount);
+                JOptionPane.showMessageDialog(this,
+                        String.format("Reduced stock of %s by %d (Serial: %s)\nNew Stock: %d",
+                                target.getName(), amount, selectedSerial, inventory.getQuantity(target)),
+                        "Success",
+                        JOptionPane.INFORMATION_MESSAGE);
+                dispose();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this,
+                        "Failed to reduce item amount: " + ex.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
         });
+
         removeItemButton.addActionListener(e -> {
             // Replace current content with remove item panel
             getContentPane().removeAll();
@@ -245,40 +257,66 @@ public class RemoveWindow extends SubWindow {
                         JOptionPane.ERROR_MESSAGE);
                 return;
             }
+            if (!target.getComposesInto().isEmpty()) {
+                StringBuilder composeList = new StringBuilder();
+                for(Item i : target.getComposesInto()){
+                    composeList.append(i.getName()).append("\n");
+                }
+                String composeListStr = composeList.toString();
+                int confirm = JOptionPane.showConfirmDialog(
+                        this,
+                        "Warning: This item is used as a component in other composite items.\n" +
+                                "Removing it may affect those compositions of the following item(s):" + composeListStr +
+                                "\n\nProceed anyway?",
+                        "Composition Warning",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE
+                );
+                if (confirm != JOptionPane.YES_OPTION) return;
+            }
             //Confirmation
             String serial = target.getSerialNum();
 
             String confirm = JOptionPane.showInputDialog(
                     this,
-                    "Please retype the serial number to confirm:\n(" + serial + ")",
-                    "Confirm Serial",
+                    "Type the serial number to permanently delete:\n" + serial +
+                            "\n\nThis action cannot be undone! All data about this item will be lost",
+                    "Confirm Deletion",
                     JOptionPane.WARNING_MESSAGE
             );
-
-            if (confirm == null) return;
             if (!confirm.equals(serial)) {
                 JOptionPane.showMessageDialog(this, "Serial numbers do not match. Item not removed.",
                         "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            int choice = JOptionPane.showConfirmDialog(
+            int finalConfirm = JOptionPane.showConfirmDialog(
                     this,
-                    "Are you sure you want to remove \"" + target.getName() + "\" (Serial: " + serial + ")?\n" +
-                            "This action cannot be undone! All info about this item will be lost!",
-                    "Confirm Removal",
+                    "Delete \"" + target.getName() + "\" (Serial: " + serial + ")?\n\n" +
+                            "This CANNOT be undone!",
+                    "Final Confirmation",
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE
             );
-            if (choice != JOptionPane.YES_OPTION) return; //User cancelled
+            if (finalConfirm != JOptionPane.YES_OPTION) return;
+
             //Success
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Successfully removed " + target.getName() + "(Serial: " + serial + ")",
-                    "Item Removed",
-                    JOptionPane.INFORMATION_MESSAGE
-            );
-            inventory.removeItem(target);
-            dispose();
+            try {
+                inventory.removeItem(target);
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Successfully removed " + target.getName() + " (Serial: " + serial + ")",
+                        "Item Removed",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+                dispose();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Failed to remove item: " + ex.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
         });
 
         JScrollPane scrollPane = new JScrollPane(panel);
@@ -291,9 +329,7 @@ public class RemoveWindow extends SubWindow {
         if (target == null) {
             reduceButtonText = "Remove " + amount + " of this item";
         } else {
-            String name = target.getName();
-            String plural = name.endsWith("s") ? name + "es" : name + "s";
-            reduceButtonText = (amount > 1? "Remove " + amount + " " + plural : "Remove " + amount + " "  + name);
+            reduceButtonText = formatItemCount(amount, target.getName(), "Remove");
         }
         return reduceButtonText;
     }

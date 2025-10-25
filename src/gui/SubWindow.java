@@ -10,21 +10,34 @@ import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
 
 public abstract class SubWindow extends JDialog {
-    public final int subWindowWidth = 1200;
-    public final int subWindowHeight = 1000;
     public final String notFoundPNGPath = "icons/itemIcons/imageNotFound.png";
     Inventory inventory;
 
     public SubWindow(JFrame mainWindow, String name, Inventory inventory) {
         super(mainWindow, name, true);
         this.inventory = inventory;
-        setSize(subWindowWidth, subWindowHeight);
-
-        Point mouseLocation = MouseInfo.getPointerInfo().getLocation();
-        setLocation(mouseLocation.x - 10, mouseLocation.y -30);
+        setLocationRelativeTo(mainWindow);
     }
     public abstract void setupUI();
 
+    protected String formatItemCount(int count, String itemName, String action) {
+        return String.format("%s %d × %s", action, count, itemName);
+    }
+
+    protected ImageIcon getItemIcon(Item item, int width, int height) {
+        ImageIcon itemIcon = item.getIcon(width,height);
+        if(itemIcon != null){
+            return itemIcon;
+        }
+        String iconPath = item.getIconPath();
+        if (iconPath == null || iconPath.isEmpty()) {
+            iconPath = notFoundPNGPath;
+        }
+
+        ImageIcon icon = new ImageIcon(iconPath);
+        Image scaled = icon.getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH);
+        return new ImageIcon(scaled);
+    }
 
     //Creates a searchable dropdown menu of all items
     public DropdownResult getDropDownMenuAllItems() {
@@ -146,6 +159,6 @@ public abstract class SubWindow extends JDialog {
             editor.requestFocusInWindow();
             editor.selectAll();
         });
-        return new DropdownResult(itemDropdown, displayToSerialMap);
+        return new DropdownResult(itemDropdown, displayToSerialMap,debounceTimer);
     }
 }
