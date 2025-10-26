@@ -1,4 +1,5 @@
 package core;
+import javax.swing.*;
 import java.time.LocalDateTime;
 
 public class Log {
@@ -14,6 +15,7 @@ public class Log {
         LowStock, //Item quantity lower than stock floor trigger
         ItemOutOfStock, //If an item has lowStockTrigger and the amount in inventory is 0 then this log is created
         ItemSoldAndOutOfStock, //If sold on amazon/ebay and out of stock. Only critical Log
+        ItemSoldAndNotListedOnPlatforms, //If an item is sold on amazon and ebay but not linked then log that
         NewItemCreated,
         ItemRemoved,
         ItemBrokenDown,
@@ -32,8 +34,8 @@ public class Log {
     //For Alert Logs
     private boolean alert;
     private boolean suppressed; //For warning and critical logs, user is aware but doesn't care it could be suppressed
-    private boolean solved; // //For warning and critical logs, user has solved the issue in another way.
-    //For example if an item is sold and out of stock and the user cancels the order then it is marked as solved.
+    private boolean solved; // //For warning and critical logs, user has resolved the issue in another way.
+    //For example if an item is sold and out of stock and the user cancels the order then it is marked as resolved.
     //This cannot be done for Low/OutOfStock logs. These must be removed in the item themselves.
     //Log will no longer exist if it is solved.
     //Log will automatically be set as solved if the condition that created it is no longer true.
@@ -79,7 +81,7 @@ public class Log {
     private Severity  determineSeverity(LogType type) {
         return switch (type) {
             case ItemSold, ItemUpdated, ItemRemoved, NewItemCreated, ItemAdded, ItemBrokenDown, ItemComboCreated -> Severity.Normal;
-            case LowStock, ItemOutOfStock -> Severity.Warning;
+            case LowStock, ItemOutOfStock,ItemSoldAndNotListedOnPlatforms -> Severity.Warning;
             case ItemSoldAndOutOfStock -> Severity.Critical;
         };
     }
@@ -110,7 +112,7 @@ public class Log {
     //A primitive item packet that only holds the serial number
     public static class SerialAndAmount{
         private final String serialNumber;
-        private int quantity;
+        private final int quantity;
 
         public SerialAndAmount(String serialNumber, int quantity) {
             this.serialNumber = serialNumber;
@@ -128,7 +130,7 @@ public class Log {
             return new SerialAndAmount(null,0);
         }
         return switch (this.type) {
-            case ItemSold -> new SerialAndAmount(itemSerial, amount);
+            case ItemSold -> new SerialAndAmount(itemSerial, +amount);
             case ItemAdded -> new SerialAndAmount(itemSerial, -amount);
             default -> new SerialAndAmount(null, 0);
         };
@@ -139,10 +141,14 @@ public class Log {
         }
 
         return switch (l.type) {
-            case ItemSold -> new SerialAndAmount(l.itemSerial, l.amount);
+            case ItemSold -> new SerialAndAmount(l.itemSerial, +l.amount);
             case ItemAdded -> new SerialAndAmount(l.itemSerial, -l.amount);
             default -> new SerialAndAmount(null, 0);
         };
+    }
+    //Used to manage logs in a separate window
+    public JPanel openLogWindow(){
+        return null;
     }
 }
 

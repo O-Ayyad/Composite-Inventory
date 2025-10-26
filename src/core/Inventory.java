@@ -67,18 +67,12 @@ public class Inventory {
 
         registerItemMapping(newItem, amount);
 
+        String quantityMessage = amount > 0 ? "Quantity : "+ amount : "";
         if (logManager != null) {
             logManager.createLog(Log.LogType.NewItemCreated,
                       0,
-                    "Created new item: " + name + " (Serial: " + serialNum + ")",
+                    "Created new item: " + name + " (Serial: " + serialNum + ")" +quantityMessage,
                     serialNum);
-            logManager.createLog(Log.LogType.ItemAdded,
-                            amount,
-                    "Added " + amount + " units of item '" + name +
-                            "' (Serial: " + serialNum + "). " +
-                            "New quantity: " + MainInventory.get(newItem),
-                            serialNum
-            );
         }
     }
     //Edit the amount of an item
@@ -170,6 +164,8 @@ public class Inventory {
             removeItem(item); //Not recursive
         }
     }
+
+
     //Ensures all 5 hashmaps are always in sync
     private void registerItemMapping(Item item, int amount){
         if (item == null) return;

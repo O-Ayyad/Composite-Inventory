@@ -1,15 +1,48 @@
 package gui;
 import core.*;
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedList;
 
 public class MainWindow extends JFrame {
+
     public final int windowWidth = 1200;
     public final int windowHeight = 800;
 
-    public MainWindow(Inventory inventory) {
+    private static final double COL_LOG_PCT = 6.0;
+    private static final double COL_TYPE_PCT = 15.0;
+    private static final double COL_ACTION_PCT = 67.0;
+    private static final double COL_TIME_PCT = 12.0;
+
+    private static int TABLE_WIDTH = 864;
+
+    private final LogManager logManager;
+
+    private final JTable logTable;
+    private LogTableModel logTableModel;
+
+    private String searchText = "";
+    private boolean showNormal = true;
+    private boolean showWarning = true;
+    private boolean showCritical = true;
+    private boolean showSuppressed = true;
+
+    private final TableRowSorter<LogTableModel> sorter;
+
+    public MainWindow(Inventory inventory,LogManager logManager) {
+
+        this.logManager = logManager;
+
+        logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refresh));
+
         setTitle("Composite Inventory");
         setSize(windowWidth, windowHeight);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -45,7 +78,8 @@ public class MainWindow extends JFrame {
         //Links
         JPanel linksPanel = new JPanel();
         linksPanel.setLayout(new GridLayout(2, 1, 0, 0));
-        JButton githubLink = createLinkButton("Github", "https://github.com/O-Ayyad", "icons/github");
+        JButton githubLink = createLinkButton("Github", "https://github.com/O-Ayyad", "icons/windowIcons/github.png");
+
         //Temp
         JButton docsLink = createLinkButton("Docs", "https://example.com/docs", "icons/temp");
         rightPanel.add(githubLink);
@@ -113,6 +147,131 @@ public class MainWindow extends JFrame {
         topContainer.add(buttonPanel, BorderLayout.CENTER);
 
         add(topContainer, BorderLayout.NORTH);
+
+        // Left tool panel
+
+        JPanel leftTools = new JPanel();
+        leftTools.setLayout(new BoxLayout(leftTools, BoxLayout.Y_AXIS));
+        leftTools.setOpaque(false);
+        leftTools.setPreferredSize(new Dimension(180, 0));
+        leftTools.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
+
+        JPanel leftWrapper = new JPanel(new BorderLayout());
+        leftWrapper.setOpaque(false);
+        leftWrapper.setBorder(BorderFactory.createEmptyBorder(0, 40, 0, 0));
+        leftWrapper.add(leftTools, BorderLayout.CENTER);
+
+        // Search Field
+        JLabel searchLabel = new JLabel("Search Logs:");
+        searchLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JTextField searchField = new JTextField();
+        searchField.setMaximumSize(new Dimension(160, 30));
+        searchField.setAlignmentX(Component.CENTER_ALIGNMENT);
+        searchField.setToolTipText("Type text to search for logs...");
+        leftTools.add(searchLabel);
+        leftTools.add(Box.createRigidArea(new Dimension(0, 5)));
+        leftTools.add(searchField);
+        leftTools.add(Box.createRigidArea(new Dimension(0, 30)));
+
+
+        //Left buttons
+        String[] buttonLabels = {"Btn1", "Btn2", "Btn3", "Btn4"};
+        for (String label : buttonLabels) {
+            JButton btn = new JButton(label);
+            btn.setAlignmentX(Component.CENTER_ALIGNMENT);
+            btn.setMaximumSize(new Dimension(180, 35));
+            UIUtils.styleButton(btn);
+            leftTools.add(btn);
+            leftTools.add(Box.createRigidArea(new Dimension(0, 20)));
+        }
+
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // horizontal layout
+        filterPanel.setOpaque(false);
+
+        //Check Boxes
+        JCheckBox showNormalBox = new JCheckBox("✅ Normal", true);
+        JCheckBox showWarningBox = new JCheckBox("⚠\uFE0F Warning", true);
+        JCheckBox showCriticalBox = new JCheckBox("❌ Critical", true);
+        JCheckBox showSuppressedBox = new JCheckBox("💤 Suppressed", true);
+
+        for (JCheckBox box : new JCheckBox[]{showNormalBox, showWarningBox, showCriticalBox, showSuppressedBox}) {
+            box.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
+            box.setOpaque(false);
+            filterPanel.add(box);
+        }
+
+        //Log display
+        JPanel logsPanel = new JPanel(new BorderLayout());
+
+        TitledBorder border = BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(150, 150, 160),2), "Logs", TitledBorder.CENTER,TitledBorder.DEFAULT_POSITION
+        );
+        border.setTitleFont(new Font("Arial",Font.PLAIN ,18));
+        border.setTitleColor(new Color(100, 100, 110));
+
+        logsPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(15, 30, 100, 40),
+                border
+        ));
+
+
+        ArrayList<Log> sortedLogs = getSortedLogs();
+
+        // Table setup
+        logTableModel = new LogTableModel(sortedLogs);
+
+        logTable = new JTable(logTableModel);
+
+        sorter = new TableRowSorter<>(logTableModel);
+        sorter.setComparator(0, (a, b) -> {
+            int idA = Integer.parseInt(a.toString().replaceAll("\\D", ""));
+            int idB = Integer.parseInt(b.toString().replaceAll("\\D", ""));
+            return Integer.compare(idA, idB);
+        });
+        logTable.setRowSorter(sorter);
+
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            void update() { searchText = searchField.getText(); applyFilter(); }
+            public void insertUpdate(DocumentEvent e){ update(); }
+            public void removeUpdate(DocumentEvent e){ update(); }
+            public void changedUpdate(DocumentEvent e){ update(); }
+        });
+        showNormalBox.addActionListener(e -> { showNormal = showNormalBox.isSelected(); applyFilter(); });
+        showWarningBox.addActionListener(e -> { showWarning = showWarningBox.isSelected(); applyFilter(); });
+        showCriticalBox.addActionListener(e -> { showCritical = showCriticalBox.isSelected(); applyFilter(); });
+        showSuppressedBox.addActionListener(e -> { showSuppressed = showSuppressedBox.isSelected(); applyFilter(); });
+
+        logsPanel.add(filterPanel, BorderLayout.SOUTH);
+
+
+        logTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+
+        var cm = logTable.getColumnModel();
+        cm.getColumn(0).setPreferredWidth((int)(TABLE_WIDTH * COL_LOG_PCT / 100));
+        cm.getColumn(1).setPreferredWidth((int)(TABLE_WIDTH * COL_TYPE_PCT / 100));
+        cm.getColumn(2).setPreferredWidth((int)(TABLE_WIDTH * COL_ACTION_PCT / 100));
+        cm.getColumn(3).setPreferredWidth((int)(TABLE_WIDTH * COL_TIME_PCT / 100));
+
+        logTable.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+        logTable.setRowHeight(28);
+        logTable.setAutoCreateRowSorter(true); // clickable column sorting
+        logTable.setFillsViewportHeight(true);
+
+        //Scrolling
+        JScrollPane scrollPane = new JScrollPane(
+                logTable,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        );
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        logsPanel.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel mainArea = new JPanel(new BorderLayout());
+        mainArea.add(leftWrapper, BorderLayout.WEST);
+        mainArea.add(logsPanel, BorderLayout.CENTER);
+        add(mainArea, BorderLayout.CENTER);
+
 
         setVisible(true);
     }
@@ -187,12 +346,117 @@ public class MainWindow extends JFrame {
             @Override public void mouseEntered(MouseEvent e) { link.setForeground(new Color(0, 102, 204)); }
             @Override public void mouseExited(MouseEvent e) { link.setForeground(Color.BLUE); }
         });
-
+        link.setFocusPainted(false);
         return link;
     }
 
     public void refresh() {
-        // Placeholder for refreshing GUI
+        ArrayList<Log> sortedLogs = getSortedLogs();
+        logTableModel = new LogTableModel(sortedLogs);
+        logTable.setModel(logTableModel);
+
+        applySort(logTable,0, SortOrder.DESCENDING);
+
+        SwingUtilities.invokeLater(() -> {
+
+
+            var cm = logTable.getColumnModel();
+            cm.getColumn(0).setPreferredWidth((int)(TABLE_WIDTH * COL_LOG_PCT / 100));
+            cm.getColumn(1).setPreferredWidth((int)(TABLE_WIDTH * COL_TYPE_PCT / 100));
+            cm.getColumn(2).setPreferredWidth((int)(TABLE_WIDTH * COL_ACTION_PCT / 100));
+            cm.getColumn(3).setPreferredWidth((int)(TABLE_WIDTH * COL_TIME_PCT / 100));
+        });
+
+        SwingUtilities.invokeLater(() -> {
+            JScrollBar vertical = ((JScrollPane) logTable.getParent().getParent()).getVerticalScrollBar();
+            vertical.setValue(vertical.getMaximum());
+        });
+    }
+
+    public static void applySort(JTable table, int columnIndex, SortOrder order) {
+        if (table == null) return;
+
+        RowSorter<? extends TableModel> sorter = table.getRowSorter();
+
+        // If no sorter exists, create one
+        if (sorter == null && table.getModel() != null) {
+            sorter = new TableRowSorter<>(table.getModel());
+            table.setRowSorter(sorter);
+        }
+
+        if (sorter != null) {
+            ArrayList<RowSorter.SortKey> keys = new ArrayList<>();
+            keys.add(new RowSorter.SortKey(columnIndex, order));
+            sorter.setSortKeys(keys);
+            if (sorter instanceof TableRowSorter) {
+                ((TableRowSorter<?>) sorter).sort();
+            }
+        }
+    }
+
+    private ArrayList<Log> getSortedLogs() {
+        LinkedList<Log> allLogs = logManager.AllLogs;
+        ArrayList<Log> sorted = new ArrayList<>(allLogs);
+        sorted.sort(Comparator.comparingInt(log -> switch (log.getSeverity()) {
+            case Normal -> 0;
+            case Warning -> 1;
+            case Critical -> 2;
+        }));
+        return sorted;
+    }
+
+    private void applyFilter() {
+        sorter.setRowFilter(new RowFilter<LogTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends LogTableModel, ? extends Integer> e) {
+                LogTableModel m = e.getModel();
+                Log log = m.logs.get(e.getIdentifier());
+
+                //Severity filter
+                switch (log.getSeverity()) {
+                    case Normal -> { if (!showNormal) return false; }
+                    case Warning -> { if (!showWarning) return false; }
+                    case Critical -> { if (!showCritical) return false; }
+                }
+
+                //Search filter
+                if (searchText == null || searchText.isBlank()) return true;
+                String s = searchText.toLowerCase();
+                return log.getMessage().toLowerCase().contains(s)
+                        || log.getType().toString().toLowerCase().contains(s)
+                        || String.valueOf(log.getLogID()).contains(s);
+            }
+        });
+    }
+
+    static class LogTableModel extends AbstractTableModel {
+        private static final String[] cols = {"Log #", "Type", "Action", "Time"};
+        private final ArrayList<Log> logs;
+
+        LogTableModel(ArrayList<Log> logs){ this.logs = logs; }
+
+
+        public int getRowCount(){ return logs.size(); }
+        public int getColumnCount(){ return cols.length; }
+        public String getColumnName(int c){ return cols[c]; }
+
+        public Object getValueAt(int r, int c){
+            Log l = logs.get(r);
+            return switch(c){
+                case 0 -> (switch(l.getSeverity()){
+                    case Normal -> "✅ "; case Warning -> "⚠\uFE0F "; case Critical -> "❌ ";
+                })  + l.getLogID();
+                case 1 -> l.getType();
+                case 2 -> l.getMessage();
+                case 3 -> l.getTimestamp().format(
+                        java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss"));
+                default -> "";
+            };
+        }
+
+        public Log getLogAt(int row) {
+            return logs.get(row);
+        }
     }
 
     public static void main(String[] args) {
@@ -206,6 +470,6 @@ public class MainWindow extends JFrame {
         inventory.setItemManager(itemManager);
 
         //Creates main window
-        SwingUtilities.invokeLater(() -> new MainWindow(inventory));
+        SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager));
     }
 }

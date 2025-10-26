@@ -1,5 +1,6 @@
 package core;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -13,6 +14,8 @@ public class LogManager {
     public LinkedList<Log> WarningLogs = new LinkedList<>();
     public LinkedList<Log> NormalLogs = new LinkedList<>();
 
+    private final ArrayList<Runnable> listeners = new ArrayList<>();
+
     // Quick lookup by ID
     private Map<Integer, Log> logById = new HashMap<>();
 
@@ -21,6 +24,9 @@ public class LogManager {
 
     public void setInventory(Inventory i){
         inventory = i;
+        if (i.logManager != this) {
+            i.setLogManager(this);
+        }
 
         /// -----In main
         /// LogManager logManager = new LogManager();
@@ -54,9 +60,11 @@ public class LogManager {
     //Reverter log creator
     public void createRevertedLog(Log.LogType type, int amount, String message, String itemSerial, boolean reverted, int revertedLogID) {
         Log l =new Log(type, amount, message, itemSerial,reverted,revertedLogID);
+
         addLogToCollections(l);
     }
     private void addLogToCollections(Log l) {
+        if (l == null) return;
         AllLogs.add(l);
         logById.put(l.getLogID(), l);
 
@@ -65,6 +73,7 @@ public class LogManager {
             case Warning -> WarningLogs.add(l);
             case Normal -> NormalLogs.add(l);
         }
+        notifyListeners();
     }
     public void revertLog(Log l){
         if(l.isReverted()) return;
@@ -84,5 +93,46 @@ public class LogManager {
 
         ItemPacket ip = new ItemPacket(item, SAA.getQuantity());
         inventory.processItemPacket(ip);
+    }
+
+    public void addChangeListener(Runnable listener) {
+        listeners.add(listener);
+    }
+
+    private void notifyListeners() {
+        for (Runnable listener : listeners) {
+            listener.run();
+        }
+    }
+
+    //Does the action of a log without creating a for all logs, called once only when the mainWindow is created
+    //Displays all logs and rebuilds inventory to see if logs and inventory are in sync
+    public void processAllLogs(){
+        for(Log l : AllLogs)
+            switch(l.getSeverity()){
+                case Normal ->{
+
+                }
+                case Warning -> {
+
+                }
+                case Critical -> {
+
+                }
+            }
+    }
+    //Does the action of a log without creating a log
+    public void processLogs(Log l){
+        switch(l.getSeverity()){
+            case Normal ->{
+
+            }
+            case Warning -> {
+
+            }
+            case Critical -> {
+
+            }
+        }
     }
 }
