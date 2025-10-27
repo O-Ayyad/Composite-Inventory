@@ -1,4 +1,5 @@
 package core;
+import javax.swing.*;
 import java.util.*;
 
 public class Inventory {
@@ -23,6 +24,7 @@ public class Inventory {
     }
     public void setLogManager(LogManager lm){
         logManager = lm;
+        logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::checkLowAndOutOfStock));
         /// -----In main
         /// LogManager logManager = new LogManager();
         /// Inventory inventory = new Inventory();
@@ -156,6 +158,7 @@ public class Inventory {
                             "' (Serial: " + item.getSerialNum() + ") from inventory.",
                         item.getSerialNum()
             );
+            logManager.itemToLogs.remove(item);
         }
     }
     public void removeItem(String serial) {
@@ -249,5 +252,82 @@ public class Inventory {
     public boolean findSerial(String serial) {
         if (serial == null || serial.isEmpty()) return false;
         return SerialToItemMap.containsKey(serial);
+    }
+
+    public void checkLowAndOutOfStock(){
+        for (Map.Entry<Item, Integer> e : MainInventory.entrySet()) {
+            //Get entry
+
+            Item i = e.getKey();
+            int currentQuantity = e.getValue();
+
+            int trigger = i.getLowStockTrigger();
+
+            if(trigger == 0){ //Item has no trigger
+                continue;
+            }
+            ArrayList<Log> logsForI = logManager.itemToLogs.getOrDefault(i, new ArrayList<>());
+
+            Log lowStockLog = null;
+            Log outOfStockLog = null;
+
+            //Check logs for this item
+            for (Log l : logsForI) {
+                if (l.getType() == Log.LogType.LowStock) lowStockLog = l;
+                if (l.getType() == Log.LogType.ItemOutOfStock) outOfStockLog = l;
+            }
+
+            // Case  log trigger is true
+            if (currentQuantity <= trigger) {
+                String lowStockReminder = " (Current quantity : " + currentQuantity + "| Low stock trigger : " + trigger +")";
+                // Out of stock
+                if (currentQuantity == 0) {
+                    //Remove LowStock log
+                    if (lowStockLog != null) {
+                        logManager.removeLog(lowStockLog);
+                    }
+
+                    //Create OutOfStock log (if not exists)
+                    if (outOfStockLog == null) {
+                        logManager.createLog(
+                                Log.LogType.ItemOutOfStock,
+                                0,
+                                i.getName() + " (" + i.getSerialNum() + ") out of stock!"+ lowStockReminder,
+                                i.getSerialNum()
+                        );
+                    }else {
+                    // Update message if it already exists
+                        outOfStockLog.setMessage(
+                            i.getName() + " (" + i.getSerialNum() + ") out of stock!" + lowStockReminder
+                    );
+                }
+                    //Case 1: quantity > 0
+                } else {
+                    //Create LowStock log if missing
+                    if (lowStockLog == null) {
+                        logManager.createLog(
+                                Log.LogType.LowStock,
+                                currentQuantity,
+                                i.getName() + " (" + i.getSerialNum() + ") is low on stock!" + lowStockReminder,
+                                i.getSerialNum()
+                        );
+                    }else {
+                        lowStockLog.setMessage(
+                                i.getName() + " (" + i.getSerialNum() + ") is still low on stock!" + lowStockReminder
+                        );
+                    }
+
+                    //Remove OutOfStock log if it exists but now quantity > 0
+                    if (outOfStockLog != null) {
+                        logManager.removeLog(outOfStockLog);
+                    }
+                }
+
+            // Trigger is no longer true so item is stocked
+            } else {
+                if (lowStockLog != null) logManager.removeLog(lowStockLog);
+                if (outOfStockLog != null) logManager.removeLog(outOfStockLog);
+            }
+        }
     }
 }

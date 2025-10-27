@@ -17,9 +17,9 @@ public class MainWindow extends JFrame {
     public final int windowWidth = 1200;
     public final int windowHeight = 800;
 
-    private static final double COL_LOG_PCT = 6.0;
-    private static final double COL_TYPE_PCT = 15.0;
-    private static final double COL_ACTION_PCT = 67.0;
+    private static final double COL_LOG_PCT = 9.0;
+    private static final double COL_TYPE_PCT = 14.0;
+    private static final double COL_ACTION_PCT = 65.0;
     private static final double COL_TIME_PCT = 12.0;
 
     private static int TABLE_WIDTH = 864;
@@ -167,7 +167,7 @@ public class MainWindow extends JFrame {
         JTextField searchField = new JTextField();
         searchField.setMaximumSize(new Dimension(160, 30));
         searchField.setAlignmentX(Component.CENTER_ALIGNMENT);
-        searchField.setToolTipText("Type text to search for logs...");
+        searchField.setToolTipText("Type text to search for logs.");
         leftTools.add(searchLabel);
         leftTools.add(Box.createRigidArea(new Dimension(0, 5)));
         leftTools.add(searchField);
@@ -264,6 +264,37 @@ public class MainWindow extends JFrame {
                 JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
         );
         scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        logTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(
+                    JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+                int modelRow = table.convertRowIndexToModel(row);
+                LogTableModel model = (LogTableModel) table.getModel();
+                Log log = model.getLogAt(modelRow);
+
+                Color normalColor = new Color(240, 255, 240);   // light green tint
+                Color warningColor = new Color(255, 250, 205);  // light yellow
+                Color criticalColor = new Color(255, 204, 204); // light red
+
+                if (isSelected) {
+                    c.setBackground(table.getSelectionBackground());
+                    c.setForeground(table.getSelectionForeground());
+                } else {
+                    switch (log.getSeverity()) {
+                        case Normal -> c.setBackground(normalColor);
+                        case Warning -> c.setBackground(warningColor);
+                        case Critical -> c.setBackground(criticalColor);
+                    }
+                    c.setForeground(Color.BLACK);
+                }
+
+                return c;
+            }
+        });
 
         logsPanel.add(scrollPane, BorderLayout.CENTER);
 
@@ -395,8 +426,7 @@ public class MainWindow extends JFrame {
     }
 
     private ArrayList<Log> getSortedLogs() {
-        LinkedList<Log> allLogs = logManager.AllLogs;
-        ArrayList<Log> sorted = new ArrayList<>(allLogs);
+        ArrayList<Log> sorted = new ArrayList<>(logManager.AllLogs);
         sorted.sort(Comparator.comparingInt(log -> switch (log.getSeverity()) {
             case Normal -> 0;
             case Warning -> 1;

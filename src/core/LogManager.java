@@ -2,22 +2,24 @@ package core;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.Map;
 
 public class LogManager {
     public Inventory inventory;
 
 
-    public LinkedList<Log> AllLogs = new LinkedList<>();
-    public LinkedList<Log> CriticalLogs = new LinkedList<>();
-    public LinkedList<Log> WarningLogs = new LinkedList<>();
-    public LinkedList<Log> NormalLogs = new LinkedList<>();
+    public ArrayList<Log> AllLogs = new ArrayList<>();
+    public ArrayList<Log> CriticalLogs = new ArrayList<>();
+    public ArrayList<Log> WarningLogs = new ArrayList<>();
+    public ArrayList<Log> NormalLogs = new ArrayList<>();
 
     private final ArrayList<Runnable> listeners = new ArrayList<>();
 
     // Quick lookup by ID
-    private Map<Integer, Log> logById = new HashMap<>();
+    public Map<Integer, Log> logById = new HashMap<>();
+
+    public Map<Item, ArrayList<Log>> itemToLogs = new HashMap<>();;
 
 
     public LogManager(){} //Constructor
@@ -65,8 +67,10 @@ public class LogManager {
     }
     private void addLogToCollections(Log l) {
         if (l == null) return;
+        Item i = inventory.getItemBySerial(l.getItemSerial());
         AllLogs.add(l);
         logById.put(l.getLogID(), l);
+        itemToLogs.computeIfAbsent(i, k -> new ArrayList<>()).add(l);
 
         switch (l.getSeverity()) {
             case Critical -> CriticalLogs.add(l);
@@ -75,14 +79,47 @@ public class LogManager {
         }
         notifyListeners();
     }
+    public void removeLog(Log log) {
+        if (log == null) return;
+
+        //Remove from all lists
+        AllLogs.remove(log);
+        switch (log.getSeverity()) {
+            case Critical -> CriticalLogs.remove(log);
+            case Warning -> WarningLogs.remove(log);
+            case Normal  -> NormalLogs.remove(log);
+        }
+
+        //Remove from ID map
+        logById.remove(log.getLogID());
+
+        //Remove from item logs
+        Item item = inventory.getItemBySerial(log.getItemSerial());
+        if (item != null) {
+
+            ArrayList<Log> itemLogs = itemToLogs.get(item);
+            if (itemLogs != null) {
+                itemLogs.remove(log);
+
+                if (itemLogs.isEmpty()) {
+                    itemToLogs.remove(item);
+                }
+            }
+        }
+    }
     public void revertLog(Log l){
-        if(l.isReverted()) return;
+
+        if(l.isReverted()) return; //It has already been reverted
+
         Log.SerialAndAmount inverse = l.getLogInverse();
         int quant = inverse.getQuantity();
+
         Log.LogType lt = quant > 0 ? Log.LogType.ItemAdded : Log.LogType.ItemRemoved;
+
         String message = "Reverted Log #" + l.getLogID() + " :\"" + l.getMessage() + "\"";
         createRevertedLog(lt,quant, message, l.getItemSerial(),true,l.getLogID());
         l.setReverted(true);
+
         SendSerialAndAmountToInventory(inverse);
     }
     public void SendSerialAndAmountToInventory(Log.SerialAndAmount SAA) {
@@ -108,7 +145,7 @@ public class LogManager {
     //Does the action of a log without creating a for all logs, called once only when the mainWindow is created
     //Displays all logs and rebuilds inventory to see if logs and inventory are in sync
     public void processAllLogs(){
-        for(Log l : AllLogs)
+        for(Log l : AllLogs){
             switch(l.getSeverity()){
                 case Normal ->{
 
@@ -120,9 +157,10 @@ public class LogManager {
 
                 }
             }
+        }
     }
     //Does the action of a log without creating a log
-    public void processLogs(Log l){
+    public void processLog(Log l){
         switch(l.getSeverity()){
             case Normal ->{
 

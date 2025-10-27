@@ -14,7 +14,7 @@ public class Log {
         ItemUpdated, //Item name/picture/SKU/Composed changed
         LowStock, //Item quantity lower than stock floor trigger
         ItemOutOfStock, //If an item has lowStockTrigger and the amount in inventory is 0 then this log is created
-        ItemSoldAndOutOfStock, //If sold on amazon/ebay and out of stock. Only critical Log
+        ItemSoldAndOutOfStock, //If sold on amazon/ebay and out of stock.
         ItemSoldAndNotListedOnPlatforms, //If an item is sold on amazon and ebay but not linked then log that
         NewItemCreated,
         ItemRemoved,
@@ -81,8 +81,8 @@ public class Log {
     private Severity  determineSeverity(LogType type) {
         return switch (type) {
             case ItemSold, ItemUpdated, ItemRemoved, NewItemCreated, ItemAdded, ItemBrokenDown, ItemComboCreated -> Severity.Normal;
-            case LowStock, ItemOutOfStock,ItemSoldAndNotListedOnPlatforms -> Severity.Warning;
-            case ItemSoldAndOutOfStock -> Severity.Critical;
+            case LowStock, ItemOutOfStock -> Severity.Warning;
+            case ItemSoldAndNotListedOnPlatforms, ItemSoldAndOutOfStock -> Severity.Critical;
         };
     }
 
