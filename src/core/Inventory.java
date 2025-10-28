@@ -73,7 +73,7 @@ public class Inventory {
         if (logManager != null) {
             logManager.createLog(Log.LogType.NewItemCreated,
                       0,
-                    "Created new item: " + name + " (Serial: " + serialNum + ")" +quantityMessage,
+                    "Created new item: " + name + " (Serial: " + serialNum + ") " +quantityMessage,
                     serialNum);
         }
     }
@@ -149,17 +149,42 @@ public class Inventory {
 
     //Rarely used to remove an item completely from inventory
     public void removeItem(Item item){
-        unregisterItemMapping(item);
-        if (logManager != null) {
-            logManager.createLog(
-                    Log.LogType.ItemRemoved,
-                    0,
-                    "Removed item '" + item.getName() +
-                            "' (Serial: " + item.getSerialNum() + ") from inventory.",
-                        item.getSerialNum()
-            );
-            logManager.itemToLogs.remove(item);
+
+        //Remove composition links
+        for(Item other: item.getComposesInto()){
+
+            if (other == item) continue;
+
+            other.getComposesInto().remove(item);
+
+            other.getComposedOf().removeIf(packet -> {
+                Item component = packet.getItem();
+                return component != null && component.equals(item);
+            });
         }
+
+        item.getComposesInto().clear();
+        item.getComposedOf().clear();
+
+        //Remove all mappings
+        unregisterItemMapping(item);
+        ArrayList<Log> logsToRemove = logManager.itemToLogs.remove(item);
+
+        if (logsToRemove != null) {
+
+            logManager.AllLogs.removeAll(logsToRemove);
+            logManager.CriticalLogs.removeAll(logsToRemove);
+            logManager.WarningLogs.removeAll(logsToRemove);
+            logManager.NormalLogs.removeAll(logsToRemove);
+        }
+
+        logManager.createLog(
+                Log.LogType.ItemRemoved,
+                0,
+                "Removed item '" + item.getName() +
+                        "' (Serial: " + item.getSerialNum() + ") from inventory and all associated logs.",
+                item.getSerialNum()
+        );
     }
     public void removeItem(String serial) {
         Item item = getItemBySerial(serial);
@@ -279,7 +304,7 @@ public class Inventory {
 
             // Case  log trigger is true
             if (currentQuantity <= trigger) {
-                String lowStockReminder = " (Current quantity : " + currentQuantity + "| Low stock trigger : " + trigger +")";
+                String lowStockReminder = " (Current quantity : " + currentQuantity + " | Low stock trigger : " + trigger +")";
                 // Out of stock
                 if (currentQuantity == 0) {
                     //Remove LowStock log

@@ -280,7 +280,8 @@ public class RemoveWindow extends SubWindow {
             String confirm = JOptionPane.showInputDialog(
                     this,
                     "Type the serial number to permanently delete:\n" + serial +
-                            "\n\nThis action cannot be undone! All data about this item will be lost",
+                            "\n\nThis action cannot be undone! All data about this item will be lost!\n" +
+                            "This will also remove all logs associated with this item!",
                     "Confirm Deletion",
                     JOptionPane.WARNING_MESSAGE
             );
@@ -289,16 +290,34 @@ public class RemoveWindow extends SubWindow {
                         "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            int finalConfirm = JOptionPane.showConfirmDialog(
-                    this,
+            JPanel confirmPanel = new JPanel(new BorderLayout(10, 10));
+            JLabel message = new JLabel(
                     "Delete \"" + target.getName() + "\" (Serial: " + serial + ")?\n\n" +
-                            "This CANNOT be undone!",
+                            "This CANNOT be undone and will delete all logs.\n\n" +
+                            "Type CONFIRM below to continue:"
+            );
+            JTextField inputField = new JTextField(10);
+
+            confirmPanel.add(message, BorderLayout.NORTH);
+            confirmPanel.add(inputField, BorderLayout.CENTER);
+
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    confirmPanel,
                     "Final Confirmation",
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE
             );
-            if (finalConfirm != JOptionPane.YES_OPTION) return;
 
+            if (!(choice == JOptionPane.YES_OPTION && "CONFIRM".equals(inputField.getText().trim()))) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "You must type CONFIRM to proceed with deletion.",
+                        "Deletion Canceled",
+                        JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
             //Success
             try {
                 inventory.removeItem(target);

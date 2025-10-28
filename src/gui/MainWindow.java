@@ -1,4 +1,6 @@
 package gui;
+
+import platform.*;
 import core.*;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -222,6 +224,18 @@ public class MainWindow extends JFrame {
 
         logTable = new JTable(logTableModel);
 
+        JTableHeader header = logTable.getTableHeader();
+
+
+        header.setBackground(new Color(230, 230, 240));
+        header.setForeground(Color.DARK_GRAY);
+        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, new Color(200, 200, 235)));
+        header.setPreferredSize(new Dimension(header.getWidth(), 30)); // taller header
+        header.setReorderingAllowed(false); // optional: prevent column drag
+
+        ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
+
         sorter = new TableRowSorter<>(logTableModel);
         sorter.setComparator(0, (a, b) -> {
             int idA = Integer.parseInt(a.toString().replaceAll("\\D", ""));
@@ -254,7 +268,6 @@ public class MainWindow extends JFrame {
 
         logTable.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
         logTable.setRowHeight(28);
-        logTable.setAutoCreateRowSorter(true); // clickable column sorting
         logTable.setFillsViewportHeight(true);
 
         //Scrolling
@@ -276,14 +289,18 @@ public class MainWindow extends JFrame {
                 LogTableModel model = (LogTableModel) table.getModel();
                 Log log = model.getLogAt(modelRow);
 
-                Color normalColor = new Color(240, 255, 240);   // light green tint
-                Color warningColor = new Color(255, 250, 205);  // light yellow
-                Color criticalColor = new Color(255, 204, 204); // light red
+                Color normalColor = new Color(220, 220, 235); //light purple
+                Color warningColor = new Color(255, 250, 205); //light yellow
+                Color criticalColor = new Color(255, 204, 204); //light red
+
+                Color revertedColor = new Color(210, 200, 210); //gray
 
                 if (isSelected) {
                     c.setBackground(table.getSelectionBackground());
                     c.setForeground(table.getSelectionForeground());
-                } else {
+                } else if(log.isReverted()){
+                    c.setBackground(revertedColor);
+                }else {
                     switch (log.getSeverity()) {
                         case Normal -> c.setBackground(normalColor);
                         case Warning -> c.setBackground(warningColor);
@@ -295,7 +312,16 @@ public class MainWindow extends JFrame {
                 return c;
             }
         });
-
+        this.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                Point p = SwingUtilities.convertPoint(MainWindow.this, e.getPoint(), logTable);
+                if (!logTable.contains(p)) {
+                    logTable.clearSelection();
+                    logTable.repaint();
+                }
+            }
+        });
         logsPanel.add(scrollPane, BorderLayout.CENTER);
 
         JPanel mainArea = new JPanel(new BorderLayout());
@@ -383,10 +409,11 @@ public class MainWindow extends JFrame {
 
     public void refresh() {
         ArrayList<Log> sortedLogs = getSortedLogs();
-        logTableModel = new LogTableModel(sortedLogs);
-        logTable.setModel(logTableModel);
+        logTableModel.setLogs(sortedLogs);
+        logTableModel.fireTableDataChanged();
+        applyFilter();
 
-        applySort(logTable,0, SortOrder.DESCENDING);
+        applyFilter();
 
         SwingUtilities.invokeLater(() -> {
 
@@ -396,9 +423,7 @@ public class MainWindow extends JFrame {
             cm.getColumn(1).setPreferredWidth((int)(TABLE_WIDTH * COL_TYPE_PCT / 100));
             cm.getColumn(2).setPreferredWidth((int)(TABLE_WIDTH * COL_ACTION_PCT / 100));
             cm.getColumn(3).setPreferredWidth((int)(TABLE_WIDTH * COL_TIME_PCT / 100));
-        });
 
-        SwingUtilities.invokeLater(() -> {
             JScrollBar vertical = ((JScrollPane) logTable.getParent().getParent()).getVerticalScrollBar();
             vertical.setValue(vertical.getMaximum());
         });
@@ -426,12 +451,19 @@ public class MainWindow extends JFrame {
     }
 
     private ArrayList<Log> getSortedLogs() {
-        ArrayList<Log> sorted = new ArrayList<>(logManager.AllLogs);
-        sorted.sort(Comparator.comparingInt(log -> switch (log.getSeverity()) {
-            case Normal -> 0;
-            case Warning -> 1;
-            case Critical -> 2;
-        }));
+
+        ArrayList<Log> criticalLogs = new ArrayList<>(logManager.CriticalLogs);
+        criticalLogs.sort((a, b) -> Integer.compare(b.getLogID(), a.getLogID()));
+        ArrayList<Log> sorted = new ArrayList<>(criticalLogs);
+
+        ArrayList<Log> warningLogs = new ArrayList<>(logManager.WarningLogs);
+        warningLogs.sort((a, b) -> Integer.compare(b.getLogID(), a.getLogID()));
+        sorted.addAll(warningLogs);
+
+        ArrayList<Log> normalLogs = new ArrayList<>(logManager.NormalLogs);
+        normalLogs.sort((a, b) -> Integer.compare(b.getLogID(), a.getLogID()));
+        sorted.addAll(normalLogs);
+
         return sorted;
     }
 
@@ -443,6 +475,9 @@ public class MainWindow extends JFrame {
                 Log log = m.logs.get(e.getIdentifier());
 
                 //Severity filter
+                if(log.isSuppressed() && !showSuppressed){
+                    return false;
+                }
                 switch (log.getSeverity()) {
                     case Normal -> { if (!showNormal) return false; }
                     case Warning -> { if (!showWarning) return false; }
@@ -452,9 +487,13 @@ public class MainWindow extends JFrame {
                 //Search filter
                 if (searchText == null || searchText.isBlank()) return true;
                 String s = searchText.toLowerCase();
-                return log.getMessage().toLowerCase().contains(s)
-                        || log.getType().toString().toLowerCase().contains(s)
-                        || String.valueOf(log.getLogID()).contains(s);
+                return     log.getMessage().toLowerCase().contains(s) //Contains message
+
+                        || log.getType().toString().toLowerCase().contains(s) //Type
+
+                        || String.valueOf(log.getLogID()).contains(s) //ID
+
+                        || log.getItemSerial().toLowerCase().contains(s); //Serial
             }
         });
     }
@@ -483,6 +522,10 @@ public class MainWindow extends JFrame {
                 default -> "";
             };
         }
+        public void setLogs(ArrayList<Log> newLogs) {
+            logs.clear();
+            logs.addAll(newLogs);
+        }
 
         public Log getLogAt(int row) {
             return logs.get(row);
@@ -498,6 +541,18 @@ public class MainWindow extends JFrame {
         logManager.setInventory(inventory);
         ItemManager itemManager = new ItemManager(inventory);
         inventory.setItemManager(itemManager);
+
+        PlatformSellerManager manager = new PlatformSellerManager(inventory, logManager);
+
+        AmazonSeller amazon = new AmazonSeller(manager);
+        EbaySeller ebay = new EbaySeller(manager);
+        WalmartSeller walmart = new WalmartSeller(manager);
+
+        // Sync all platforms
+        amazon.syncOrders();
+        ebay.syncOrders();
+        walmart.syncOrders();
+
 
         //Creates main window
         SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager));

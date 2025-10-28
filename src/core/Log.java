@@ -10,6 +10,10 @@ public class Log {
     }
     public enum LogType{
         ItemSold, //Sold
+        ItemSoldOnPlatform, //Item order came in but not shipped yet
+        ItemShippedOnPlatform, //Item was shipped out so reduce stock on the item in inventory
+        ItemSoldViaComposition,
+        OrderCancelled,
         ItemAdded, //Item added
         ItemUpdated, //Item name/picture/SKU/Composed changed
         LowStock, //Item quantity lower than stock floor trigger
@@ -32,7 +36,6 @@ public class Log {
     private String message;
 
     //For Alert Logs
-    private boolean alert;
     private boolean suppressed; //For warning and critical logs, user is aware but doesn't care it could be suppressed
     private boolean solved; // //For warning and critical logs, user has resolved the issue in another way.
     //For example if an item is sold and out of stock and the user cancels the order then it is marked as resolved.
@@ -41,7 +44,7 @@ public class Log {
     //Log will automatically be set as solved if the condition that created it is no longer true.
 
     //For normal logs (Sold and Added)
-    private boolean allowRevert;
+    private final boolean allowRevert;
     private Integer revertedLogID = null; //Which log did this one revert?
     private Integer revertedByLogId = null; //Which log reverted this one?
     private boolean reverter; //If this log was created to revert a previous log
@@ -64,12 +67,6 @@ public class Log {
         allowRevert = (severity == Severity.Normal &&
                 (type == LogType.ItemSold || type == LogType.ItemAdded));
 
-        // Alert if it's not revertible and type indicates a problem
-        alert = !allowRevert && (
-                type == LogType.LowStock ||
-                        type == LogType.ItemOutOfStock ||
-                        type == LogType.ItemSoldAndOutOfStock
-        );
     }
     // Constructor for reverter logs
     public Log(LogType Type, Integer Amount, String Message, String ItemSerial, boolean Reverter, int RevLID) {
@@ -80,8 +77,8 @@ public class Log {
     //Helper for constructors
     private Severity  determineSeverity(LogType type) {
         return switch (type) {
-            case ItemSold, ItemUpdated, ItemRemoved, NewItemCreated, ItemAdded, ItemBrokenDown, ItemComboCreated -> Severity.Normal;
-            case LowStock, ItemOutOfStock -> Severity.Warning;
+            case ItemSold, OrderCancelled, NewItemCreated, ItemSoldOnPlatform, ItemShippedOnPlatform, ItemUpdated, ItemRemoved, ItemAdded, ItemBrokenDown, ItemComboCreated -> Severity.Normal;
+            case LowStock, ItemOutOfStock, ItemSoldViaComposition -> Severity.Warning;
             case ItemSoldAndNotListedOnPlatforms, ItemSoldAndOutOfStock -> Severity.Critical;
         };
     }

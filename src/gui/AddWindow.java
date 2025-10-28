@@ -400,6 +400,7 @@ public class AddWindow extends SubWindow {
                     "Please retype the serial number to confirm:\n(" + serial + ")",
                     "Confirm Serial",
                     JOptionPane.WARNING_MESSAGE
+
             );
 
             if (confirm == null) return;
@@ -434,7 +435,17 @@ public class AddWindow extends SubWindow {
                 lowStockTrigger = 0;
             }
             String iconPath = (selectedImageFile != null) ? selectedImageFile.getAbsolutePath() : null;
-            JOptionPane.showMessageDialog(this, summary, "Confirm Add Item", JOptionPane.INFORMATION_MESSAGE);
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    summary,
+                    "Confirm Add Item",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (choice != JOptionPane.YES_OPTION) {
+               return;
+            }
             inventory.createItem(
                     name,
                     serial,
