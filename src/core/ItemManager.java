@@ -3,12 +3,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import javax.swing.ImageIcon;
 
 //Called by Item class and updates Inventory
 public class ItemManager {
 
-    private Inventory inventory; //Reference to inventory
+    public Inventory inventory; //Reference to inventory
 
     public ItemManager(Inventory inventory) {
         this.inventory = inventory;
@@ -29,7 +28,7 @@ public class ItemManager {
         return false; // not found
     }
 
-    public ItemPacket getItemPacket(Item item, Item searchItem) {
+    public ItemPacket getItemPacketInComposedOf(Item item, Item searchItem) {
         for (ItemPacket packet : item.getComposedOf()) {
             if (packet.getItem().equals(searchItem)) {
                 return packet; // found the item
@@ -86,7 +85,7 @@ public class ItemManager {
     }
     // Takes a list of components (ItemPackets) and assembles them into a single composed item.
     // Each ItemPacket is consumed from inventory, and the composed item is added.
-    // Can only add new items, cannot create a new item
+    // Can only add items, cannot create a new item
     // If a new item needs to be created via composition, it must be created before then passed into this method
     public void composeItem(Item composedItem, ArrayList<ItemPacket> usedComponents) {
         if (composedItem == null || usedComponents == null || inventory == null) return;
@@ -232,7 +231,7 @@ public class ItemManager {
     }
 
     public void updateIconPath(Item item, String newPath) {
-        if (item != null && !Objects.equals(item.getIconPath(), newPath)) {
+        if (item != null && !Objects.equals(item.getImagePath(), newPath)) {
             item.setIconPath(newPath);
             logUpdate(item, "Icon path updated to '" + newPath + "'");
         }

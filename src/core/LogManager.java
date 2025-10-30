@@ -19,7 +19,7 @@ public class LogManager {
     // Quick lookup by ID
     public Map<Integer, Log> logById = new HashMap<>();
 
-    public Map<Item, ArrayList<Log>> itemToLogs = new HashMap<>();;
+    public Map<Item, ArrayList<Log>> itemToLogs = new HashMap<>();
 
 
     public LogManager(){} //Constructor

@@ -1,6 +1,8 @@
 package gui;
 import core.*;
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.File;
@@ -15,18 +17,30 @@ public class AddWindow extends SubWindow {
     private final Map<String, Integer> composedComponents = new LinkedHashMap<>();
 
     public AddWindow(JFrame mainWindow, Inventory inventory) {
+        this(mainWindow,inventory,null); //Delegate to unified constructor
+    }
+    public AddWindow(JFrame mainWindow, Inventory inventory,Item selected) {
         super(mainWindow, windowName,inventory);
-        setupUI();
+        setupUI(selected);
         setVisible(true);
     }
     @Override
     public void setupUI() {
+        setupUI(null);
+    }
+    public void setupUI(Item selected) {
         JPanel mainPanel;
-        if (inventory.SerialToItemMap.isEmpty()) {
+
+        if (inventory.MainInventory.isEmpty()) {
             mainPanel = addNewItem();
-        } else {
-            mainPanel = addToExistingItemPanel();
         }
+        else if (selected != null) {
+            mainPanel = addToExistingItemPanel(selected);
+        }
+        else {
+            mainPanel = addToExistingItemPanel(null);
+        }
+
         add(mainPanel, BorderLayout.CENTER);
         pack();
     }
@@ -72,11 +86,8 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Quantity:"), gbc);
         gbc.gridx = 1;
-        JSpinner quantitySpinner = new JSpinner(new SpinnerNumberModel(0, 0, 100000, 1));
-        JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) quantitySpinner.getEditor();
-        editor.getTextField().setHorizontalAlignment(JTextField.LEFT);
-
-        panel.add(quantitySpinner, gbc);
+        JTextField quantityField = new JTextField(20);
+        panel.add(quantityField, gbc);
 
         //Low stock trigger
         gbc.gridx = 0; gbc.gridy++;
@@ -140,7 +151,7 @@ public class AddWindow extends SubWindow {
 
         JPanel tagPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         tagPanel.setBorder(BorderFactory.createLineBorder(Color.GRAY));
-        tagPanel.setPreferredSize(new Dimension(200, 80));
+        tagPanel.setLayout(new UIUtils.WrapLayout(FlowLayout.LEFT, 5, 5));
 
         DropdownResult DDRObj = getDropDownMenuAllItems();
         JComboBox<String> searchField = DDRObj.menu;
@@ -259,7 +270,7 @@ public class AddWindow extends SubWindow {
         submitButton.addActionListener(e -> {
             String name = nameField.getText().trim();
             String serial = serialField.getText().trim();
-            int quantity = (int) quantitySpinner.getValue();
+            String inputQuantity = quantityField.getText().trim();
             String skuAmazonText = skuAmazon.getText().trim();
             String skuEbayText = skuEbay.getText().trim();
             String skuWalmartText = skuWalmart.getText().trim();
@@ -306,6 +317,18 @@ public class AddWindow extends SubWindow {
                 }
             }
 
+            int quantity;
+            try {
+                if(inputQuantity.isEmpty()){
+                    quantity = 0;
+                }else{
+                    quantity = Integer.parseInt(inputQuantity);
+                    if(quantity < 0) throw new NumberFormatException();
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Please enter a valid number for quantity.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
             // Name and serial is required
             if (name.isEmpty() || serial.isEmpty()) {
@@ -473,7 +496,7 @@ public class AddWindow extends SubWindow {
         });
         return mainPanel;
     }
-    public JPanel addToExistingItemPanel() {
+    public JPanel addToExistingItemPanel(Item selected) {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -498,17 +521,24 @@ public class AddWindow extends SubWindow {
         DropdownResult DDRObj = getDropDownMenuAllItems();
         JComboBox<String> itemDropdown = DDRObj.menu;
         Map<String,String> displayToSerialMap = DDRObj.serialMap;
+        if (selected != null) {
+            String serial = selected.getSerialNum();
+            for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
+                if (entry.getValue().equals(serial)) {
+                    itemDropdown.setSelectedItem(entry.getKey());
+                    break;
+                }
+            }
+        }
         panel.add(itemDropdown, gbc);
 
         // Quantity
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Amount To Add:"), gbc);
         gbc.gridx = 1;
-        JSpinner amountSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 100000, 1));
-        JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) amountSpinner.getEditor();
-        editor.getTextField().setHorizontalAlignment(JTextField.LEFT);
 
-        panel.add(amountSpinner, gbc);
+        JTextField quantityField = new JTextField(20);
+        panel.add(quantityField, gbc);
 
         // Buttons
         gbc.gridx = 0; gbc.gridy++;
@@ -526,8 +556,18 @@ public class AddWindow extends SubWindow {
 
         //If valid input then allow "enter" to add item
         panel.registerKeyboardAction(
-                e -> {if((int)amountSpinner.getValue() >0) {
-                    addButton.doClick();
+                e -> {
+                    String text = quantityField.getText().trim();
+                    if (!text.isEmpty()) {
+                        try {
+                            int quantity = Integer.parseInt(text);
+                            if (quantity > 0) {
+                                addButton.doClick(); // trigger add if valid
+                            }
+                        } catch (NumberFormatException ex) {
+                            // optional: ignore or show a message
+                            JOptionPane.showMessageDialog(panel, "Please enter a valid number.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
+                        }
                     }
                 },
                 KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
@@ -539,17 +579,38 @@ public class AddWindow extends SubWindow {
                 JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
         );
 
-        amountSpinner.addChangeListener(e -> updateAddButtonText(addButton,itemDropdown,displayToSerialMap,amountSpinner));
-
+        quantityField.getDocument().addDocumentListener(new DocumentListener() {
+            void update() {
+                updateAddButtonText(addButton, itemDropdown, displayToSerialMap, quantityField);
+            }
+            public void insertUpdate(DocumentEvent e) { update(); }
+            public void removeUpdate(DocumentEvent e) { update(); }
+            public void changedUpdate(DocumentEvent e) { update(); }
+        });
 
         addButton.addActionListener(e -> {
-
             String selectedItem = (String) itemDropdown.getEditor().getItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
-            int amount = (int) amountSpinner.getValue();
+
+            // Read numeric value safely
+            String text = quantityField.getText().trim();
+            if (text.isEmpty()) {
+                JOptionPane.showMessageDialog(panel, "Please enter an amount.", "Invalid input", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int amount;
+            try {
+                amount = Integer.parseInt(text);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Amount must be a valid number.", "Invalid input", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+
             Item target = inventory.SerialToItemMap.get(selectedSerial);
 
-            updateAddButtonText(addButton,itemDropdown,displayToSerialMap,amountSpinner);
+            updateAddButtonText(addButton, itemDropdown, displayToSerialMap, quantityField);
 
 
             if (amount <= 0) {
@@ -578,7 +639,6 @@ public class AddWindow extends SubWindow {
         });
 
         newItemButton.addActionListener(e -> {
-            // Replace current content with addNewItem panel
             getContentPane().removeAll();
             add(addNewItem(), BorderLayout.CENTER);
             revalidate();
@@ -588,23 +648,37 @@ public class AddWindow extends SubWindow {
 
         return panel;
     }
-    String UpdateAddText( Item target, int amount){
+    String UpdateAddText(Item target, int amount) {
         String addButtonText;
         if (target == null) {
-            addButtonText = "Add " + amount + " to this item";
+            addButtonText = (amount > 0)
+                    ? "Add " + amount + " to this item"
+                    : "Add amount to this item";
         } else {
             String name = target.getName();
             String plural = name.endsWith("s") ? name + "es" : name + "s";
-            addButtonText = (amount > 1? "Add " + amount + " " + plural : "Add " + amount + " "  + name);
+            addButtonText = (amount > 1)
+                    ? "Add " + amount + " " + plural
+                    : (amount <= 0 ? "Add amount to " + name : "Add " + amount + " " + name);
         }
         return addButtonText;
     }
-    void updateAddButtonText(JButton addButton,JComboBox<String> itemDropdown, Map<String,String> displayToSerialMap, JSpinner amountSpinner){
+    void updateAddButtonText(JButton addButton, JComboBox<String> itemDropdown,
+                             Map<String, String> displayToSerialMap, JTextField textField) {
         String currentItem = (String) itemDropdown.getEditor().getItem();
         String currentSerial = displayToSerialMap.get(currentItem);
-        int currentAmount = (int) amountSpinner.getValue();
-        Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
+        String quantityText = textField.getText().trim();
 
+        int currentAmount = 0; // default when empty or invalid
+        if (!quantityText.isEmpty()) {
+            try {
+                currentAmount = Integer.parseInt(quantityText);
+            } catch (NumberFormatException ex) {
+                //ignore
+            }
+        }
+
+        Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
         addButton.setText(UpdateAddText(currentTarget, currentAmount));
     }
 }

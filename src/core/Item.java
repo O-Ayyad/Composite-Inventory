@@ -1,7 +1,6 @@
 package core;
 import java.awt.*;
 import java.util.ArrayList;
-import java.util.Objects;
 import javax.swing.ImageIcon;
 
 
@@ -49,8 +48,11 @@ public class Item {
         this.iconPath = path;
         this.cachedIcon = new ImageIcon(path); // automatically cache
     }
-    public String getIconPath() {
+    public String getImagePath() {
         return iconPath;
+    }
+    public void setImagePath(String newPath) {
+        iconPath = newPath;
     }
     public ImageIcon getIcon(int width, int height) {
         if (cachedIcon == null && iconPath != null) {
@@ -64,6 +66,10 @@ public class Item {
     }
     public int getLowStockTrigger() { return lowStockTrigger;}
     public void setLowStockTrigger(int lowST){lowStockTrigger = lowST;}
+
+    public int getQuantity(){
+        return itemManager.inventory.getQuantity(this);
+    }
 
     //-------------------------------</Getters and Setters>-------------------------------
 
@@ -87,7 +93,15 @@ public class Item {
         composedOf.addAll(valid);
         syncCompositionDependencies();
     }
-    public Boolean isComposedOf(ItemPacket item){return composedOf.contains(item);}
+    public boolean isComposite(){return !composedOf.isEmpty();}
+    public Boolean isComposedOf(Item item){
+        for(ItemPacket ip : composedOf){
+            if(ip.getItem().equals(item)){
+                return true;
+            }
+        }
+        return false;
+    }
     public Boolean doesComposeInto(Item item){return composesInto.contains(item);}
     //-------------------------------</Edit Composition>-------------------------------
 

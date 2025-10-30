@@ -11,8 +11,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedList;
+import java.util.Random;
 
 public class MainWindow extends JFrame {
 
@@ -24,12 +23,11 @@ public class MainWindow extends JFrame {
     private static final double COL_ACTION_PCT = 65.0;
     private static final double COL_TIME_PCT = 12.0;
 
-    private static int TABLE_WIDTH = 864;
 
     private final LogManager logManager;
 
     private final JTable logTable;
-    private LogTableModel logTableModel;
+    private final LogTableModel logTableModel;
 
     private String searchText = "";
     private boolean showNormal = true;
@@ -100,21 +98,21 @@ public class MainWindow extends JFrame {
         JButton linkButton = createIconButton("Link Accounts", "icons/windowIcons/link.png");
 
         //Tool tip to tell user about shortcuts
-        addButton.setToolTipText("Add or Create Items (Shift+D)");
-        removeButton.setToolTipText("Sell or Remove Items (Shift+F)");
-        viewButton.setToolTipText("View and Edit Inventory (Shift+G)");
-        linkButton.setToolTipText("Link Accounts (Shift+H)");
+        addButton.setToolTipText("Add or Create Items (Shift+A)");
+        removeButton.setToolTipText("Sell or Remove Items (Shift+R)");
+        viewButton.setToolTipText("View and Edit Inventory (Shift+V)");
+        linkButton.setToolTipText("Link Accounts (Shift+L)");
 
         // Add action listeners
 
-        //Shift + D,FG,H opens the windows form left to right
+        //Shift + A,R,V,L opens the windows form left to right
         InputMap im = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = getRootPane().getActionMap();
 
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.SHIFT_DOWN_MASK), "openAdd");
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.SHIFT_DOWN_MASK), "openRemove");
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.SHIFT_DOWN_MASK), "openView");
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, InputEvent.SHIFT_DOWN_MASK), "openLink");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.SHIFT_DOWN_MASK), "openAdd");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.SHIFT_DOWN_MASK), "openRemove");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.SHIFT_DOWN_MASK), "openView");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.SHIFT_DOWN_MASK), "openLink");
 
         am.put("openAdd", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { new AddWindow(MainWindow.this, inventory); }
@@ -192,7 +190,7 @@ public class MainWindow extends JFrame {
 
         //Check Boxes
         JCheckBox showNormalBox = new JCheckBox("✅ Normal", true);
-        JCheckBox showWarningBox = new JCheckBox("⚠\uFE0F Warning", true);
+        JCheckBox showWarningBox = new JCheckBox("⚠️ Warning", true);
         JCheckBox showCriticalBox = new JCheckBox("❌ Critical", true);
         JCheckBox showSuppressedBox = new JCheckBox("💤 Suppressed", true);
 
@@ -258,27 +256,23 @@ public class MainWindow extends JFrame {
         logsPanel.add(filterPanel, BorderLayout.SOUTH);
 
 
-        logTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-
-        var cm = logTable.getColumnModel();
-        cm.getColumn(0).setPreferredWidth((int)(TABLE_WIDTH * COL_LOG_PCT / 100));
-        cm.getColumn(1).setPreferredWidth((int)(TABLE_WIDTH * COL_TYPE_PCT / 100));
-        cm.getColumn(2).setPreferredWidth((int)(TABLE_WIDTH * COL_ACTION_PCT / 100));
-        cm.getColumn(3).setPreferredWidth((int)(TABLE_WIDTH * COL_TIME_PCT / 100));
+        logTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
 
         logTable.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
         logTable.setRowHeight(28);
         logTable.setFillsViewportHeight(true);
 
         //Scrolling
-        JScrollPane scrollPane = new JScrollPane(
-                logTable,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-        );
-        scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        JScrollPane scrollPane = getJScrollPane();
 
         logTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            Color getAltered(Color c, boolean even){
+                int delta = 0;
+                if(even){
+                    delta = 10;
+                }
+                return (new Color(c.getRed()-delta,c.getGreen()-delta,c.getBlue()-delta));
+            }
             @Override
             public Component getTableCellRendererComponent(
                     JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -288,6 +282,8 @@ public class MainWindow extends JFrame {
                 int modelRow = table.convertRowIndexToModel(row);
                 LogTableModel model = (LogTableModel) table.getModel();
                 Log log = model.getLogAt(modelRow);
+
+                boolean even = row % 2 == 0;
 
                 Color normalColor = new Color(220, 220, 235); //light purple
                 Color warningColor = new Color(255, 250, 205); //light yellow
@@ -302,9 +298,9 @@ public class MainWindow extends JFrame {
                     c.setBackground(revertedColor);
                 }else {
                     switch (log.getSeverity()) {
-                        case Normal -> c.setBackground(normalColor);
-                        case Warning -> c.setBackground(warningColor);
-                        case Critical -> c.setBackground(criticalColor);
+                        case Normal -> c.setBackground(getAltered(normalColor,even));
+                        case Warning -> c.setBackground(getAltered(warningColor,even));
+                        case Critical -> c.setBackground(getAltered(criticalColor,even));
                     }
                     c.setForeground(Color.BLACK);
                 }
@@ -331,6 +327,28 @@ public class MainWindow extends JFrame {
 
 
         setVisible(true);
+    }
+
+    private JScrollPane getJScrollPane() {
+        JScrollPane scrollPane = new JScrollPane(
+                logTable,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        );
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        scrollPane.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                int width = scrollPane.getViewport().getWidth();
+                var cm = logTable.getColumnModel();
+                cm.getColumn(0).setPreferredWidth((int)(width * COL_LOG_PCT / 100));
+                cm.getColumn(1).setPreferredWidth((int)(width * COL_TYPE_PCT / 100));
+                cm.getColumn(2).setPreferredWidth((int)(width * COL_ACTION_PCT / 100));
+                cm.getColumn(3).setPreferredWidth((int)(width * COL_TIME_PCT / 100));
+            }
+        });
+        return scrollPane;
     }
 
     // Window Buttons
@@ -412,42 +430,6 @@ public class MainWindow extends JFrame {
         logTableModel.setLogs(sortedLogs);
         logTableModel.fireTableDataChanged();
         applyFilter();
-
-        applyFilter();
-
-        SwingUtilities.invokeLater(() -> {
-
-
-            var cm = logTable.getColumnModel();
-            cm.getColumn(0).setPreferredWidth((int)(TABLE_WIDTH * COL_LOG_PCT / 100));
-            cm.getColumn(1).setPreferredWidth((int)(TABLE_WIDTH * COL_TYPE_PCT / 100));
-            cm.getColumn(2).setPreferredWidth((int)(TABLE_WIDTH * COL_ACTION_PCT / 100));
-            cm.getColumn(3).setPreferredWidth((int)(TABLE_WIDTH * COL_TIME_PCT / 100));
-
-            JScrollBar vertical = ((JScrollPane) logTable.getParent().getParent()).getVerticalScrollBar();
-            vertical.setValue(vertical.getMaximum());
-        });
-    }
-
-    public static void applySort(JTable table, int columnIndex, SortOrder order) {
-        if (table == null) return;
-
-        RowSorter<? extends TableModel> sorter = table.getRowSorter();
-
-        // If no sorter exists, create one
-        if (sorter == null && table.getModel() != null) {
-            sorter = new TableRowSorter<>(table.getModel());
-            table.setRowSorter(sorter);
-        }
-
-        if (sorter != null) {
-            ArrayList<RowSorter.SortKey> keys = new ArrayList<>();
-            keys.add(new RowSorter.SortKey(columnIndex, order));
-            sorter.setSortKeys(keys);
-            if (sorter instanceof TableRowSorter) {
-                ((TableRowSorter<?>) sorter).sort();
-            }
-        }
     }
 
     private ArrayList<Log> getSortedLogs() {
@@ -468,26 +450,32 @@ public class MainWindow extends JFrame {
     }
 
     private void applyFilter() {
-        sorter.setRowFilter(new RowFilter<LogTableModel, Integer>() {
+        sorter.setRowFilter(new RowFilter<>() {
             @Override
             public boolean include(Entry<? extends LogTableModel, ? extends Integer> e) {
                 LogTableModel m = e.getModel();
                 Log log = m.logs.get(e.getIdentifier());
 
                 //Severity filter
-                if(log.isSuppressed() && !showSuppressed){
+                if (log.isSuppressed() && !showSuppressed) {
                     return false;
                 }
                 switch (log.getSeverity()) {
-                    case Normal -> { if (!showNormal) return false; }
-                    case Warning -> { if (!showWarning) return false; }
-                    case Critical -> { if (!showCritical) return false; }
+                    case Normal -> {
+                        if (!showNormal) return false;
+                    }
+                    case Warning -> {
+                        if (!showWarning) return false;
+                    }
+                    case Critical -> {
+                        if (!showCritical) return false;
+                    }
                 }
 
                 //Search filter
                 if (searchText == null || searchText.isBlank()) return true;
                 String s = searchText.toLowerCase();
-                return     log.getMessage().toLowerCase().contains(s) //Contains message
+                return log.getMessage().toLowerCase().contains(s) //Contains message
 
                         || log.getType().toString().toLowerCase().contains(s) //Type
 
@@ -513,12 +501,11 @@ public class MainWindow extends JFrame {
             Log l = logs.get(r);
             return switch(c){
                 case 0 -> (switch(l.getSeverity()){
-                    case Normal -> "✅ "; case Warning -> "⚠\uFE0F "; case Critical -> "❌ ";
+                    case Normal -> "✅ "; case Warning -> "⚠️ "; case Critical -> "❌ ";
                 })  + l.getLogID();
                 case 1 -> l.getType();
                 case 2 -> l.getMessage();
-                case 3 -> l.getTimestamp().format(
-                        java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss"));
+                case 3 -> l.getTimestamp();
                 default -> "";
             };
         }
@@ -552,6 +539,71 @@ public class MainWindow extends JFrame {
         amazon.syncOrders();
         ebay.syncOrders();
         walmart.syncOrders();
+
+
+
+        for (int i = 1; i <= 10; i++) {
+            String name = "Test Item " + i;
+            String serial = "SER-" + String.format("%03d", i);
+            int quantity = (int) (Math.random() * 50 + 1); // random 1–50
+            int lowTrigger = (i % 3 == 0) ? 100 : 0; // every 3rd item has a low stock trigger
+
+            String amazonSKU = "AMZ-" + serial;
+            String ebaySKU = "EBY-" + serial;
+            String walmartSKU = "WMT-" + serial;
+
+            inventory.createItem(
+                    name,
+                    serial,
+                    lowTrigger,
+                    new ArrayList<>(), // no composition yet
+                    null,
+                    itemManager,
+                    amazonSKU,
+                    ebaySKU,
+                    walmartSKU,
+                    quantity
+            );
+        }
+
+        Random rand = new Random();
+
+        for (int i = 1; i <= 4; i++) {
+            String name = "Composite " + i;
+            String serial = "CMP-" + String.format("%03d", i);
+
+            ArrayList<ItemPacket> components = new ArrayList<>();
+            int numComponents = rand.nextInt(3) + 2; // 2–4 components
+
+            for (int j = 0; j < numComponents; j++) {
+                int componentIndex = rand.nextInt(10) + 1; // from 1–10 (existing items)
+                String componentSerial = "SER-" + String.format("%03d", componentIndex);
+                Item component = inventory.getItemBySerial(componentSerial);
+                if (component == null) continue;
+
+                int qty = rand.nextInt(3) + 1; // 1–3 units per component
+                components.add(new ItemPacket(component, qty));
+            }
+
+            // skip if no valid components
+            if (components.isEmpty()) continue;
+
+            int quantity = rand.nextInt(10) + 1; // random stock for composite
+
+            inventory.createItem(
+                    name,
+                    serial,
+                    0, // optional trigger
+                    components,
+                    null, // no image for now
+                    itemManager,
+                    "AMZ-" + serial,
+                    "EBY-" + serial,
+                    "WMT-" + serial,
+                    quantity
+            );
+        }
+
 
 
         //Creates main window

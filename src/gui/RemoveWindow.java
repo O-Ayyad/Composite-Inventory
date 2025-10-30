@@ -1,14 +1,20 @@
 package gui;
 import core.*;
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
 import java.util.Map;
 
 public class RemoveWindow extends SubWindow {
     public static String windowName = "Remove Item";
+
     public RemoveWindow(JFrame mainWindow, Inventory inventory) {
+        this(mainWindow, inventory, null); //Delegate to unified constructor
+    }
+
+    public RemoveWindow(JFrame mainWindow, Inventory inventory, Item selected) {
         super(mainWindow, windowName,inventory);
         if (inventory.SerialToItemMap.isEmpty()) {
             JOptionPane.showMessageDialog(mainWindow,
@@ -18,17 +24,21 @@ public class RemoveWindow extends SubWindow {
             dispose();
             return;
         }
-        setupUI();
+        setupUI(selected);
         setVisible(true);
     }
 
     @Override
-    public void setupUI(){
-        JPanel mainPanel = reduceStockPanel();
+    public void setupUI() {
+        setupUI(null);
+    }
+
+    public void setupUI(Item selected) {
+        JPanel mainPanel = reduceStockPanel(selected);
         add(mainPanel, BorderLayout.CENTER);
         pack();
     }
-    public JPanel reduceStockPanel(){
+    public JPanel reduceStockPanel(Item selected){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -60,15 +70,23 @@ public class RemoveWindow extends SubWindow {
         Map<String,String> displayToSerialMap = DDRObj.serialMap;
         panel.add(itemDropdown, gbc);
 
-        //Spinner
+        if (selected != null) {
+            String serial = selected.getSerialNum();
+            for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
+                if (entry.getValue().equals(serial)) {
+                    itemDropdown.setSelectedItem(entry.getKey());
+                    break;
+                }
+            }
+        }
+
+        //Reduce text
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Amount to reduce:"), gbc);
         gbc.gridx = 1;
-        JSpinner amountSpinner = new JSpinner(new SpinnerNumberModel(0, -10000000, 1000000, 1));
-        JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) amountSpinner.getEditor();
-        editor.getTextField().setHorizontalAlignment(JTextField.LEFT);
-
-        panel.add(amountSpinner, gbc);
+        JTextField amountField = new JTextField(10); // width ~10 columns
+        amountField.setHorizontalAlignment(JTextField.LEFT);
+        panel.add(amountField, gbc);
 
         gbc.gridx = 0; gbc.gridy++;
         gbc.gridwidth = 2;
@@ -81,11 +99,33 @@ public class RemoveWindow extends SubWindow {
         buttonRow.add(UIUtils.styleButton(removeItemButton));
         panel.add(buttonRow, gbc);
 
+        amountField.getDocument().addDocumentListener(new DocumentListener() {
+            void update() {
+                updateReduceButtonText(reduceButton, itemDropdown, displayToSerialMap, amountField);
+            }
+
+            @Override
+            public void insertUpdate(DocumentEvent e) { update(); }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) { update(); }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) { update(); }
+        });
+
 
         panel.registerKeyboardAction(
-                e -> {if((int)amountSpinner.getValue() >0) {
-                    reduceButton.doClick();
-                }
+                e -> {
+                    try {
+                        int amount = Integer.parseInt(amountField.getText().trim());
+                        if (amount > 0) {
+                            reduceButton.doClick();
+                        }
+                    } catch (NumberFormatException ex) {
+                        JOptionPane.showMessageDialog(panel, "Please enter a valid number.",
+                                "Invalid Input", JOptionPane.WARNING_MESSAGE);
+                    }
                 },
                 KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
                 JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
@@ -97,19 +137,33 @@ public class RemoveWindow extends SubWindow {
                 JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
         );
 
-        amountSpinner.addChangeListener(e -> updateReduceButtonText(reduceButton,itemDropdown,displayToSerialMap,amountSpinner));
         reduceButton.addActionListener(e ->{
 
             String selectedItem = (String) itemDropdown.getEditor().getItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
-            int amount = Math.abs((int)amountSpinner.getValue());
 
+            int amount = 0;
 
-            updateReduceButtonText(reduceButton,itemDropdown,displayToSerialMap,amountSpinner);
+            String text = amountField.getText().trim();
+            if (!text.isEmpty()) {
+                try {
+                    amount = Math.abs(Integer.parseInt(text));
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(this,
+                            "Please enter a valid number.",
+                            "Invalid Input",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
 
+            updateReduceButtonText(reduceButton, itemDropdown, displayToSerialMap, amountField);
 
             if (amount == 0) {
-                JOptionPane.showMessageDialog(this, "Amount cannot be 0.", "Invalid amount", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Amount cannot be 0.",
+                        "Invalid amount",
+                        JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -346,19 +400,33 @@ public class RemoveWindow extends SubWindow {
     String updateReduceText( Item target, int amount){
         String reduceButtonText;
         if (target == null) {
-            reduceButtonText = "Remove " + amount + " of this item";
+            reduceButtonText = (amount > 0)
+                    ? "Remove " + amount + " of this item"
+                    : "Remove amount to this item";
         } else {
-            reduceButtonText = formatItemCount(amount, target.getName(), "Remove");
+            String name = target.getName();
+            String plural = name.endsWith("s") ? name + "es" : name + "s";
+            reduceButtonText = (amount > 1)
+                    ? "Remove " + amount + " " + plural
+                    : (amount <= 0 ? "Remove amount to " + name : "Remove " + amount + " " + name);
         }
         return reduceButtonText;
     }
-    void updateReduceButtonText(JButton addButton,JComboBox<String> itemDropdown, Map<String,String> displayToSerialMap, JSpinner amountSpinner){
+    void updateReduceButtonText(JButton removeButton,JComboBox<String> itemDropdown, Map<String,String> displayToSerialMap, JTextField textField){
         String currentItem = (String) itemDropdown.getEditor().getItem();
         String currentSerial = displayToSerialMap.get(currentItem);
-        int currentAmount = (int) amountSpinner.getValue();
-        Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
+        String quantityText = textField.getText().trim();
 
-        addButton.setText(updateReduceText(currentTarget, currentAmount));
+        int currentAmount = 0; // default when empty or invalid
+        if (!quantityText.isEmpty()) {
+            try {
+                currentAmount = Integer.parseInt(quantityText);
+            } catch (NumberFormatException ex) {
+                //ignore
+            }
+        }
+        Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
+        removeButton.setText(updateReduceText(currentTarget, currentAmount));
     }
 }
 

@@ -3,6 +3,7 @@ import javax.swing.*;
 import java.time.LocalDateTime;
 
 public class Log {
+
     public enum Severity {
         Normal,
         Warning,
@@ -86,7 +87,12 @@ public class Log {
     // --------------------------- Getters ---------------------------
     public int getLogID() { return logID; }
     public Integer getAmount() {return amount;}
-    public LocalDateTime getTimestamp() { return timestamp; }
+    public String getTimestamp() {
+        return timestamp.format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss"));
+    }
+    public String getTime() {
+        return getTimestamp();
+    }
     public LogType getType() { return type; }
     public Severity getSeverity() { return severity; }
     public String getMessage() { return message; }

@@ -29,7 +29,7 @@ public abstract class SubWindow extends JDialog {
         if(itemIcon != null){
             return itemIcon;
         }
-        String iconPath = item.getIconPath();
+        String iconPath = item.getImagePath();
         if (iconPath == null || iconPath.isEmpty()) {
             iconPath = notFoundPNGPath;
         }
