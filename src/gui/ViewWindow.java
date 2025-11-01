@@ -94,7 +94,7 @@ public class ViewWindow extends SubWindow {
 
         reduceBtn.addActionListener(e -> {
             Item selected = getSelectedItem();
-            new RemoveWindow(mainWindow, inventory, selected);
+            new RemoveWindow(mainWindow, inventory, selected,false);
         });
 
         editBtn.addActionListener(e -> {
@@ -107,8 +107,8 @@ public class ViewWindow extends SubWindow {
         });
 
         deleteBtn.addActionListener(e -> {
-            Item target = getSelectedItem();
-            if (target == null) {
+            Item selected = getSelectedItem();
+            if (selected == null) {
                 JOptionPane.showMessageDialog(
                         this,
                         "Please select an item to delete.",
@@ -117,97 +117,8 @@ public class ViewWindow extends SubWindow {
                 );
                 return;
             }
+            new RemoveWindow(mainWindow, inventory, selected,true);
 
-            if (!target.getComposesInto().isEmpty()) {
-                StringBuilder composeList = new StringBuilder();
-                for (Item i : target.getComposesInto()) {
-                    composeList.append("• ").append(i.getName()).append("\n");
-                }
-                String composeListStr = composeList.toString();
-
-                int warnConfirm = JOptionPane.showConfirmDialog(
-                        this,
-                        "Warning: This item is used as a component in other composite items.\n" +
-                                "Removing it may affect the following item(s):\n\n" +
-                                composeListStr +
-                                "\nProceed anyway?",
-                        "Composition Warning",
-                        JOptionPane.YES_NO_OPTION,
-                        JOptionPane.WARNING_MESSAGE
-                );
-
-                if (warnConfirm != JOptionPane.YES_OPTION) return;
-            }
-
-            String serial = target.getSerialNum();
-            String serialConfirm = JOptionPane.showInputDialog(
-                    this,
-                    "Type the serial number to permanently delete:\n\n" +
-                            serial +
-                            "\n\nThis action cannot be undone! All data and logs associated with this item will be lost!",
-                    "Confirm Deletion",
-                    JOptionPane.WARNING_MESSAGE
-            );
-
-            if (serialConfirm == null || !serialConfirm.trim().equalsIgnoreCase(serial)) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Serial numbers do not match. Item not removed.",
-                        "Verification Failed",
-                        JOptionPane.ERROR_MESSAGE
-                );
-                return;
-            }
-
-            //Final confirmation pane
-            JPanel confirmPanel = new JPanel(new BorderLayout(10, 10));
-            JLabel message = new JLabel(
-                    "<html><body width='400'>" +
-                            "Are you absolutely sure you want to delete <b>" + target.getName() + "</b> (Serial: <b>" + serial + "</b>)?<br><br>" +
-                            "This <b>CANNOT</b> be undone and will remove all logs linked to this item.<br><br>" +
-                            "Type <b>CONFIRM</b> below to continue:" +
-                            "</body></html>"
-            );
-            JTextField inputField = new JTextField(10);
-            confirmPanel.add(message, BorderLayout.NORTH);
-            confirmPanel.add(inputField, BorderLayout.CENTER);
-
-            int choice = JOptionPane.showConfirmDialog(
-                    this,
-                    confirmPanel,
-                    "Final Confirmation",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE
-            );
-
-            if (!(choice == JOptionPane.YES_OPTION && "CONFIRM".equalsIgnoreCase(inputField.getText().trim()))) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "You must type CONFIRM to proceed with deletion.",
-                        "Deletion Canceled",
-                        JOptionPane.WARNING_MESSAGE
-                );
-                return;
-            }
-
-
-            try {
-                inventory.removeItem(target);
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Successfully removed " + target.getName() + " (Serial: " + serial + ")",
-                        "Item Removed",
-                        JOptionPane.INFORMATION_MESSAGE
-                );
-                refreshTable();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Failed to remove item: " + ex.getMessage(),
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE
-                );
-            }
         });
 
 

@@ -10,11 +10,11 @@ import java.util.Map;
 public class RemoveWindow extends SubWindow {
     public static String windowName = "Remove Item";
 
-    public RemoveWindow(JFrame mainWindow, Inventory inventory) {
-        this(mainWindow, inventory, null); //Delegate to unified constructor
+    public RemoveWindow(JFrame mainWindow, Inventory inventory,boolean sendToRemoveItem) {
+        this(mainWindow, inventory, null,sendToRemoveItem); //Delegate to unified constructor
     }
 
-    public RemoveWindow(JFrame mainWindow, Inventory inventory, Item selected) {
+    public RemoveWindow(JFrame mainWindow, Inventory inventory, Item selected, boolean sendToRemoveItem) {
         super(mainWindow, windowName,inventory);
         if (inventory.SerialToItemMap.isEmpty()) {
             JOptionPane.showMessageDialog(mainWindow,
@@ -24,17 +24,23 @@ public class RemoveWindow extends SubWindow {
             dispose();
             return;
         }
-        setupUI(selected);
+
+        setupUI(selected,sendToRemoveItem);
         setVisible(true);
     }
 
     @Override
     public void setupUI() {
-        setupUI(null);
+        setupUI(null,false);
     }
 
-    public void setupUI(Item selected) {
-        JPanel mainPanel = reduceStockPanel(selected);
+    public void setupUI(Item selected,boolean sendToRemoveItem) {
+        JPanel mainPanel;
+        if(sendToRemoveItem){
+            mainPanel = removeItemPanel(selected);
+        }else{
+            mainPanel = reduceStockPanel(selected);
+        }
         add(mainPanel, BorderLayout.CENTER);
         pack();
     }
@@ -214,7 +220,7 @@ public class RemoveWindow extends SubWindow {
             // Replace current content with remove item panel
             getContentPane().removeAll();
             //Create panel
-            add(removeItemPanel(), BorderLayout.CENTER);
+            add(removeItemPanel(null), BorderLayout.CENTER);
 
             revalidate();
             repaint();
@@ -226,7 +232,7 @@ public class RemoveWindow extends SubWindow {
         mainPanel.setPreferredSize(new Dimension(550, 400));
         return mainPanel;
     }
-    public JPanel removeItemPanel(){
+    public JPanel removeItemPanel(Item selected){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -257,6 +263,16 @@ public class RemoveWindow extends SubWindow {
         JComboBox<String> itemDropdown = DDRObj.menu;
         Map<String,String> displayToSerialMap = DDRObj.serialMap;
         panel.add(itemDropdown, gbc);
+
+        if (selected != null) {
+            String serial = selected.getSerialNum();
+            for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
+                if (entry.getValue().equals(serial)) {
+                    itemDropdown.setSelectedItem(entry.getKey());
+                    break;
+                }
+            }
+        }
 
         //Remove buttons
         gbc.gridx = 0; gbc.gridy++;
@@ -331,7 +347,7 @@ public class RemoveWindow extends SubWindow {
             //Confirmation
             String serial = target.getSerialNum();
 
-            String confirm = JOptionPane.showInputDialog(
+            String inSerial = JOptionPane.showInputDialog(
                     this,
                     "Type the serial number to permanently delete:\n" + serial +
                             "\n\nThis action cannot be undone! All data about this item will be lost!\n" +
@@ -339,31 +355,21 @@ public class RemoveWindow extends SubWindow {
                     "Confirm Deletion",
                     JOptionPane.WARNING_MESSAGE
             );
-            if (!confirm.equals(serial)) {
+            if (!inSerial.equals(serial)) {
                 JOptionPane.showMessageDialog(this, "Serial numbers do not match. Item not removed.",
                         "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            JPanel confirmPanel = new JPanel(new BorderLayout(10, 10));
-            JLabel message = new JLabel(
+
+            String confirmWord = JOptionPane.showInputDialog(
+                    this,
                     "Delete \"" + target.getName() + "\" (Serial: " + serial + ")?\n\n" +
                             "This CANNOT be undone and will delete all logs.\n\n" +
-                            "Type CONFIRM below to continue:"
-            );
-            JTextField inputField = new JTextField(10);
-
-            confirmPanel.add(message, BorderLayout.NORTH);
-            confirmPanel.add(inputField, BorderLayout.CENTER);
-
-            int choice = JOptionPane.showConfirmDialog(
-                    this,
-                    confirmPanel,
-                    "Final Confirmation",
-                    JOptionPane.YES_NO_OPTION,
+                            "Type CONFIRM below to continue:",
+                    "Confirm delete " + target.getName(),
                     JOptionPane.WARNING_MESSAGE
             );
-
-            if (!(choice == JOptionPane.YES_OPTION && "CONFIRM".equals(inputField.getText().trim()))) {
+            if (confirmWord == null || !confirmWord.trim().equalsIgnoreCase("CONFIRM")) {
                 JOptionPane.showMessageDialog(
                         this,
                         "You must type CONFIRM to proceed with deletion.",
@@ -372,6 +378,19 @@ public class RemoveWindow extends SubWindow {
                 );
                 return;
             }
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "Are you absolutely sure you want to delete this item?\n\nItem Serial: " + serial,
+                    "Final Confirmation",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            if (choice != JOptionPane.YES_OPTION) {
+                JOptionPane.showMessageDialog(this, "Deletion canceled.", "Canceled", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
             //Success
             try {
                 inventory.removeItem(target);

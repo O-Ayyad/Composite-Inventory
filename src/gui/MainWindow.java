@@ -9,6 +9,8 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Random;
@@ -118,7 +120,7 @@ public class MainWindow extends JFrame {
             @Override public void actionPerformed(ActionEvent e) { new AddWindow(MainWindow.this, inventory); }
         });
         am.put("openRemove", new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent e) { new RemoveWindow(MainWindow.this, inventory); }
+            @Override public void actionPerformed(ActionEvent e) { new RemoveWindow(MainWindow.this, inventory,false); }
         });
         am.put("openView", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { new ViewWindow(MainWindow.this, inventory); }
@@ -130,7 +132,7 @@ public class MainWindow extends JFrame {
 
         addButton.addActionListener(e -> {new AddWindow(this,inventory);
                 requestFocusInWindow();});
-        removeButton.addActionListener(e -> {new RemoveWindow(this,inventory);
+        removeButton.addActionListener(e -> {new RemoveWindow(this,inventory,false);
                 requestFocusInWindow();});
         viewButton.addActionListener(e -> {new ViewWindow(this,inventory);
                 requestFocusInWindow();});
@@ -286,8 +288,8 @@ public class MainWindow extends JFrame {
                 boolean even = row % 2 == 0;
 
                 Color normalColor = new Color(220, 220, 235); //light purple
-                Color warningColor = new Color(255, 250, 205); //light yellow
-                Color criticalColor = new Color(255, 204, 204); //light red
+                Color warningColor = new Color(255, 245, 180);
+                Color criticalColor = new Color(240, 160, 165);
 
                 Color revertedColor = new Color(210, 200, 210); //gray
 
@@ -413,8 +415,8 @@ public class MainWindow extends JFrame {
         link.addActionListener(e -> {
             try {
                 Desktop.getDesktop().browse(new URI(url));
-            } catch (Exception ex) {
-                ex.printStackTrace();
+            } catch (Exception ignored) {
+
             }
         });
         link.addMouseListener(new MouseAdapter() {
@@ -603,10 +605,11 @@ public class MainWindow extends JFrame {
                     quantity
             );
         }
-
-
-
         //Creates main window
-        SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager));
+        SwingUtilities.invokeLater(() -> {
+            DebugConsole.init();
+            new MainWindow(inventory,logManager);
+
+        });
     }
 }

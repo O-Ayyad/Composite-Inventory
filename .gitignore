@@ -6,6 +6,7 @@
 *.iml
 .idea/
 out/
+data/
 .DS_Store
 Thumbs.db
 *.tmp
