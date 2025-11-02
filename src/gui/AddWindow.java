@@ -53,7 +53,7 @@ public class AddWindow extends SubWindow {
         JTextArea info = new JTextArea("Create new Item");
         info.setEditable(false);
         info.setOpaque(false);
-        info.setFont(new Font("Arial", Font.BOLD, 14));
+        info.setFont(UIUtils.FONT_ARIAL_BOLD);
         top.add(info);
         mainPanel.add(top, BorderLayout.NORTH);
 
@@ -509,7 +509,7 @@ public class AddWindow extends SubWindow {
 
         //Header
         JLabel header = new JLabel("Add To Existing Item");
-        header.setFont(new Font("Arial", Font.BOLD, 16));
+        header.setFont(UIUtils.FONT_ARIAL_BOLD_MEDIUM);
         gbc.gridwidth = 2;
         panel.add(header, gbc);
         gbc.gridwidth = 1;

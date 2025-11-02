@@ -22,7 +22,7 @@ public class LinkWindow extends SubWindow {
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel header = new JLabel("Connect Your Seller Accounts", SwingConstants.CENTER);
-        header.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        header.setFont(UIUtils.FONT_UI_LARGE_BOLD);
         mainPanel.add(header, BorderLayout.NORTH);
 
         JPanel content = new JPanel();
@@ -51,7 +51,7 @@ public class LinkWindow extends SubWindow {
                         + "</div></html>",
                 SwingConstants.CENTER
         );
-        footerText.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        footerText.setFont(UIUtils.FONT_UI_SMALL);
         footerText.setAlignmentX(Component.CENTER_ALIGNMENT);
         footerText.setBorder(BorderFactory.createEmptyBorder(5, 0, 8, 0));
 
@@ -68,12 +68,12 @@ public class LinkWindow extends SubWindow {
     private JPanel createPlatformPanel(String platformName) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(200, 200, 220)),
+                BorderFactory.createLineBorder(UIUtils.BORDER_LIGHT),
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)
         ));
 
         JLabel nameLabel = new JLabel(platformName);
-        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        nameLabel.setFont(UIUtils.FONT_UI_BOLD );
         panel.add(nameLabel, BorderLayout.WEST);
 
         JLabel statusLabel = new JLabel("Not Connected");
@@ -101,7 +101,7 @@ public class LinkWindow extends SubWindow {
             String existingToken = apiStorage.loadToken(type);
             if (existingToken != null) {
                 statusLabel.setText("Connected (" + platformName + ")");
-                statusLabel.setForeground(new Color(0, 128, 0));
+                statusLabel.setForeground(UIUtils.LINK_SUCCESS);
                 connectButton.setEnabled(false);
                 disconnectButton.setEnabled(true);
             }
@@ -231,7 +231,7 @@ public class LinkWindow extends SubWindow {
 
             apiStorage.saveToken(type, combinedToken);
             statusLabel.setText("Connected (Amazon)");
-            statusLabel.setForeground(new Color(0, 128, 0));
+            statusLabel.setForeground(UIUtils.LINK_SUCCESS);
             connectBtn.setEnabled(false);
             disconnectBtn.setEnabled(true);
         }
@@ -302,7 +302,7 @@ public class LinkWindow extends SubWindow {
             apiStorage.saveToken(type, combined);
 
             statusLabel.setText("Connected (Walmart)");
-            statusLabel.setForeground(new Color(0, 128, 0));
+            statusLabel.setForeground(UIUtils.LINK_SUCCESS);
             connectBtn.setEnabled(false);
             disconnectBtn.setEnabled(true);
         }
@@ -381,7 +381,7 @@ public class LinkWindow extends SubWindow {
             apiStorage.saveToken(type, combined);
 
             statusLabel.setText("Connected (eBay)");
-            statusLabel.setForeground(new Color(0, 128, 0));
+            statusLabel.setForeground(UIUtils.LINK_SUCCESS);
             connectBtn.setEnabled(false);
             disconnectBtn.setEnabled(true);
         }
@@ -403,7 +403,7 @@ public class LinkWindow extends SubWindow {
         message.setLineWrap(true);
         message.setEditable(false);
         message.setOpaque(false);
-        message.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        message.setFont(UIUtils.FONT_UI_REGULAR);
 
         panel.add(message, BorderLayout.CENTER);
 

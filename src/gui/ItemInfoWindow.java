@@ -3,10 +3,8 @@ package gui;
 import core.*;
 import javax.swing.*;
 import javax.swing.border.*;
-import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
-import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,12 +14,14 @@ public class ItemInfoWindow extends SubWindow {
     private final Item item;
     private final Inventory inventory;
     private final LogManager logManager;
+    private final JFrame mainWindow;
 
     public ItemInfoWindow(JFrame mainWindow, Inventory inventory, Item item) {
         super(mainWindow, item.getName() + " Information", inventory);
         this.item = item;
         this.inventory = inventory;
         this.logManager = inventory.logManager;
+        this.mainWindow = mainWindow;
 
         setLocationRelativeTo(mainWindow);
 
@@ -46,7 +46,7 @@ public class ItemInfoWindow extends SubWindow {
 
         JTextArea titleArea = new JTextArea(item.getName() + "\n\nSerial: " + item.getSerialNum());
         titleArea.setEditable(false);
-        titleArea.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        titleArea.setFont(UIUtils.FONT_UI_TITLE);
         titleArea.setOpaque(false);
         headerPanel.add(titleArea, BorderLayout.CENTER);
         mainPanel.add(headerPanel, BorderLayout.NORTH);
@@ -62,13 +62,13 @@ public class ItemInfoWindow extends SubWindow {
 
         JPanel detailsWrapper = new JPanel(new BorderLayout());
         TitledBorder detailsBorder = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(150, 150, 160), 2),
+                BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
                 "Details",
                 TitledBorder.CENTER,
                 TitledBorder.DEFAULT_POSITION
         );
-        detailsBorder.setTitleFont(new Font("Arial", Font.PLAIN, 18));
-        detailsBorder.setTitleColor(new Color(100, 100, 110));
+        detailsBorder.setTitleFont(UIUtils.FONT_ARIAL_HEADER);
+        detailsBorder.setTitleColor(UIUtils.TEXT_SECONDARY);
 
         detailsWrapper.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(10, 20, 20, 20),
@@ -86,7 +86,7 @@ public class ItemInfoWindow extends SubWindow {
         JButton okBtn = UIUtils.styleButton(new JButton("OK"));
         JButton editBtn = UIUtils.styleButton(new JButton("Edit"));
 
-        Font btnFont = new Font("Segoe UI", Font.BOLD, 16);
+        Font btnFont = UIUtils.FONT_UI_LARGE;
         Dimension btnSize = new Dimension(120, 45);
         okBtn.setFont(btnFont);
         editBtn.setFont(btnFont);
@@ -113,13 +113,13 @@ public class ItemInfoWindow extends SubWindow {
         wrapper.setOpaque(false);
 
         TitledBorder border = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(150, 150, 160), 2),
+                BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
                 title,
                 TitledBorder.CENTER,
                 TitledBorder.DEFAULT_POSITION
         );
-        border.setTitleFont(new Font("Arial", Font.PLAIN, 16));
-        border.setTitleColor(new Color(100, 100, 110));
+        border.setTitleFont(UIUtils.FONT_ARIAL_LARGE);
+        border.setTitleColor(UIUtils.BORDER_DARK);
 
         wrapper.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(10, 20, 10, 20),
@@ -190,13 +190,13 @@ public class ItemInfoWindow extends SubWindow {
         panel.setOpaque(false);
 
         TitledBorder border = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(150, 150, 160), 2),
+                BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
                 "Logs",
                 TitledBorder.CENTER,
                 TitledBorder.DEFAULT_POSITION
         );
-        border.setTitleFont(new Font("Arial", Font.PLAIN, 16));
-        border.setTitleColor(new Color(100, 100, 110));
+        border.setTitleFont(UIUtils.FONT_ARIAL_BOLD_MEDIUM);
+        border.setTitleColor(UIUtils.TEXT_SECONDARY);
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(10, 20, 10, 20),
                 border
@@ -206,90 +206,35 @@ public class ItemInfoWindow extends SubWindow {
 
         if (logs.isEmpty()) {
             JLabel empty = new JLabel("No logs for this item.", JLabel.CENTER);
-            empty.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+            empty.setFont(UIUtils.FONT_UI_ITALIC );
             panel.add(empty, BorderLayout.CENTER);
             return panel;
         }
 
-        MainWindow.LogTableModel logTableModel = new MainWindow.LogTableModel(new ArrayList<>(logs));
+        LogTableModel logTableModel = new LogTableModel(new ArrayList<>(logs));
         JTable logTable = new JTable(logTableModel);
-        logTable.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
+        logTable.setFont(UIUtils.FONT_UI_REGULAR);
         logTable.setRowHeight(26);
         logTable.setFillsViewportHeight(true);
         logTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         logTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
+        LogTableModel.attachOpenListener(logTable, log -> {
+            new LogWindow(mainWindow, inventory, log, logManager);
+        });
+
+        LogTableModel.styleTable(logTable);
+
         JTableHeader header = logTable.getTableHeader();
-        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        header.setBackground(new Color(230, 230, 240));
+        header.setFont(UIUtils.FONT_UI_BOLD);
+        header.setBackground(UIUtils.BACKGROUND_PANEL);
         header.setForeground(Color.DARK_GRAY);
         ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
 
-        logTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
-            Color getAltered(Color c, boolean even) {
-                int delta = even ? 10 : 0;
-                return new Color(
-                        Math.max(c.getRed() - delta, 0),
-                        Math.max(c.getGreen() - delta, 0),
-                        Math.max(c.getBlue() - delta, 0)
-                );
-            }
 
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value,
-                                                           boolean isSelected, boolean hasFocus,
-                                                           int row, int column) {
-                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
-                int modelRow = table.convertRowIndexToModel(row);
-                MainWindow.LogTableModel model = (MainWindow.LogTableModel) table.getModel();
-                Log log = model.getLogAt(modelRow);
-
-                boolean even = (row % 2 == 0);
-                Color normalColor   = new Color(220, 220, 235);
-                Color warningColor  = new Color(255, 250, 205);
-                Color criticalColor = new Color(255, 204, 204);
-                Color revertedColor = new Color(210, 200, 210);
-
-                if (isSelected) {
-                    c.setBackground(table.getSelectionBackground());
-                    c.setForeground(table.getSelectionForeground());
-                } else if (log.isReverted()) {
-                    c.setBackground(revertedColor);
-                } else {
-                    switch (log.getSeverity()) {
-                        case Normal -> c.setBackground(getAltered(normalColor, even));
-                        case Warning -> c.setBackground(getAltered(warningColor, even));
-                        case Critical -> c.setBackground(getAltered(criticalColor, even));
-                    }
-                    c.setForeground(Color.BLACK);
-                }
-                return c;
-            }
-        });
-
-        JScrollPane scrollPane = getScrollPane(logTable, logs);
+        JScrollPane scrollPane = LogTableModel.createScrollPane(logTable);
 
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;
-    }
-
-    private static JScrollPane getScrollPane(JTable logTable, List<Log> logs) {
-        JScrollPane scrollPane = new JScrollPane(logTable);
-        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 210)));
-        scrollPane.setPreferredSize(new Dimension(400, Math.min(150, 25 * logs.size() + 45)));
-
-        scrollPane.addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override
-            public void componentResized(java.awt.event.ComponentEvent e) {
-                int width = scrollPane.getViewport().getWidth();
-                TableColumnModel cm = logTable.getColumnModel();
-                cm.getColumn(0).setPreferredWidth((int) (width * 0.08)); // Log #
-                cm.getColumn(1).setPreferredWidth((int) (width * 0.18)); // Type
-                cm.getColumn(2).setPreferredWidth((int) (width * 0.55)); // Action
-                cm.getColumn(3).setPreferredWidth((int) (width * 0.19)); // Time
-            }
-        });
-        return scrollPane;
     }
 }

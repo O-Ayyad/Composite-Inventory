@@ -136,7 +136,7 @@ public class Item {
     //If item A holds item B composedOf then item B should hold Item A in composed into
     //This should be called on the item that is composed of other items. The kit/combo
     public void syncCompositionDependencies(){
-        if (itemManager == null) return;
+        if (itemManager == null) throw new IllegalStateException("Item Manager is null for item: "+ getName());
         //Make sure all components of this item know what they compose into
         for (ItemPacket IP : this.composedOf) {
             Item component = IP.getItem();
@@ -157,57 +157,6 @@ public class Item {
     //-------------------------------</Constructor>-------------------------------
 
 
-    //-------------------------------<Item Array>---------------------------------
-
-    /**
-     * Returns all the information into one array.
-     *
-     * param {Item} Item being evaluated
-     * return {Object[]} Holds all information on item
-     *
-     * Enum used to access array with more readability
-     */
-
-    public enum ItemField {
-        IMAGE(0),
-        NAME(1),
-        SERIAL(2),
-        LOW_STOCK_TRIGGER(3),
-        COMPOSED_OF(4),
-        COMPOSED_OF_SIZE(5),
-        COMPOSES_INTO(6),
-        COMPOSES_INTO_SIZE(7),
-        AMAZON_SKU(8),
-        EBAY_SKU(9),
-        WALMART_SKU(10);
-
-        private final int index;
-        ItemField(int index) { this.index = index; }
-        public int getIndex() { return index; }
-    }
-    public Object[] toArray() {
-        Object[] arr = new Object[11];
-
-        arr[ItemField.IMAGE.getIndex()] = getIcon(50, 50);
-        arr[ItemField.NAME.getIndex()] = name;
-        arr[ItemField.SERIAL.getIndex()] = serialNum;
-        arr[ItemField.LOW_STOCK_TRIGGER.getIndex()] = lowStockTrigger; // new field
-        arr[ItemField.COMPOSED_OF.getIndex()] = composedOf;
-        arr[ItemField.COMPOSED_OF_SIZE.getIndex()] = composedOf.size();
-        arr[ItemField.COMPOSES_INTO.getIndex()] = composesInto;
-        arr[ItemField.COMPOSES_INTO_SIZE.getIndex()] = composesInto.size();
-        arr[ItemField.AMAZON_SKU.getIndex()] = amazonSellerSKU;
-        arr[ItemField.EBAY_SKU.getIndex()] = ebaySellerSKU;
-        arr[ItemField.WALMART_SKU.getIndex()] = walmartSellerSKU;
-
-        return arr;
-    }
-    //Returns the field of the item
-    public Object getField(Object[] itemArray, ItemField field) {
-        return itemArray[field.getIndex()];
-    }
-    //-------------------------------</Item Array>---------------------------------
-
     //-------------------------------<Other Methods>---------------------------------
 
     //If an item is broken down, then return a list of its composition and remove what was used.
@@ -216,8 +165,8 @@ public class Item {
     public void breakDownItem(ArrayList<ItemPacket> UsedItems){
         itemManager.breakDownItem(this, UsedItems);
     }
-    public void composeItem(Item composedItem, ArrayList<ItemPacket> usedComponents){
-        itemManager.composeItem(this, usedComponents);
+    public void composeItem(Item composedItem){
+        itemManager.composeItem(this);
     }
     //-------------------------------<Overrides>-------------------------------
     @Override

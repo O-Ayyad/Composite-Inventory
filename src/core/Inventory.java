@@ -95,7 +95,9 @@ public class Inventory {
     }
     //Edit the amount of an item
     public void addItemAmount(Item item, int amount){
-        if (!hasItem(item)) return;
+        if (!hasItem(item)) {
+            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+        }
         int quantity = MainInventory.getOrDefault(item, 0);
         MainInventory.put(item, quantity + amount);
         logManager.createLog(Log.LogType.ItemAdded,
@@ -107,7 +109,9 @@ public class Inventory {
         );
     }
     public void decreaseItemAmount(Item item, int amount){
-        if (!hasItem(item)) return;
+        if (!hasItem(item)) {
+            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+        }
 
         int quantity = MainInventory.get(item);
         quantity = Math.max(0,quantity-amount);
@@ -121,7 +125,9 @@ public class Inventory {
         );
     }
     public void setQuantity(Item item,int quantity){
-        if (!hasItem(item)) return;
+        if (!hasItem(item)) {
+            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+        }
         if(quantity < 0) return;
         MainInventory.put(item, quantity);
         logManager.createLog(Log.LogType.ItemUpdated,
@@ -173,6 +179,7 @@ public class Inventory {
                 return item;
             }
         }
+        System.out.print("getItemByName() called on non-existent item");
         return null;
     }
 

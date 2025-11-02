@@ -24,7 +24,8 @@ public class Log {
         NewItemCreated,
         ItemRemoved,
         ItemBrokenDown,
-        ItemComboCreated;
+        ItemComboCreated,
+        LogSuppressed,
     }
 
     private static int nextLogID = 1; // Auto-increment
@@ -78,9 +79,9 @@ public class Log {
     //Helper for constructors
     private Severity  determineSeverity(LogType type) {
         return switch (type) {
-            case ItemSold, OrderCancelled, NewItemCreated, ItemSoldOnPlatform, ItemShippedOnPlatform, ItemUpdated, ItemRemoved, ItemAdded, ItemBrokenDown, ItemComboCreated -> Severity.Normal;
             case LowStock, ItemOutOfStock, ItemSoldViaComposition -> Severity.Warning;
             case ItemSoldAndNotListedOnPlatforms, ItemSoldAndOutOfStock -> Severity.Critical;
+            default -> Severity.Normal;
         };
     }
 
@@ -101,6 +102,7 @@ public class Log {
     public boolean isReverted() { return reverted; }
     public boolean isSuppressed() {return suppressed;}
     public boolean isSolved() {return solved;}
+    public boolean canRevert() { return allowRevert && !reverted; }
 
     // --------------------------- Setters ---------------------------
     public void setMessage(String message) { this.message = message; }
@@ -148,10 +150,6 @@ public class Log {
             case ItemAdded -> new SerialAndAmount(l.itemSerial, -l.amount);
             default -> new SerialAndAmount(null, 0);
         };
-    }
-    //Used to manage logs in a separate window
-    public JPanel openLogWindow(){
-        return null;
     }
 }
 

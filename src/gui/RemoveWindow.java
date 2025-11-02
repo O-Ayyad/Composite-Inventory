@@ -53,7 +53,7 @@ public class RemoveWindow extends SubWindow {
         JTextArea info = new JTextArea("Reduce Stock or Completely Remove Item");
         info.setEditable(false);
         info.setOpaque(false);
-        info.setFont(new Font("Arial", Font.BOLD, 14));
+        info.setFont(UIUtils.FONT_ARIAL_BOLD);
         top.add(info);
         mainPanel.add(top, BorderLayout.NORTH);
 
@@ -241,7 +241,7 @@ public class RemoveWindow extends SubWindow {
         JTextArea info = new JTextArea("Remove Item");
         info.setEditable(false);
         info.setOpaque(false);
-        info.setFont(new Font("Arial", Font.BOLD, 14));
+        info.setFont(UIUtils.FONT_ARIAL_BOLD);
         top.add(info);
         mainPanel.add(top, BorderLayout.NORTH);
 

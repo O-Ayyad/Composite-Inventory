@@ -1,5 +1,7 @@
 package core;
 
+import gui.UIUtils;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
@@ -18,7 +20,7 @@ public class DebugConsole extends JFrame {
         setDefaultCloseOperation(HIDE_ON_CLOSE);
 
         area.setEditable(false);
-        area.setFont(new Font("Consolas", Font.PLAIN, 12));
+        area.setFont(UIUtils.DEBUG_CONSOLE_FONT);
         area.setBackground(Color.BLACK);
         area.setForeground(Color.GREEN);
 

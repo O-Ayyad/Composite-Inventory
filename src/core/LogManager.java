@@ -2,7 +2,6 @@ package core;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.ArrayList;
 import java.util.Map;
 
 public class LogManager {
@@ -106,10 +105,19 @@ public class LogManager {
                 }
             }
         }
+        notifyListeners();
     }
-    public void revertLog(Log l){
+    public boolean canRevert(Log l) {
+        return l != null && !l.isReverted() && l.getSeverity() == Log.Severity.Normal &&
+                (l.getType() == Log.LogType.ItemSold || l.getType() == Log.LogType.ItemAdded);
+    }
 
-        if(l.isReverted()) return; //It has already been reverted
+    public void revertLog(Log l){
+        if (l == null || l.isReverted() || !l.getSeverity().equals(Log.Severity.Normal) ||
+            !l.getType().equals(Log.LogType.ItemSold) && !l.getType().equals(Log.LogType.ItemAdded)) {
+
+            throw new IllegalArgumentException("Attempted to revert an un-revertable log");
+        }
 
         Log.SerialAndAmount inverse = l.getLogInverse();
         int quant = inverse.getQuantity();
@@ -130,6 +138,44 @@ public class LogManager {
 
         ItemPacket ip = new ItemPacket(item, SAA.getQuantity());
         inventory.processItemPacket(ip);
+    }
+    public void suppressLog(Log l) {
+        if (l == null) return;
+
+        if (l.getSeverity() == Log.Severity.Normal) return;
+
+        if (l.isSuppressed()) return;
+
+        l.setSuppressed(true);
+
+        String msg = "Suppressed log #" + l.getLogID() + " (" + l.getSeverity() + "): \"" + l.getMessage() + "\"";
+        createLog(Log.LogType.LogSuppressed, 0, msg, l.getItemSerial());
+    }
+
+    public void unsuppressLog(Log l) {
+        if (l == null) return;
+        if (!l.isSuppressed()) return;
+        l.setSuppressed(false);
+
+        //Remove the previously created log
+        Item i = inventory.getItemBySerial(l.getItemSerial());
+        if (i == null) return;
+
+        ArrayList<Log> itemLogs = itemToLogs.get(i);
+        if (itemLogs == null || itemLogs.isEmpty()) return;
+
+        Log toRemove = null;
+        for (Log suppressLog : itemLogs) {
+            if (suppressLog.getType() == Log.LogType.LogSuppressed &&
+                    suppressLog.getMessage().contains("#" + l.getLogID())){ //Double check that the suppressed log is specifically for this log
+                toRemove = suppressLog;
+                break;
+            }
+        }
+
+        if (toRemove != null) {
+            removeLog(toRemove);
+        }
     }
 
     public void addChangeListener(Runnable listener) {

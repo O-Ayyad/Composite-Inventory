@@ -15,7 +15,7 @@ import java.security.MessageDigest;
 import java.util.Base64;
 
 //Securely read,writes and stores tokens in encrypted folders
-//File : ~/data/.inventory_secure/.(amazon/ebay/walmart)_api_key.enc
+//File : ~/data/encrypted_tokens/(amazon/ebay/walmart)/token.enc
 public class APIStorage {
 
     //Machine generated passphrase so that files copied to other machines need new tokens
@@ -206,7 +206,7 @@ public class APIStorage {
 
             int response = conn.getResponseCode();
             String message = conn.getResponseMessage();
-            
+
             conn.disconnect();
             System.out.print("[VALIDATING TOKEN END] Response code: " + response + " (" + message + ")");
 

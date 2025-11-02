@@ -31,7 +31,7 @@ public class EditWindow extends SubWindow {
         JTextArea info = new JTextArea("Edit Existing Item");
         info.setEditable(false);
         info.setOpaque(false);
-        info.setFont(new Font("Arial", Font.BOLD, 14));
+        info.setFont(UIUtils.FONT_ARIAL_BOLD);
         top.add(info);
         mainPanel.add(top, BorderLayout.NORTH);
 
@@ -57,7 +57,7 @@ public class EditWindow extends SubWindow {
         gbc.gridx = 1;
         JTextField serialField = new JTextField(selectedItem.getSerialNum(), 20);
         serialField.setEditable(false);
-        serialField.setBackground(new Color(245, 245, 245));
+        serialField.setBackground(UIUtils.BACKGROUND_MAIN);
         panel.add(serialField, gbc);
 
         //Quantity

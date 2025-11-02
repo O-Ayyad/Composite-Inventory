@@ -9,9 +9,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -19,12 +16,6 @@ public class MainWindow extends JFrame {
 
     public final int windowWidth = 1200;
     public final int windowHeight = 800;
-
-    private static final double COL_LOG_PCT = 9.0;
-    private static final double COL_TYPE_PCT = 14.0;
-    private static final double COL_ACTION_PCT = 65.0;
-    private static final double COL_TIME_PCT = 12.0;
-
 
     private final LogManager logManager;
 
@@ -61,7 +52,7 @@ public class MainWindow extends JFrame {
         JPanel logoPanel = new JPanel();
         logoPanel.setLayout(new BorderLayout());
         logoPanel.setPreferredSize(new Dimension(windowWidth, 50));
-        logoPanel.setBackground(new Color(240, 240, 240));
+        logoPanel.setBackground(UIUtils.BACKGROUND_MAIN);
 
         // Logo
         ImageIcon logo = new ImageIcon("icons/logo.png"); // make sure logo.png exists
@@ -74,16 +65,16 @@ public class MainWindow extends JFrame {
         rightPanel.setOpaque(false);
 
         JLabel authorLabel = new JLabel("Authorship Text");
-        authorLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        authorLabel.setFont(UIUtils.FONT_ARIAL_REGULAR );
         rightPanel.add(authorLabel);
 
         //Links
         JPanel linksPanel = new JPanel();
         linksPanel.setLayout(new GridLayout(2, 1, 0, 0));
-        JButton githubLink = createLinkButton("Github", "https://github.com/O-Ayyad", "icons/windowIcons/github.png");
+        JButton githubLink = UIUtils.createLinkButton("Github", "https://github.com/O-Ayyad", "icons/windowIcons/github.png");
 
         //Temp
-        JButton docsLink = createLinkButton("Docs", "https://example.com/docs", "icons/temp");
+        JButton docsLink = UIUtils.createLinkButton("Docs", "https://example.com/docs", "icons/temp");
         rightPanel.add(githubLink);
         rightPanel.add(docsLink);
 
@@ -197,119 +188,71 @@ public class MainWindow extends JFrame {
         JCheckBox showSuppressedBox = new JCheckBox("💤 Suppressed", true);
 
         for (JCheckBox box : new JCheckBox[]{showNormalBox, showWarningBox, showCriticalBox, showSuppressedBox}) {
-            box.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
+            box.setFont(UIUtils.FONT_UI_REGULAR);
             box.setOpaque(false);
             filterPanel.add(box);
         }
 
         //Log display
         JPanel logsPanel = new JPanel(new BorderLayout());
-
-        TitledBorder border = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(150, 150, 160),2), "Logs", TitledBorder.CENTER,TitledBorder.DEFAULT_POSITION
-        );
-        border.setTitleFont(new Font("Arial",Font.PLAIN ,18));
-        border.setTitleColor(new Color(100, 100, 110));
-
         logsPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createEmptyBorder(15, 30, 100, 40),
-                border
+                BorderFactory.createTitledBorder(
+                        BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
+                        "Logs",
+                        TitledBorder.CENTER,
+                        TitledBorder.DEFAULT_POSITION,
+                        UIUtils.FONT_ARIAL_HEADER,
+                        UIUtils.BORDER_DARK
+                )
         ));
 
 
-        ArrayList<Log> sortedLogs = getSortedLogs();
-
-        // Table setup
-        logTableModel = new LogTableModel(sortedLogs);
+        logTableModel = new LogTableModel(logManager.AllLogs);
 
         logTable = new JTable(logTableModel);
 
+        sorter = new TableRowSorter<>(logTableModel);
+        logTable.setRowSorter(sorter);
+        sorter.setSortsOnUpdates(true);
+
+        LogTableModel.styleTable(logTable);
+
         JTableHeader header = logTable.getTableHeader();
-
-
-        header.setBackground(new Color(230, 230, 240));
+        header.setFont(UIUtils.FONT_UI_BOLD);
+        header.setBackground(UIUtils.BACKGROUND_PANEL);
         header.setForeground(Color.DARK_GRAY);
-        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, new Color(200, 200, 235)));
-        header.setPreferredSize(new Dimension(header.getWidth(), 30)); // taller header
-        header.setReorderingAllowed(false); // optional: prevent column drag
-
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, UIUtils.HEADER_BORDER));
+        header.setPreferredSize(new Dimension(header.getWidth(), 30));
+        header.setReorderingAllowed(false);
         ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
 
-        sorter = new TableRowSorter<>(logTableModel);
-        sorter.setComparator(0, (a, b) -> {
-            int idA = Integer.parseInt(a.toString().replaceAll("\\D", ""));
-            int idB = Integer.parseInt(b.toString().replaceAll("\\D", ""));
-            return Integer.compare(idA, idB);
-        });
-        logTable.setRowSorter(sorter);
+        logTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        logTable.setFont(UIUtils.FONT_UI_REGULAR);
+        logTable.setRowHeight(28);
+        logTable.setFillsViewportHeight(true);
 
-        searchField.getDocument().addDocumentListener(new DocumentListener() {
-            void update() { searchText = searchField.getText(); applyFilter(); }
-            public void insertUpdate(DocumentEvent e){ update(); }
-            public void removeUpdate(DocumentEvent e){ update(); }
-            public void changedUpdate(DocumentEvent e){ update(); }
+        LogTableModel.attachOpenListener(logTable, log -> {
+            new LogWindow(this, inventory, log, logManager);
         });
+
+        //Scroll Panel
+        JScrollPane scrollPane = LogTableModel.createScrollPane(logTable);
+
+        //Search
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            private void update() { searchText = searchField.getText(); applyFilter(); }
+            public void insertUpdate(DocumentEvent e) { update(); }
+            public void removeUpdate(DocumentEvent e) { update(); }
+            public void changedUpdate(DocumentEvent e) { update(); }
+        });
+
         showNormalBox.addActionListener(e -> { showNormal = showNormalBox.isSelected(); applyFilter(); });
         showWarningBox.addActionListener(e -> { showWarning = showWarningBox.isSelected(); applyFilter(); });
         showCriticalBox.addActionListener(e -> { showCritical = showCriticalBox.isSelected(); applyFilter(); });
         showSuppressedBox.addActionListener(e -> { showSuppressed = showSuppressedBox.isSelected(); applyFilter(); });
 
-        logsPanel.add(filterPanel, BorderLayout.SOUTH);
-
-
-        logTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
-
-        logTable.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
-        logTable.setRowHeight(28);
-        logTable.setFillsViewportHeight(true);
-
-        //Scrolling
-        JScrollPane scrollPane = getJScrollPane();
-
-        logTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
-            Color getAltered(Color c, boolean even){
-                int delta = 0;
-                if(even){
-                    delta = 10;
-                }
-                return (new Color(c.getRed()-delta,c.getGreen()-delta,c.getBlue()-delta));
-            }
-            @Override
-            public Component getTableCellRendererComponent(
-                    JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-
-                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
-                int modelRow = table.convertRowIndexToModel(row);
-                LogTableModel model = (LogTableModel) table.getModel();
-                Log log = model.getLogAt(modelRow);
-
-                boolean even = row % 2 == 0;
-
-                Color normalColor = new Color(220, 220, 235); //light purple
-                Color warningColor = new Color(255, 245, 180);
-                Color criticalColor = new Color(240, 160, 165);
-
-                Color revertedColor = new Color(210, 200, 210); //gray
-
-                if (isSelected) {
-                    c.setBackground(table.getSelectionBackground());
-                    c.setForeground(table.getSelectionForeground());
-                } else if(log.isReverted()){
-                    c.setBackground(revertedColor);
-                }else {
-                    switch (log.getSeverity()) {
-                        case Normal -> c.setBackground(getAltered(normalColor,even));
-                        case Warning -> c.setBackground(getAltered(warningColor,even));
-                        case Critical -> c.setBackground(getAltered(criticalColor,even));
-                    }
-                    c.setForeground(Color.BLACK);
-                }
-
-                return c;
-            }
-        });
+        //Table clicker
         this.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -320,38 +263,18 @@ public class MainWindow extends JFrame {
                 }
             }
         });
+
         logsPanel.add(scrollPane, BorderLayout.CENTER);
+        logsPanel.add(filterPanel, BorderLayout.SOUTH);
 
         JPanel mainArea = new JPanel(new BorderLayout());
         mainArea.add(leftWrapper, BorderLayout.WEST);
         mainArea.add(logsPanel, BorderLayout.CENTER);
+
         add(mainArea, BorderLayout.CENTER);
-
-
         setVisible(true);
     }
 
-    private JScrollPane getJScrollPane() {
-        JScrollPane scrollPane = new JScrollPane(
-                logTable,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
-        );
-        scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        scrollPane.addComponentListener(new ComponentAdapter() {
-            @Override
-            public void componentResized(ComponentEvent e) {
-                int width = scrollPane.getViewport().getWidth();
-                var cm = logTable.getColumnModel();
-                cm.getColumn(0).setPreferredWidth((int)(width * COL_LOG_PCT / 100));
-                cm.getColumn(1).setPreferredWidth((int)(width * COL_TYPE_PCT / 100));
-                cm.getColumn(2).setPreferredWidth((int)(width * COL_ACTION_PCT / 100));
-                cm.getColumn(3).setPreferredWidth((int)(width * COL_TIME_PCT / 100));
-            }
-        });
-        return scrollPane;
-    }
 
     // Window Buttons
     private JButton createIconButton(String text, String iconPath) {
@@ -393,39 +316,7 @@ public class MainWindow extends JFrame {
 
         return UIUtils.styleButton(button);
     }
-    //Link buttons
-    private JButton createLinkButton(String text, String url, String iconPath) {
-        JButton link;
 
-        if (!iconPath.isEmpty()) {
-            // Load and scale icon
-            ImageIcon icon = new ImageIcon(iconPath);
-            Image scaled = icon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
-            link = new JButton("<HTML><U>" + text + "</U></HTML>", new ImageIcon(scaled));
-        } else {
-            link = new JButton("<HTML><U>" + text + "</U></HTML>");
-        }
-
-        link.setForeground(Color.BLUE);
-        link.setBorderPainted(false);
-        link.setOpaque(false);
-        link.setBackground(null);
-        link.setContentAreaFilled(false);
-        link.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        link.addActionListener(e -> {
-            try {
-                Desktop.getDesktop().browse(new URI(url));
-            } catch (Exception ignored) {
-
-            }
-        });
-        link.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { link.setForeground(new Color(0, 102, 204)); }
-            @Override public void mouseExited(MouseEvent e) { link.setForeground(Color.BLUE); }
-        });
-        link.setFocusPainted(false);
-        return link;
-    }
 
     public void refresh() {
         ArrayList<Log> sortedLogs = getSortedLogs();
@@ -486,39 +377,6 @@ public class MainWindow extends JFrame {
                         || log.getItemSerial().toLowerCase().contains(s); //Serial
             }
         });
-    }
-
-    static class LogTableModel extends AbstractTableModel {
-        private static final String[] cols = {"Log #", "Type", "Action", "Time"};
-        private final ArrayList<Log> logs;
-
-        LogTableModel(ArrayList<Log> logs){ this.logs = logs; }
-
-
-        public int getRowCount(){ return logs.size(); }
-        public int getColumnCount(){ return cols.length; }
-        public String getColumnName(int c){ return cols[c]; }
-
-        public Object getValueAt(int r, int c){
-            Log l = logs.get(r);
-            return switch(c){
-                case 0 -> (switch(l.getSeverity()){
-                    case Normal -> "✅ "; case Warning -> "⚠️ "; case Critical -> "❌ ";
-                })  + l.getLogID();
-                case 1 -> l.getType();
-                case 2 -> l.getMessage();
-                case 3 -> l.getTimestamp();
-                default -> "";
-            };
-        }
-        public void setLogs(ArrayList<Log> newLogs) {
-            logs.clear();
-            logs.addAll(newLogs);
-        }
-
-        public Log getLogAt(int row) {
-            return logs.get(row);
-        }
     }
 
     public static void main(String[] args) {

@@ -38,7 +38,7 @@ public class ViewWindow extends SubWindow {
 
 
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-        mainPanel.setBackground(new Color(240, 240, 240));
+        mainPanel.setBackground(UIUtils.BACKGROUND_MAIN);
 
         //Heade
 
@@ -55,15 +55,15 @@ public class ViewWindow extends SubWindow {
         leftTools.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
 
         JLabel searchLabel = new JLabel("Search Inventory:");
-        searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        searchLabel.setFont(UIUtils.FONT_UI_BOLD);
         searchLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JTextField searchField = new JTextField();
         searchField.setMaximumSize(new Dimension(180, 30));
-        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        searchField.setFont(UIUtils.FONT_UI_REGULAR);
         searchField.setAlignmentX(Component.CENTER_ALIGNMENT);
         searchField.setHorizontalAlignment(JTextField.CENTER);
-        searchField.setBorder(BorderFactory.createLineBorder(new Color(180, 180, 190)));
+        searchField.setBorder(BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM));
 
 
         leftTools.add(searchLabel);
@@ -143,10 +143,10 @@ public class ViewWindow extends SubWindow {
 
         itemTable = new JTable(tableModel);
         JTableHeader header = itemTable.getTableHeader();
-        header.setBackground(new Color(230, 230, 240));
+        header.setBackground(UIUtils.BACKGROUND_PANEL);
         header.setForeground(Color.DARK_GRAY);
-        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, new Color(200, 200, 235)));
+        header.setFont(UIUtils.FONT_UI_BOLD);
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, UIUtils.BORDER_MEDIUM));
         header.setPreferredSize(new Dimension(header.getWidth(), 30)); // same height as logs
         header.setReorderingAllowed(true);
         ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
@@ -197,20 +197,29 @@ public class ViewWindow extends SubWindow {
 
         // Row highlighting
         itemTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+
+            private Color getAltered(Color c, boolean even) {
+                int delta = even ? 10 : 0;
+                return new Color(
+                        Math.max(0, c.getRed() - delta),
+                        Math.max(0, c.getGreen() - delta),
+                        Math.max(0, c.getBlue() - delta)
+                );
+            }
+
             @Override
             public Component getTableCellRendererComponent(
                     JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-                Color normalColor   = new Color(230, 230, 235);
-                Color warningColor  = new Color(255, 253, 220);
-                Color criticalColor = new Color(255, 220, 220);
+                Color normalColor   = UIUtils.NORMAL_COLOR;
+                Color warningColor  = UIUtils.WARNING_COLOR;
+                Color criticalColor = UIUtils.CRITICAL_COLOR;
 
-                //Alternating row color
-                boolean even = (row % 2 == 0);
 
                 Color rowColor = normalColor;
+
                 int modelRow = table.convertRowIndexToModel(row);
                 int serialColIndex = table.getColumnModel().getColumnIndex("Serial");
                 int modelCol = table.convertColumnIndexToModel(serialColIndex);
@@ -226,12 +235,14 @@ public class ViewWindow extends SubWindow {
                     else if (trigger > 0 && qty <= trigger) rowColor = warningColor;
                 }
 
-                rowColor = even ? rowColor : new Color(rowColor.getRed()-10, rowColor.getGreen()-10,rowColor.getBlue()-10);
+                //Alternating row color
+                boolean even = (row % 2 == 0);
+                rowColor = getAltered(rowColor,even);
 
                 if (!isSelected) {
                     c.setBackground(rowColor);
                 }else {
-                    c.setBackground(new Color(200, 210, 255)); // selection blue
+                    c.setBackground(UIUtils.SELECTION_BG);
                 }
 
                 setHorizontalAlignment(CENTER);
@@ -288,19 +299,19 @@ public class ViewWindow extends SubWindow {
         // footer summary
         summaryLabel = new JLabel("Total Items: 0 | Total Quantity: 0 | Low Stock: 0");
         summaryLabel.setBorder(BorderFactory.createEmptyBorder(5, 15, 10, 10));
-        summaryLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        summaryLabel.setFont(UIUtils.FONT_UI_REGULAR);
         mainPanel.add(summaryLabel, BorderLayout.SOUTH);
 
         TitledBorder tableBorder = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(150, 150, 160), 2),
+                BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
                 "View Inventory",
                 TitledBorder.CENTER,
                 TitledBorder.DEFAULT_POSITION
         );
 
 
-        tableBorder.setTitleFont(new Font("Segoe UI", Font.PLAIN, 20));
-        tableBorder.setTitleColor(new Color(100, 100, 110));
+        tableBorder.setTitleFont(UIUtils.FONT_UI_TITLE);
+        tableBorder.setTitleColor(UIUtils.BORDER_DARK);
 
         JPanel tableWrapper = new JPanel(new BorderLayout());
         tableWrapper.setBorder(BorderFactory.createCompoundBorder(
@@ -414,37 +425,5 @@ public class ViewWindow extends SubWindow {
             }
         });
         return scrollPane;
-    }
-
-    //Custom cell renderer for icons
-    private static class ItemCellRenderer extends DefaultTableCellRenderer {
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus,
-                                                       int row, int column) {
-            JLabel cell = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
-            if (value instanceof ImageIcon icon) {
-                cell.setText("");
-                cell.setIcon(icon);
-                cell.setHorizontalAlignment(CENTER);
-            } else {
-                cell.setIcon(null);
-                cell.setHorizontalAlignment(LEFT);
-            }
-
-            int qtyCol = 3;
-            int lowCol = 4;
-            Object qtyObj = table.getValueAt(row, qtyCol);
-            Object lowObj = table.getValueAt(row, lowCol);
-
-            if (qtyObj instanceof Integer q && lowObj instanceof Integer l) {
-                if (q == 0) cell.setBackground(new Color(255, 220, 220));
-                else if (l > 0 && q <= l) cell.setBackground(new Color(255, 245, 200));
-                else cell.setBackground(isSelected ? table.getSelectionBackground() : Color.WHITE);
-            }
-
-            return cell;
-        }
     }
 }

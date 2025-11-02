@@ -39,7 +39,7 @@ public class ItemManager {
 
     //Clones an item's composed of then removes the item and adds composed of - removed items
     public void breakDownItem(Item item, ArrayList<ItemPacket> removedItems){
-        if (item == null || removedItems == null || inventory == null) return;
+        if (item == null || removedItems == null || inventory == null) throw new IllegalStateException("Item, removedItems, or inventory is null is breakDownItem()");
         ArrayList<ItemPacket> itemCopy = new ArrayList<>();
         Map<Item, ItemPacket> map = new HashMap<>();
 
@@ -87,40 +87,35 @@ public class ItemManager {
     // Each ItemPacket is consumed from inventory, and the composed item is added.
     // Can only add items, cannot create a new item
     // If a new item needs to be created via composition, it must be created before then passed into this method
-    public void composeItem(Item composedItem, ArrayList<ItemPacket> usedComponents) {
-        if (composedItem == null || usedComponents == null || inventory == null) return;
+    public void composeItem(Item composedItem) {
+        if (composedItem == null || inventory == null) throw new IllegalStateException("composeItem called on null item or inventory is null");
 
         //Verify all components exist in inventory
         for (ItemPacket required : composedItem.getComposedOf()) {
-            boolean found = false;
-            for (ItemPacket used : usedComponents) {
-                if (used.getItem().equals(required.getItem())) {
-                    found = true;
-                    break;
-                }
+
+            Item component = required.getItem();
+
+            if (!inventory.hasItem(component)) { //Does item part exist in inventory
+                throw new RuntimeException("Unable to find item " + component.getName() + " to compose item: "+ composedItem.getName());
             }
 
-            if (!found) {
-                // Missing required component so abort
-                return;
-            }
-        }
-
-        // Verify all used components exist in sufficient quantity in inventory
-        for (ItemPacket ip : usedComponents) {
-            Item component = ip.getItem();
+            int amountNeeded = inventory.getQuantity(component);
             int have = inventory.getQuantity(component);
-            if (have < ip.getQuantity()) {
-                return;
+
+
+            if (amountNeeded < have) { //Do we have enough of the item to compose
+                throw new RuntimeException(
+                        "Insufficient quantity for '" + component.getName() +
+                                "' (have " + have + ", need " + amountNeeded + ") to compose item: " + composedItem.getName()
+                );
             }
         }
 
-        //Consume component quantities
-        for (ItemPacket ip : usedComponents) {
-            inventory.decreaseItemAmount(ip.getItem(), ip.getQuantity());
+        for (ItemPacket ip : composedItem.getComposedOf()){ //We have all the items so consume
+            inventory.decreaseItemAmount(ip.getItem(),ip.getQuantity());
         }
 
-        //Add the new composed item
+        //Add the newly composed item
         inventory.addItemAmount(composedItem, 1);
 
         //Log the composition
@@ -130,7 +125,7 @@ public class ItemManager {
                     .append(composedItem.getName())
                     .append("' (Serial: ").append(composedItem.getSerialNum()).append(") using: ");
 
-            for (ItemPacket ip : usedComponents) {
+            for (ItemPacket ip : composedItem.getComposedOf()) {
                 sb.append("[").append(ip.getItem().getName())
                         .append(" x").append(ip.getQuantity()).append("], ");
             }
