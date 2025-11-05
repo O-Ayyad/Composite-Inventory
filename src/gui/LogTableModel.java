@@ -5,6 +5,7 @@ import javax.swing.*;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
@@ -53,8 +54,6 @@ public class LogTableModel extends AbstractTableModel {
         return logs.get(row);
     }
 
-
-
     private void sortLogs() {
 
         ArrayList<Log> criticalLogs = new ArrayList<>();
@@ -86,6 +85,15 @@ public class LogTableModel extends AbstractTableModel {
         table.setFillsViewportHeight(true);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        JTableHeader header = table.getTableHeader();
+        header.setFont(UIUtils.FONT_UI_BOLD);
+        header.setBackground(UIUtils.BACKGROUND_PANEL);
+        header.setForeground(UIUtils.TEXT_PRIMARY);
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, UIUtils.HEADER_BORDER));
+        header.setPreferredSize(new Dimension(header.getWidth(), 30));
+        header.setReorderingAllowed(false);
+        ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
 
         table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             private Color getAltered(Color c, boolean even) {

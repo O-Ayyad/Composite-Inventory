@@ -225,13 +225,6 @@ public class ItemInfoWindow extends SubWindow {
 
         LogTableModel.styleTable(logTable);
 
-        JTableHeader header = logTable.getTableHeader();
-        header.setFont(UIUtils.FONT_UI_BOLD);
-        header.setBackground(UIUtils.BACKGROUND_PANEL);
-        header.setForeground(Color.DARK_GRAY);
-        ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
-
-
         JScrollPane scrollPane = LogTableModel.createScrollPane(logTable);
 
         panel.add(scrollPane, BorderLayout.CENTER);

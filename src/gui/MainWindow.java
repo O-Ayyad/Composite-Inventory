@@ -218,23 +218,13 @@ public class MainWindow extends JFrame {
 
         LogTableModel.styleTable(logTable);
 
-        JTableHeader header = logTable.getTableHeader();
-        header.setFont(UIUtils.FONT_UI_BOLD);
-        header.setBackground(UIUtils.BACKGROUND_PANEL);
-        header.setForeground(Color.DARK_GRAY);
-        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, UIUtils.HEADER_BORDER));
-        header.setPreferredSize(new Dimension(header.getWidth(), 30));
-        header.setReorderingAllowed(false);
-        ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
-
         logTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         logTable.setFont(UIUtils.FONT_UI_REGULAR);
         logTable.setRowHeight(28);
         logTable.setFillsViewportHeight(true);
 
-        LogTableModel.attachOpenListener(logTable, log -> {
-            new LogWindow(this, inventory, log, logManager);
-        });
+        LogTableModel.attachOpenListener(logTable,
+                log -> new LogWindow(this, inventory, log, logManager));
 
         //Scroll Panel
         JScrollPane scrollPane = LogTableModel.createScrollPane(logTable);
@@ -433,22 +423,21 @@ public class MainWindow extends JFrame {
             String serial = "CMP-" + String.format("%03d", i);
 
             ArrayList<ItemPacket> components = new ArrayList<>();
-            int numComponents = rand.nextInt(3) + 2; // 2–4 components
+            int numComponents = rand.nextInt(3) + 2;
 
             for (int j = 0; j < numComponents; j++) {
-                int componentIndex = rand.nextInt(10) + 1; // from 1–10 (existing items)
+                int componentIndex = rand.nextInt(10) + 1;
                 String componentSerial = "SER-" + String.format("%03d", componentIndex);
                 Item component = inventory.getItemBySerial(componentSerial);
                 if (component == null) continue;
 
-                int qty = rand.nextInt(3) + 1; // 1–3 units per component
+                int qty = rand.nextInt(3) + 1;
                 components.add(new ItemPacket(component, qty));
             }
 
-            // skip if no valid components
             if (components.isEmpty()) continue;
 
-            int quantity = rand.nextInt(10) + 1; // random stock for composite
+            int quantity = rand.nextInt(10) + 1;
 
             inventory.createItem(
                     name,
