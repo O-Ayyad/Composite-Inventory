@@ -179,7 +179,7 @@ public class Inventory {
                 return item;
             }
         }
-        System.out.print("getItemByName() called on non-existent item");
+        System.out.println("getItemByName() called on non-existent item");
         return null;
     }
 

@@ -205,7 +205,7 @@ public class ItemInfoWindow extends SubWindow {
         List<Log> logs = logManager.itemToLogs.getOrDefault(item, new ArrayList<>());
 
         if (logs.isEmpty()) {
-            JLabel empty = new JLabel("No logs for this item.", JLabel.CENTER);
+            JLabel empty = new JLabel("No logs for this item. Something went wrong.", JLabel.CENTER);
             empty.setFont(UIUtils.FONT_UI_ITALIC );
             panel.add(empty, BorderLayout.CENTER);
             return panel;

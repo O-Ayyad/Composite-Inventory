@@ -370,6 +370,7 @@ public class MainWindow extends JFrame {
     }
 
     public static void main(String[] args) {
+        DebugConsole.init();
 
         LogManager logManager = new LogManager();
         Inventory inventory = new Inventory();
@@ -454,9 +455,7 @@ public class MainWindow extends JFrame {
         }
         //Creates main window
         SwingUtilities.invokeLater(() -> {
-            DebugConsole.init();
             new MainWindow(inventory,logManager);
-
         });
     }
 }
