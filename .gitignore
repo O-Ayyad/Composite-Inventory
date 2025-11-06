@@ -6,9 +6,10 @@
 *.iml
 .idea/
 out/
-data/
+src/main/resources/data/
 .DS_Store
 Thumbs.db
 *.tmp
 *.swp
-*~ 
+*~
+target/

@@ -46,9 +46,7 @@ public class LinkWindow extends SubWindow {
                 "<html><div style='text-align:center;'>"
                         + "Note: Your credentials are securely saved locally<br>" +
                         "and will never leave your device <br>" +
-                        "nor be shared with anyone, not even me, the developer.<br>" +
-                        "Each platform can only access its own credentials when needed with read-only permissions."
-                        + "</div></html>",
+                        "nor be shared with anyone, not even the developer.</html>",
                 SwingConstants.CENTER
         );
         footerText.setFont(UIUtils.FONT_UI_SMALL);
@@ -167,11 +165,11 @@ public class LinkWindow extends SubWindow {
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Amazon Seller Account:</b><br><br>
-                1. Open <a href='https://solutionproviderportal.amazon.com/account/onboarding?enrollmentApplicationId=hC8h11s1'></a>.<br>
-                2. Register your account
-                3. When prompted select Sandbox app
+                1. Open <a href='https://solutionproviderportal.amazon.com/'></a>.<br>
+                2. Sign into your amazon account.
+                3. When prompted verify with Amazon (This is usually automatic)
                 3. Select your app (or create one via Self-Authorization).<br>
-                4. Copy your <b>Client ID</b>, <b>Client Secret</b>, and <b>Refresh Token</b> below.<br>
+                4. Copy your <b>Client ID</b>, <b>Client Secret</b>, and <b>Refresh Token</b> below. Do not share these codes with anyone and do not save<br>
                 </body></html>
                 """);
         info.setEditable(false);
@@ -220,20 +218,21 @@ public class LinkWindow extends SubWindow {
                 return;
             }
 
-            String combinedToken = clientId + "|::|" + clientSecret + "|::|" + refreshToken;
+            String combined = clientId + "|::|" + clientSecret + "|::|" + refreshToken;
+            int response = apiStorage.validateToken(type, combined);
 
-            boolean valid = apiStorage.validateToken(type, combinedToken);
-            if (!valid) {
-                apiStorage.removeToken(type);
-                showInvalidTokenDialog("Amazon");
-                return;
+            processAndShowTokenDialog(type, response, combined);
+
+            if (response >= 200 && response <= 299) {
+                statusLabel.setText("Connected (" + type.getDisplayName() + ")");
+                statusLabel.setForeground(UIUtils.LINK_SUCCESS);
+                connectBtn.setEnabled(false);
+                disconnectBtn.setEnabled(true);
+            } else {
+                statusLabel.setText("Not connected");
+                connectBtn.setEnabled(true);
+                disconnectBtn.setEnabled(false);
             }
-
-            apiStorage.saveToken(type, combinedToken);
-            statusLabel.setText("Connected (Amazon)");
-            statusLabel.setForeground(UIUtils.LINK_SUCCESS);
-            connectBtn.setEnabled(false);
-            disconnectBtn.setEnabled(true);
         }
     }
     private void handleWalmartConnect(APIStorage.PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
@@ -245,7 +244,7 @@ public class LinkWindow extends SubWindow {
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Walmart Seller Account:</b><br><br>
                 1. Go to <a href='https://seller.walmart.com/'>Seller Center</a> → Settings → API Keys.<br>
-                2. Generate your <i>Consumer ID</i> and <i>Private Key</i>.<br>
+                2. Obtain your <i>Client ID</i> and <i>Client Secret</i>.<br>
                 3. Paste both below to link your account.<br>
                 </body></html>
                 """);
@@ -265,9 +264,9 @@ public class LinkWindow extends SubWindow {
         JButton pasteBtn = UIUtils.styleButton(new JButton("Paste Key"));
         pasteBtn.addActionListener(e -> privateKeyField.paste());
 
-        inputPanel.add(new JLabel("Consumer ID:"));
+        inputPanel.add(new JLabel("Client ID:"));
         inputPanel.add(consumerIdField);
-        inputPanel.add(new JLabel("Private Key:"));
+        inputPanel.add(new JLabel("Client Secret:"));
         inputPanel.add(privateKeyField);
         panel.add(inputPanel, BorderLayout.CENTER);
 
@@ -286,25 +285,28 @@ public class LinkWindow extends SubWindow {
             String privateKey = privateKeyField.getText().trim();
 
             if (consumerId.isEmpty() || privateKey.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter both Consumer ID and Private Key.", "Missing Keys", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Please enter both Consumer ID and Private Key.",
+                        "Missing Keys",
+                        JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             String combined = consumerId + "|::|" + privateKey;
-            boolean valid = apiStorage.validateToken(type, combined);
+            int response = apiStorage.validateToken(type, combined);
 
-            if (!valid) {
-                apiStorage.removeToken(type);
-                showInvalidTokenDialog("Walmart");
-                return;
+            processAndShowTokenDialog(type, response, combined);
+
+            if (response >= 200 && response <= 299) {
+                statusLabel.setText("Connected (" + type.getDisplayName() + ")");
+                statusLabel.setForeground(UIUtils.LINK_SUCCESS);
+                connectBtn.setEnabled(false);
+                disconnectBtn.setEnabled(true);
+            } else {
+                statusLabel.setText("Not connected");
+                statusLabel.setForeground(Color.RED);
+                connectBtn.setEnabled(true);
+                disconnectBtn.setEnabled(false);
             }
-
-            apiStorage.saveToken(type, combined);
-
-            statusLabel.setText("Connected (Walmart)");
-            statusLabel.setForeground(UIUtils.LINK_SUCCESS);
-            connectBtn.setEnabled(false);
-            disconnectBtn.setEnabled(true);
         }
     }
     private void handleEbayConnect(APIStorage.PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
@@ -370,35 +372,62 @@ public class LinkWindow extends SubWindow {
 
             String combined = clientId + "|::|" + clientSecret + "|::|" + refreshToken;
 
-            boolean valid = apiStorage.validateToken(type, combined);
+            int response = apiStorage.validateToken(type, combined);
 
-            if (!valid) {
-                apiStorage.removeToken(type);
-                showInvalidTokenDialog("eBay");
-                return;
+            processAndShowTokenDialog(type, response, combined);
+
+            if (response >= 200 && response <= 299) {
+                statusLabel.setText("Connected (" + type.getDisplayName() + ")");
+                statusLabel.setForeground(UIUtils.LINK_SUCCESS);
+                connectBtn.setEnabled(false);
+                disconnectBtn.setEnabled(true);
+            } else {
+                statusLabel.setText("Not connected  ");
+                statusLabel.setForeground(Color.RED);
+                connectBtn.setEnabled(true);
+                disconnectBtn.setEnabled(false);
             }
-
-            apiStorage.saveToken(type, combined);
-
-            statusLabel.setText("Connected (eBay)");
-            statusLabel.setForeground(UIUtils.LINK_SUCCESS);
-            connectBtn.setEnabled(false);
-            disconnectBtn.setEnabled(true);
         }
     }
 
 
-    private void showInvalidTokenDialog(String platformName) {
+    private void processAndShowTokenDialog(APIStorage.PlatformType type, int responseCode,String token) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(420, 180));
 
+        String platformName = type.getDisplayName();
+        String messageText = "Response code : " + responseCode + "\n";
+        String title = "Invalid or Expired Token";
+        int messageType;
 
-        JTextArea message = new JTextArea(
-                "Your " + platformName + " API token appears to be invalid, expired, or unauthorized.\n\n" +
+        if ( responseCode >= 200 && responseCode <= 299) { //Success
+            messageText += "Account connected successfully. Orders can now be fetched and processed";
+            title = "Account connected";
+            apiStorage.saveToken(type, token);
+            messageType = JOptionPane.INFORMATION_MESSAGE;
+
+        }else{ //Failure
+            apiStorage.removeToken(type);
+            if (responseCode == 401 || responseCode == 403) {
+                messageText += "\nYour " + platformName + " API token appears to be invalid, expired, or unauthorized.\n\n" +
                         "To fix this issue: Do the following:\n\n" +
                         "1. Open the \"Link Account Window\" and remove the connection for " + platformName  +
-                        "\n2. Click connect and re-authorize to obtain a new token.\n\n If you recently changed your seller account or credentials, the old token may no longer work."
-        );
+                        "\n2. Click connect and re-authorize to obtain a new token.\n\n If you recently changed your seller account or credentials, the old token may no longer work.";
+            } else if (responseCode >= 500) {
+                messageText += "No response received from " + platformName + ". Ensure the correct formating for the token or check your internet connection.";
+            } else  {
+                messageText += "An unexpected response (" + responseCode + ") was received from " + platformName + ".\n\n" +
+                        "Try reauthorizing your account if this continues.";
+            }
+            messageType = JOptionPane.WARNING_MESSAGE;
+        }
+        messageText += "\n\nSecurity Tip:\n" +
+                "You should clear your clipboard history to prevent sensitive keys from being recovered.\n\n" +
+                "If you are using Windows:\n" +
+                " - Press the Windows key + V\n" +
+                " - Click 'Clear all'\n\n" +
+                "This helps ensure your API keys and tokens remain private and only on your device.";
+        JTextArea message = new JTextArea(messageText);
         message.setWrapStyleWord(true);
         message.setLineWrap(true);
         message.setEditable(false);
@@ -410,8 +439,8 @@ public class LinkWindow extends SubWindow {
         JOptionPane.showMessageDialog(
                 this,
                 panel,
-                "Invalid or Expired Token",
-                JOptionPane.WARNING_MESSAGE
+                title,
+                messageType
         );
     }
 }
