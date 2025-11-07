@@ -55,72 +55,52 @@ public class LogWindow extends SubWindow {
         titleLabel.setHorizontalAlignment(JLabel.CENTER);
 
         JLabel severityLabel = new JLabel(log.getSeverity().toString());
-        severityLabel.setFont(UIUtils.FONT_UI_LARGE_BOLD);
+        severityLabel.setOpaque(true);
+        severityLabel.setFont(UIUtils.FONT_ARIAL_LARGE_BOLD);
         switch (log.getSeverity()) {
-            case Normal -> severityLabel.setForeground(UIUtils.NORMAL_COLOR);
-            case Warning -> severityLabel.setForeground(UIUtils.WARNING_COLOR);
-            case Critical -> severityLabel.setForeground(UIUtils.CRITICAL_COLOR);
+            case Normal -> severityLabel.setBackground(UIUtils.NORMAL_COLOR);
+            case Warning -> severityLabel.setBackground(UIUtils.WARNING_COLOR);
+            case Critical -> severityLabel.setBackground(UIUtils.CRITICAL_COLOR);
         }
-
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.add(titleLabel, BorderLayout.CENTER);
         headerPanel.add(severityLabel, BorderLayout.SOUTH);
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
         //Log details
-        JPanel details = new JPanel(new GridLayout(0, 2, 10, 10));
+        JPanel details = new JPanel(new GridBagLayout());
         details.setOpaque(false);
         details.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
                 "Details",
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
-                UIUtils.FONT_UI_LARGE_BOLD,
+                UIUtils.FONT_ARIAL_LARGE_BOLD,
                 UIUtils.BORDER_DARK
         ));
 
-        details.add(new JLabel("Log ID:"));
-        details.add(new JLabel(String.valueOf(log.getLogID())));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 8, 4, 8); // tighter, even spacing
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        gbc.gridy = 0;
 
-        details.add(new JLabel("Type:"));
-        details.add(new JLabel(log.getType().toString()));
+        addRow(details, gbc, "Log ID:", new JLabel(String.valueOf(log.getLogID())));
+        addRow(details, gbc, "Type:", new JLabel(log.getType().toString()));
 
-        details.add(new JLabel("Severity:"));
-        details.add(new JLabel(log.getSeverity().toString()));
+        String message = "<html><body style='width:250px; white-space:normal;'>" +
+                log.getMessage() + "</body></html>";
+        addRow(details, gbc, "Message:", new JLabel(message));
 
-        details.add(new JLabel("Item Serial:"));
-        details.add(new JLabel(log.getItemSerial() != null ? log.getItemSerial() : "—"));
-
-        details.add(new JLabel("Amount:"));
-        details.add(new JLabel(log.getAmount() != null ? log.getAmount().toString() : "—"));
-
-        details.add(new JLabel("Timestamp:"));
-        details.add(new JLabel(log.getTimestamp()));
-
-        details.add(new JLabel("Reverted:"));
-        details.add(new JLabel(log.isReverted() ? "Yes" : "No"));
-
-        details.add(new JLabel("Suppressed:"));
-        details.add(new JLabel(log.isSuppressed() ? "Yes" : "No"));
+        addRow(details, gbc, "Severity:", new JLabel(log.getSeverity().toString()));
+        addRow(details, gbc, "Item Serial:", new JLabel(log.getSerial() != null ? log.getSerial() : "—"));
+        addRow(details, gbc, "Amount:", new JLabel(log.getAmount() != null ? log.getAmount().toString() : "—"));
+        addRow(details, gbc, "Timestamp:", new JLabel(log.getTimestamp()));
+        addRow(details, gbc, "Reverted:", new JLabel(log.isReverted() ? "Yes" : "No"));
+        addRow(details, gbc, "Suppressed:", new JLabel(log.isSuppressed() ? "Yes" : "No"));
 
         mainPanel.add(details, BorderLayout.CENTER);
-
-        //log message
-        JTextArea msgArea = new JTextArea(log.getMessage());
-        msgArea.setLineWrap(true);
-        msgArea.setWrapStyleWord(true);
-        msgArea.setEditable(false);
-        msgArea.setFont(UIUtils.FONT_UI_REGULAR);
-        msgArea.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(UIUtils.BORDER_LIGHT, 2),
-                "Message",
-                TitledBorder.LEFT,
-                TitledBorder.TOP,
-                UIUtils.FONT_UI_LARGE_BOLD,
-                UIUtils.BORDER_DARK
-        ));
-        mainPanel.add(new JScrollPane(msgArea), BorderLayout.SOUTH);
-
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 10));
 
@@ -132,13 +112,54 @@ public class LogWindow extends SubWindow {
         revertBtn.setEnabled(logManager.canRevert(log));
         revertBtn.addActionListener(e -> {
             try {
+                if (log.getType() == Log.LogType.NewItemCreated) {
+                    //Get item to delete
+                    String serial = log.getSerial();
+                    Item i = inventory.getItemBySerial(serial);
+                    if(!confirmRemoveItem(i)){
+                        throw new RuntimeException("User cancelled");
+                    }
+                }
                 logManager.revertLog(log);
                 JOptionPane.showMessageDialog(this,
                         "Reverted log #" + log.getLogID(),
                         "Log Reverted", JOptionPane.INFORMATION_MESSAGE);
                 dispose();
             } catch (Exception ex) {
-                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this,
+                        "Failed to revert log: " + ex.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        //Solve btn
+        JButton solveBtn = UIUtils.styleButton(new JButton("Solve Log"));
+        solveBtn.setEnabled(!(log.getSeverity() == Log.Severity.Normal ||
+                log.getType() == Log.LogType.LowStock ||
+                log.getType() == Log.LogType.ItemOutOfStock));
+        solveBtn.addActionListener(e -> {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    """
+                            Are you sure you want to mark this log as solved?
+                            
+                            This will permanently delete this log.
+                            Make sure you have resolved the issue first.""",
+                    "Confirm Log Deletion",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            if (choice != JOptionPane.YES_OPTION) {
+                return;
+            }
+            try {
+                logManager.solveLog(log);
+                JOptionPane.showMessageDialog(this,
+                        "Solved log #" + log.getLogID(),
+                        "Log Solved and deleted", JOptionPane.INFORMATION_MESSAGE);
+                dispose();
+            } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this,
                         "Failed to revert log: " + ex.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -158,7 +179,7 @@ public class LogWindow extends SubWindow {
             }
 
             toggleSuppressBtn.setEnabled(
-                    log.getSeverity() != Log.Severity.Normal
+                    !(log.getSeverity() == Log.Severity.Normal ||log.getType() ==  Log.LogType.ItemSoldAndNotRegisteredInInventory)
             );
         };
         updateSuppressButton.run();
@@ -167,9 +188,6 @@ public class LogWindow extends SubWindow {
             try {
                 if (log.isSuppressed()) {
                     logManager.unsuppressLog(log);
-                    JOptionPane.showMessageDialog(this,
-                            "Unsuppressed log #" + log.getLogID(),
-                            "Log Unsuppressed", JOptionPane.INFORMATION_MESSAGE);
                 } else {
                     logManager.suppressLog(log);
                     JOptionPane.showMessageDialog(this,
@@ -178,7 +196,6 @@ public class LogWindow extends SubWindow {
                 }
                 updateSuppressButton.run();
             } catch (Exception ex) {
-                ex.printStackTrace();
                 JOptionPane.showMessageDialog(this,
                         "Failed to toggle suppression: " + ex.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -187,10 +204,21 @@ public class LogWindow extends SubWindow {
 
         buttonPanel.add(closeBtn);
         buttonPanel.add(revertBtn);
+        buttonPanel.add(solveBtn);
         buttonPanel.add(toggleSuppressBtn);
 
         mainPanel.add(buttonPanel, BorderLayout.PAGE_END);
 
         return mainPanel;
+    }
+    private void addRow(JPanel panel, GridBagConstraints gbc, String label, JComponent component) {
+        gbc.gridx = 0;
+        gbc.weightx = 0;
+        panel.add(new JLabel(label), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        panel.add(component, gbc);
+
+        gbc.gridy++;
     }
 }

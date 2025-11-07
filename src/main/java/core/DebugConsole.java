@@ -7,6 +7,8 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.time.LocalDateTime;
+
 
 // All System.out/err prints here for debugging
 public class DebugConsole extends JFrame {
@@ -46,24 +48,20 @@ public class DebugConsole extends JFrame {
 
     private void appendText(String text) {
         SwingUtilities.invokeLater(() -> {
-            if (text == null || text.isBlank()) {
-                return;
-            }
-            String msg = text.stripTrailing();
+            if (text == null || text.isBlank()) return;
+            String msg = text.strip();
 
-            if (!msg.endsWith("\n")) {
-                msg += "\n";
-            }
+            if(msg.startsWith("at ")) return;
 
-            if (msg.contains("[DebugConsole] Initialized")) {
-                area.append(msg);
-            }else if (msg.toLowerCase().contains("error") || msg.toLowerCase().contains("exception")) {
+            if (msg.toLowerCase().contains("error") || msg.toLowerCase().contains("exception")) {
                 area.setForeground(Color.RED);
-                area.append("   " + msg);
+                area.append("   " + msg + "\n");
                 area.setForeground(Color.GREEN);
-            }else {
-                area.append("   " + msg);
+            } else {
+                area.append("   " + msg + "\n");
             }
+            String time = "[" + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")) + "]";
+            area.append(time + msg + "\n");
             area.setCaretPosition(area.getDocument().getLength());
         });
     }

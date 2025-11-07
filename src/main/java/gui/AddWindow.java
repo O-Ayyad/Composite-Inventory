@@ -3,11 +3,11 @@ import core.*;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.*;
-import java.awt.event.*;
 
 
 public class AddWindow extends SubWindow {
@@ -17,34 +17,36 @@ public class AddWindow extends SubWindow {
     private final Map<String, Integer> composedComponents = new LinkedHashMap<>();
 
     public AddWindow(JFrame mainWindow, Inventory inventory) {
-        this(mainWindow,inventory,null); //Delegate to unified constructor
+        this(mainWindow,inventory,null,false); //Delegate to unified constructor
     }
-    public AddWindow(JFrame mainWindow, Inventory inventory,Item selected) {
+    public AddWindow(JFrame mainWindow, Inventory inventory,Item selected,boolean compose) {
         super(mainWindow, windowName,inventory);
-        setupUI(selected);
+        setupUI(selected,compose);
         setVisible(true);
     }
     @Override
     public void setupUI() {
-        setupUI(null);
+        setupUI(null,false);
     }
-    public void setupUI(Item selected) {
+    public void setupUI(Item selected, boolean compose) {
         JPanel mainPanel;
 
         if (inventory.MainInventory.isEmpty()) {
-            mainPanel = addNewItem();
+            mainPanel = addNewItemPanel();
         }
-        else if (selected != null) {
-            mainPanel = addToExistingItemPanel(selected);
-        }
-        else {
-            mainPanel = addToExistingItemPanel(null);
+        else{
+            if(compose){
+                mainPanel = composeItemPanel(selected);
+            }
+            else {
+                mainPanel = addToExistingItemPanel(selected);
+            }
         }
 
         add(mainPanel, BorderLayout.CENTER);
         pack();
     }
-    public JPanel addNewItem(){
+    public JPanel addNewItemPanel(){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -123,6 +125,7 @@ public class AddWindow extends SubWindow {
         JLabel imageLabel = new JLabel("No image selected", SwingConstants.LEFT);
         imageButton.addActionListener(e -> {
             JFileChooser chooser = new JFileChooser();
+            chooser.setFileFilter(new FileNameExtensionFilter("Image files", "png", "jpg", "jpeg", "gif"));
             if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
                 selectedImageFile = chooser.getSelectedFile();
                 File file = chooser.getSelectedFile();
@@ -160,6 +163,7 @@ public class AddWindow extends SubWindow {
         Set<String> selectedTags = new LinkedHashSet<>();
 
         searchField.addActionListener(e -> {
+            searchField.hidePopup();
             String selectedDisplay = (String) searchField.getEditor().getItem();
             String selectedSerial = componentSerialMap.get(selectedDisplay);
 
@@ -497,9 +501,20 @@ public class AddWindow extends SubWindow {
         return mainPanel;
     }
     public JPanel addToExistingItemPanel(Item selected) {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
+        // Header
+        JPanel top = new JPanel();
+        JTextArea info = new JTextArea("Add to Existing Item");
+        info.setEditable(false);
+        info.setOpaque(false);
+        info.setFont(UIUtils.FONT_ARIAL_BOLD_MEDIUM);
+        top.add(info);
+        mainPanel.add(top, BorderLayout.NORTH);
+
+        //Create panel
+        JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(8, 8, 8, 8);
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -507,20 +522,13 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 0;
         gbc.gridy = 0;
 
-        //Header
-        JLabel header = new JLabel("Add To Existing Item");
-        header.setFont(UIUtils.FONT_ARIAL_BOLD_MEDIUM);
-        gbc.gridwidth = 2;
-        panel.add(header, gbc);
-        gbc.gridwidth = 1;
-        gbc.gridy++;
-
         //Dropdown
         panel.add(new JLabel("Select Item:"), gbc);
         gbc.gridx = 1;
         DropdownResult DDRObj = getDropDownMenuAllItems();
         JComboBox<String> itemDropdown = DDRObj.menu;
         Map<String,String> displayToSerialMap = DDRObj.serialMap;
+
         if (selected != null) {
             String serial = selected.getSerialNum();
             for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
@@ -542,18 +550,28 @@ public class AddWindow extends SubWindow {
 
         // Buttons
         gbc.gridx = 0; gbc.gridy++;
-        gbc.gridwidth = 2;
+        gbc.gridwidth = 3;
         gbc.anchor = GridBagConstraints.CENTER;
 
         JButton addButton = new JButton("Add to item");
         JButton newItemButton = new JButton("Create brand new Item");
+        JButton composeButton = new JButton("Compose Items");
+
+
         JPanel buttonRow = new JPanel();
         buttonRow.add(UIUtils.styleButton(addButton));
         buttonRow.add(UIUtils.styleButton(newItemButton));
+        buttonRow.add(UIUtils.styleButton(composeButton));
         panel.add(buttonRow, gbc);
 
-        //Button Actions
+        FontMetrics fm = addButton.getFontMetrics(addButton.getFont());
+        int fixedWidth = fm.stringWidth("Add 9999 Sample Item Names") + 30;
+        Dimension fixedSize = new Dimension(fixedWidth, addButton.getPreferredSize().height);
+        addButton.setPreferredSize(fixedSize);
+        addButton.setMinimumSize(fixedSize);
+        addButton.setMaximumSize(fixedSize);
 
+        //Button Actions
         //If valid input then allow "enter" to add item
         panel.registerKeyboardAction(
                 e -> {
@@ -595,7 +613,7 @@ public class AddWindow extends SubWindow {
             // Read numeric value safely
             String text = quantityField.getText().trim();
             if (text.isEmpty()) {
-                JOptionPane.showMessageDialog(panel, "Please enter an amount.", "Invalid input", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(panel, "Please enter a valid amount.", "Invalid input", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -606,7 +624,6 @@ public class AddWindow extends SubWindow {
                 JOptionPane.showMessageDialog(panel, "Amount must be a valid number.", "Invalid input", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-
 
             Item target = inventory.SerialToItemMap.get(selectedSerial);
 
@@ -627,9 +644,20 @@ public class AddWindow extends SubWindow {
                 return;
             }
 
-            inventory.addItemAmount(target,amount);
             String name = target.getName();
-            String plural = name.endsWith("s") ? name + "es" : name + "s";
+            String plural = (amount == 1)
+                    ? name
+                    : (name.endsWith("s") ? name : name + "s");
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    "Are you sure you want to add " + amount + " " + plural + " to inventory?",
+                    "Confirm Add",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+            inventory.addItemAmount(target,amount);
 
             JOptionPane.showMessageDialog(this,
                     "Added " + amount + " "  + (amount == 1 ? name : plural) + " to inventory (Serial: " + selectedSerial + ")",
@@ -640,31 +668,216 @@ public class AddWindow extends SubWindow {
 
         newItemButton.addActionListener(e -> {
             getContentPane().removeAll();
-            add(addNewItem(), BorderLayout.CENTER);
+            add(addNewItemPanel(), BorderLayout.CENTER);
             revalidate();
             repaint();
             pack();
         });
 
-        return panel;
+        composeButton.addActionListener(e ->{
+            //Get currently selected item
+            String selectedItem = (String) itemDropdown.getEditor().getItem();
+            String selectedSerial = displayToSerialMap.get(selectedItem);
+            Item currSelected = inventory.SerialToItemMap.get(selectedSerial);
+
+            getContentPane().removeAll();
+            add(composeItemPanel(currSelected), BorderLayout.CENTER);
+            revalidate();
+            repaint();
+            pack();
+        });
+
+        mainPanel.add(panel, BorderLayout.CENTER);
+        return mainPanel;
     }
-    String UpdateAddText(Item target, int amount) {
-        String addButtonText;
-        if (target == null) {
-            addButtonText = (amount > 0)
-                    ? "Add " + amount + " to this item"
-                    : "Add amount to this item";
-        } else {
-            String name = target.getName();
-            String plural = name.endsWith("s") ? name + "es" : name + "s";
-            addButtonText = (amount > 1)
-                    ? "Add " + amount + " " + plural
-                    : (amount <= 0 ? "Add amount to " + name : "Add " + amount + " " + name);
+    public JPanel composeItemPanel(Item selected){
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Header
+        JPanel top = new JPanel();
+        JTextArea info = new JTextArea("Compose Items");
+        info.setEditable(false);
+        info.setOpaque(false);
+        info.setFont(UIUtils.FONT_ARIAL_BOLD_MEDIUM);
+        top.add(info);
+        mainPanel.add(top, BorderLayout.NORTH);
+
+        //Create panel
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+
+        panel.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
+
+        panel.add(new JLabel("Select Item:"), gbc);
+        gbc.gridx = 1;
+
+        DropdownResult DDRObj = getDropDownMenuCompositeItems();
+        JComboBox<String> itemDropdown = DDRObj.menu;
+        Map<String,String> displayToSerialMap = DDRObj.serialMap;
+
+        //Remove null and non-composite items
+        if (selected != null) {
+            if(selected.isComposite()){
+                String serial = selected.getSerialNum();
+                for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
+                    if (entry.getValue().equals(serial)) {
+                        itemDropdown.setSelectedItem(entry.getKey());
+                        break;
+                    }
+                }
+            }
         }
-        return addButtonText;
+        panel.add(itemDropdown, gbc);
+
+        // Quantity
+        gbc.gridx = 0; gbc.gridy++;
+        panel.add(new JLabel("Amount To Compose:"), gbc);
+        gbc.gridx = 1;
+
+        JTextField quantityField = new JTextField(20);
+        panel.add(quantityField, gbc);
+
+        // Buttons
+        gbc.gridx = 0; gbc.gridy++;
+        gbc.gridwidth = 3;
+        gbc.anchor = GridBagConstraints.CENTER;
+
+        JButton composeButton = new JButton("Compose Item");
+        JButton newItemButton = new JButton("Create New Item");
+        JButton returnButton = new JButton("Return to Add items ");
+
+        JPanel buttonRow = new JPanel();
+        buttonRow.add(UIUtils.styleButton(composeButton));
+        buttonRow.add(UIUtils.styleButton(newItemButton));
+        buttonRow.add(UIUtils.styleButton(returnButton));
+        panel.add(buttonRow, gbc);
+
+
+        FontMetrics fm = composeButton.getFontMetrics(composeButton.getFont());
+        int fixedWidth = fm.stringWidth("Compose 9999 Sample Item Names") + 30;
+        Dimension fixedSize = new Dimension(fixedWidth, composeButton.getPreferredSize().height);
+        composeButton.setPreferredSize(fixedSize);
+        composeButton.setMinimumSize(fixedSize);
+        composeButton.setMaximumSize(fixedSize);
+
+
+        quantityField.getDocument().addDocumentListener(new DocumentListener() {
+            void update() {
+                updateComposeButtonText(composeButton, itemDropdown, displayToSerialMap, quantityField);
+            }
+            public void insertUpdate(DocumentEvent e) { update(); }
+            public void removeUpdate(DocumentEvent e) { update(); }
+            public void changedUpdate(DocumentEvent e) { update(); }
+        });
+
+
+        composeButton.addActionListener(e -> {
+            String selectedItem = (String) itemDropdown.getEditor().getItem();
+            String selectedSerial = displayToSerialMap.get(selectedItem);
+
+            // Read numeric value safely
+            String text = quantityField.getText().trim();
+            if (text.isEmpty()) {
+                JOptionPane.showMessageDialog(panel, "Please enter a valid amount.", "Invalid input", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int amount;
+
+            try {
+                amount = Integer.parseInt(text);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Amount must be a valid number.", "Invalid input", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (amount <= 0) {
+                JOptionPane.showMessageDialog(this, "Amount must be at least 1.", "Invalid amount", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (selectedSerial == null || !inventory.SerialToItemMap.containsKey(selectedSerial)) {
+                JOptionPane.showMessageDialog(this, "Please select a valid item.", "Invalid Item", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            Item target = inventory.SerialToItemMap.get(selectedSerial);
+
+            updateComposeButtonText(composeButton, itemDropdown, displayToSerialMap, quantityField);
+
+            if (target == null) {
+                JOptionPane.showMessageDialog(this, "Error: Item could not be accessed.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if(!target.isComposite()){ //double check
+                JOptionPane.showMessageDialog(this, "Item is not composite", "Not composite", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            for(ItemPacket ip: target.getComposedOf()){ //Check if we have enough of each part
+                long required = (long) ip.getQuantity() * (long) amount;
+                if(required > inventory.getQuantity(ip.getItem())){
+                    JOptionPane.showMessageDialog(this,"Not enough "+ ip.getItem().getName() + " to compose item: "+ target.getName() +". " +
+                            "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+inventory.getQuantity(ip.getItem()),
+                            "Not enough items to compose item",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+
+            String name = target.getName();
+            String plural = (amount == 1)
+                    ? name
+                    : (name.endsWith("s") ? name : name + "s");
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    "Are you sure you want to compose " + amount + " " + plural + " to inventory?\n\n" +
+                            "This will reduce the stock of the items used to compose it from the inventory",
+                    "Confirm Add",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+
+            inventory.composeItem(target, amount);
+
+
+            JOptionPane.showMessageDialog(this,
+                    "Composed " + amount + " " + (amount == 1 ? name : plural) +
+                            " and added to inventory (Serial: " + selectedSerial + ")",
+                    "Success",
+                    JOptionPane.INFORMATION_MESSAGE);
+            dispose();
+        });
+
+        newItemButton.addActionListener(e -> {
+            getContentPane().removeAll();
+            add(addNewItemPanel(), BorderLayout.CENTER);
+            revalidate();
+            repaint();
+            pack();
+        });
+
+        returnButton.addActionListener(e -> {
+            getContentPane().removeAll();
+            add(addToExistingItemPanel(null), BorderLayout.CENTER);
+            revalidate();
+            repaint();
+            pack();
+        });
+
+        mainPanel.add(panel,BorderLayout.CENTER);
+        return mainPanel;
     }
     void updateAddButtonText(JButton addButton, JComboBox<String> itemDropdown,
                              Map<String, String> displayToSerialMap, JTextField textField) {
+
         String currentItem = (String) itemDropdown.getEditor().getItem();
         String currentSerial = displayToSerialMap.get(currentItem);
         String quantityText = textField.getText().trim();
@@ -679,6 +892,55 @@ public class AddWindow extends SubWindow {
         }
 
         Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
-        addButton.setText(UpdateAddText(currentTarget, currentAmount));
+        addButton.setText(updateAddText(currentTarget, currentAmount));
+    }
+    void updateComposeButtonText(JButton composeButton, JComboBox<String> itemDropdown,
+                             Map<String, String> displayToSerialMap, JTextField textField) {
+
+        String currentItem = (String) itemDropdown.getEditor().getItem();
+        String currentSerial = displayToSerialMap.get(currentItem);
+        String quantityText = textField.getText().trim();
+
+        int currentAmount = 0; // default when empty or invalid
+        if (!quantityText.isEmpty()) {
+            try {
+                currentAmount = Integer.parseInt(quantityText);
+            } catch (NumberFormatException ex) {
+                //ignore
+            }
+        }
+
+        Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
+        composeButton.setText(updateComposeText(currentTarget, currentAmount));
+    }
+    String updateAddText(Item target, int amount) {
+        String addButtonText;
+        if (target == null) {
+            addButtonText = (amount > 0)
+                    ? "Add " + amount + " to this item"
+                    : "Add amount to this item";
+        } else {
+            String name = target.getName();
+            String plural = name.endsWith("s") ? name + "es" : name + "s";
+            addButtonText = (amount > 1)
+                    ? "Add " + amount + " " + plural
+                    : (amount <= 0 ? "Add amount to " + name : "Add " + amount + " " + name);
+        }
+        return addButtonText;
+    }
+    String updateComposeText(Item target, int amount) {
+        String composeButtonText;
+        if (target == null) {
+            composeButtonText= (amount > 0)
+                    ? "Compose " + amount + " of this item"
+                    : "Compose amount of this item";
+        } else {
+            String name = target.getName();
+            String plural = name.endsWith("s") ? name + "es" : name + "s";
+            composeButtonText = (amount > 1)
+                    ? "Compose " + amount + " " + plural
+                    : (amount <= 0 ? "Compose amount of " + name : "Compose " + amount + " " + name);
+        }
+        return composeButtonText;
     }
 }

@@ -67,7 +67,7 @@ public class ItemInfoWindow extends SubWindow {
                 TitledBorder.CENTER,
                 TitledBorder.DEFAULT_POSITION
         );
-        detailsBorder.setTitleFont(UIUtils.FONT_ARIAL_HEADER);
+        detailsBorder.setTitleFont(UIUtils.FONT_ARIAL_LARGE_BOLD);
         detailsBorder.setTitleColor(UIUtils.TEXT_SECONDARY);
 
         detailsWrapper.setBorder(BorderFactory.createCompoundBorder(

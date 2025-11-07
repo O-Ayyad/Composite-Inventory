@@ -73,12 +73,15 @@ public class ViewWindow extends SubWindow {
 
 
         JButton addBtn = new JButton("Add");
+        JButton composeBtn = new JButton("Compose Item");
         JButton reduceBtn = new JButton("Reduce");
+        JButton breakBtn = new JButton("Break Down Item");
         JButton editBtn = new JButton("Edit");
         JButton deleteBtn = new JButton("Delete");
         JButton refreshBtn = new JButton("🔄 Refresh");
 
-        List<JButton> buttons = List.of(addBtn, reduceBtn, editBtn, deleteBtn, refreshBtn);
+        List<JButton> buttons = List.of(addBtn, composeBtn, reduceBtn, breakBtn, editBtn, deleteBtn, refreshBtn);
+
         for (JButton btn : buttons) {
             btn.setAlignmentX(Component.CENTER_ALIGNMENT);
             btn.setMaximumSize(new Dimension(160, 36));
@@ -89,12 +92,21 @@ public class ViewWindow extends SubWindow {
 
         addBtn.addActionListener(e -> {
             Item selected = getSelectedItem();
-            new AddWindow(mainWindow, inventory, selected);
+            new AddWindow(mainWindow, inventory, selected,false);
         });
 
         reduceBtn.addActionListener(e -> {
             Item selected = getSelectedItem();
             new RemoveWindow(mainWindow, inventory, selected,false);
+        });
+
+        composeBtn.addActionListener(e -> {
+            Item selected = getSelectedItem();
+            new AddWindow(mainWindow, inventory, selected,true);
+        });
+
+        breakBtn.addActionListener(e -> {
+
         });
 
         editBtn.addActionListener(e -> {
