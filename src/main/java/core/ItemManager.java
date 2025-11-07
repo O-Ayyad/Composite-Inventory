@@ -2,7 +2,6 @@ package core;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 //Called by Item class and updates Inventory
 public class ItemManager {
@@ -38,50 +37,68 @@ public class ItemManager {
     }
 
     //Clones an item's composed of then removes the item and adds composed of - removed items
-    public void breakDownItem(Item item, ArrayList<ItemPacket> removedItems){
-        if (item == null || removedItems == null || inventory == null) throw new IllegalStateException("Item, removedItems, or inventory is null is breakDownItem()");
-        ArrayList<ItemPacket> itemCopy = new ArrayList<>();
-        Map<Item, ItemPacket> map = new HashMap<>();
+    public BreakdownResult breakDownItem(Item item, ArrayList<ItemPacket> removedItems){
+        if (item == null || removedItems == null || inventory == null) throw new IllegalStateException("Item, reclaimedItems, or inventory is null is breakDownItem()");
 
-        //Clone item.getComposed to itemCopy
-        for(ItemPacket ip : item.getComposedOf()) {
-            // Create a new ItemPacket with the same Item and quantity
-            ItemPacket copy = new ItemPacket(ip.getItem(), ip.getQuantity());
-            itemCopy.add(copy);
-            map.put(copy.getItem(), copy);
-        }
-
+        Map<Item, Integer> originalMap = new HashMap<>();
         for (ItemPacket ip : item.getComposedOf()) {
-            boolean found = false;
-            for (ItemPacket removeIP : removedItems) {
-                if (removeIP.getItem().equals(ip.getItem())) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                return;
-            }
+            originalMap.put(ip.getItem(), ip.getQuantity());
         }
-        for (ItemPacket removeIP : removedItems) {
-            ItemPacket main = map.get(removeIP.getItem());
-            if (main != null) {
-                main.setQuantity(main.getQuantity() - removeIP.getQuantity());
-                if (main.getQuantity() <= 0) {
-                    itemCopy.remove(main);
-                }
-            }
-        }
-        String parts = "";
-        for (int i = 0; i < itemCopy.size(); i++) {
-            ItemPacket ip = itemCopy.get(i);
-            parts += ip.getItem().getName() + " x" + ip.getQuantity();
-            if (i < itemCopy.size() - 1) parts += ", ";
-        }
-        inventory.processItemPacketList(itemCopy);
-        inventory.decreaseItemAmount(item, 1);
 
-        logItemBreak(item, "Broke down " + item.getName() + " into parts: " + parts);
+        //Make sure everything is right before breaking down
+        for (ItemPacket userIP : removedItems) {
+            Item component = userIP.getItem();
+            int userQty = userIP.getQuantity();
+
+            if (!originalMap.containsKey(component)) {
+                throw new IllegalArgumentException("Cannot reclaim " + component.getName() +
+                        ". It is not part of " + item.getName());
+            }
+            if (userQty < 0) {
+                throw new IllegalArgumentException("Quantity is negative in reclaiming broken down item.");
+            }
+            if (userQty > originalMap.get(component)) {
+                throw new IllegalArgumentException("Too many units of " + component.getName() +
+                        " to reclaim. Max allowed: " + originalMap.get(component));
+            }
+        }
+
+        Map<Item, Integer> reclaimedMap = new HashMap<>();
+        for (ItemPacket ip : removedItems) {
+            if (ip.getQuantity() > 0) {
+                reclaimedMap.put(ip.getItem(), ip.getQuantity());
+            }
+        }
+
+        //Build list for processing
+        ArrayList<ItemPacket> reclaimed = new ArrayList<>();
+        for (Map.Entry<Item, Integer> e : reclaimedMap.entrySet()) {
+            reclaimed.add(new ItemPacket(e.getKey(), e.getValue()));
+        }
+
+        int beforeQuantity = inventory.getQuantity(item);
+
+        inventory.processItemPacketList(reclaimed);
+        inventory.decreaseItemAmountSilent(item, 1);
+
+        int afterQuantity = inventory.getQuantity(item);
+
+        Map<Item, Integer> usedMap = new HashMap<>();
+        for (Map.Entry<Item, Integer> e : originalMap.entrySet()) {
+            Item comp = e.getKey();
+            int original = e.getValue();
+            int recl = reclaimedMap.getOrDefault(comp, 0);
+            int used = original - recl;
+            if (used > 0) usedMap.put(comp, used);
+        }
+
+        return new BreakdownResult(
+                originalMap,
+                reclaimedMap,
+                usedMap,
+                beforeQuantity,
+                afterQuantity
+        );
     }
     // Takes a list of components (ItemPackets) and assembles them into a single composed item.
     // Each ItemPacket is consumed from inventory, and the composed item is added.
@@ -112,31 +129,11 @@ public class ItemManager {
         }
 
         for (ItemPacket ip : composedItem.getComposedOf()){ //We have all the items so consume
-            inventory.decreaseItemAmount(ip.getItem(),ip.getQuantity());
+            inventory.decreaseItemAmountSilent(ip.getItem(),ip.getQuantity());
         }
 
         //Add the newly composed item
-        inventory.addItemAmount(composedItem, 1);
-
-        //Log the composition
-        if (inventory.logManager != null) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("Composed new item '")
-                    .append(composedItem.getName())
-                    .append("' (Serial: ").append(composedItem.getSerialNum()).append(") using: ");
-
-            for (ItemPacket ip : composedItem.getComposedOf()) {
-                sb.append("[").append(ip.getItem().getName())
-                        .append(" x").append(ip.getQuantity()).append("], ");
-            }
-
-            inventory.logManager.createLog(
-                    Log.LogType.ItemAdded,
-                    1,
-                    sb.toString(),
-                    composedItem.getSerialNum()
-            );
-        }
+        inventory.addItemAmountSilent(composedItem, 1);
     }
     public boolean checkIfSerialExists(String serial){
         return inventory.hasItem(serial);
@@ -151,114 +148,27 @@ public class ItemManager {
             );
         }
     }
-    private void logItemBreak(Item item, String message) {
-        if (inventory != null && inventory.logManager != null) {
-            inventory.logManager.createLog(
-                    Log.LogType.ItemBrokenDown,
-                    0, //amount not relevant
-                    message,
-                    item.getSerialNum()
-            );
-        }
-    }
-    private void logComboCreated(Item item, String message) {
-        if (inventory != null && inventory.logManager != null) {
-            inventory.logManager.createLog(
-                    Log.LogType.ItemComboCreated,
-                    0, //amount not relevant
-                    message,
-                    item.getSerialNum()
-            );
-        }
-    }
-    public void editItemAmount(Item item, int newAmount) {
-        if (item == null) return;
 
-        int currentAmount = inventory.getQuantity(item);
-        int difference = newAmount - currentAmount;
-
-        if (difference > 0) {
-            inventory.addItemAmount(item, difference);
-            logUpdate(item, "Increased quantity of '" + item.getName() +
-                    "' (Serial: " + item.getSerialNum() + ") by " + difference +
-                    ". New total: " + newAmount);
-        } else if (difference < 0) {
-            inventory.decreaseItemAmount(item, Math.abs(difference));
-            logUpdate(item, "Decreased quantity of '" + item.getName() +
-                    "' (Serial: " + item.getSerialNum() + ") by " + Math.abs(difference) +
-                    ". New total: " + newAmount);
-        }
-    }
-
-    public void updateItemName(Item item, String newName) {
-        if (item != null && !Objects.equals(item.getName(), newName)) {
-            item.setName(newName);
-            logUpdate(item, "Item name updated to '" + newName + "'");
-        }
-    }
-
-    public void updateLowStockTrigger(Item item, Integer newTrigger) {
-        if (item != null && !Objects.equals(item.getLowStockTrigger(), newTrigger)) {
-            item.setLowStockTrigger(newTrigger);
-            logUpdate(item, "Low stock trigger updated to " + newTrigger);
-        }
-    }
-
-    public void updateAmazonSKU(Item item, String newSKU) {
-        if (item != null && !Objects.equals(item.getAmazonSellerSKU(), newSKU)) {
-            item.setAmazonSellerSKU(newSKU);
-            logUpdate(item, "Amazon SKU updated to '" + newSKU + "'");
-        }
-    }
-
-    public void updateEbaySKU(Item item, String newSKU) {
-        if (item != null && !Objects.equals(item.getEbaySellerSKU(), newSKU)) {
-            item.setEbaySellerSKU(newSKU);
-            logUpdate(item, "eBay SKU updated to '" + newSKU + "'");
-        }
-    }
-
-    public void updateWalmartSKU(Item item, String newSKU) {
-        if (item != null && !Objects.equals(item.getWalmartSellerSKU(), newSKU)) {
-            item.setWalmartSellerSKU(newSKU);
-            logUpdate(item, "Walmart SKU updated to '" + newSKU + "'");
-        }
-    }
-
-    public void updateIconPath(Item item, String newPath) {
-        if (item != null && !Objects.equals(item.getImagePath(), newPath)) {
-            item.setIconPath(newPath);
-            logUpdate(item, "Icon path updated to '" + newPath + "'");
-        }
-    }
-
-    public void setComposedOf(Item target, ArrayList<ItemPacket> newComposedOf) {
-        if (target == null) return;
-
-        // Remove all old reverse links
-        for (ItemPacket old : target.getComposedOf()) {
-            Item component = old.getItem();
-            component.getComposesInto().removeIf(ci -> ci.equals(target));
-        }
-
-        // Replace entire composedOf list
-        target.replaceComposedOf(newComposedOf);
-
-        // Rebuild dependencies
-        target.syncCompositionDependencies();
-
-        // Log the change
-        StringBuilder sb = new StringBuilder();
-        sb.append("Rebuilt composedOf for '")
-                .append(target.getName())
-                .append("' (Serial: ").append(target.getSerialNum()).append("): ");
-
-        for (ItemPacket ip : newComposedOf) {
-            sb.append("[").append(ip.getItem().getName())
-                    .append(" x").append(ip.getQuantity()).append("], ");
-        }
-
-        logUpdate(target, sb.toString());
-    }
     //-------------------------------</Methods>-------------------------------
+
+    //Helper to log in inventory and not here
+    public static class BreakdownResult {
+        public final Map<Item, Integer> original;
+        public final Map<Item, Integer> reclaimed;
+        public final Map<Item, Integer> wasted;
+        public final int before;
+        public final int after;
+
+        public BreakdownResult(Map<Item, Integer> original,
+                               Map<Item, Integer> reclaimed,
+                               Map<Item, Integer> wasted,
+                               int before,
+                               int after) {
+            this.original = original;
+            this.reclaimed = reclaimed;
+            this.wasted = wasted;
+            this.before = before;
+            this.after = after;
+        }
+    }
 }

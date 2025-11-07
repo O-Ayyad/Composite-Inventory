@@ -6,7 +6,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
 
-import core.*;
 public class UIUtils {
 
     // =============== COLORS==================
@@ -63,7 +62,7 @@ public class UIUtils {
     public static final Font FONT_ARIAL_LARGE    = new Font("Arial", Font.PLAIN, 14);
     public static final Font FONT_ARIAL_BOLD_MEDIUM     = new Font("Arial", Font.BOLD, 16);
     public static final Font FONT_ARIAL_BOLD     = new Font("Arial", Font.BOLD, 14);
-    public static final Font FONT_ARIAL_HEADER   = new Font("Arial", Font.BOLD, 18);
+    public static final Font FONT_ARIAL_LARGE_BOLD = new Font("Arial", Font.BOLD, 18);
 
     public static final Font DEBUG_CONSOLE_FONT  = new Font("Consolas", Font.PLAIN, 12);
 

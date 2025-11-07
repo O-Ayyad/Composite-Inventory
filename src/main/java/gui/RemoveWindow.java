@@ -1,10 +1,15 @@
 package gui;
 import core.*;
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
 public class RemoveWindow extends SubWindow {
@@ -37,7 +42,7 @@ public class RemoveWindow extends SubWindow {
     public void setupUI(Item selected,boolean sendToRemoveItem) {
         JPanel mainPanel;
         if(sendToRemoveItem){
-            mainPanel = removeItemPanel(selected);
+            mainPanel = deleteItemPanel(selected);
         }else{
             mainPanel = reduceStockPanel(selected);
         }
@@ -99,10 +104,12 @@ public class RemoveWindow extends SubWindow {
         gbc.anchor = GridBagConstraints.CENTER;
 
         JButton reduceButton = new JButton("Reduce Stock");
-        JButton removeItemButton = new JButton("Remove an item completely");
+        JButton removeItemButton = new JButton("Delete Item");
+        JButton breakDownButton = new JButton("Break Down Item");
         JPanel buttonRow = new JPanel();
         buttonRow.add(UIUtils.styleButton(reduceButton));
         buttonRow.add(UIUtils.styleButton(removeItemButton));
+        buttonRow.add(UIUtils.styleButton(breakDownButton));
         panel.add(buttonRow, gbc);
 
         amountField.getDocument().addDocumentListener(new DocumentListener() {
@@ -220,25 +227,35 @@ public class RemoveWindow extends SubWindow {
             // Replace current content with remove item panel
             getContentPane().removeAll();
             //Create panel
-            add(removeItemPanel(null), BorderLayout.CENTER);
+            add(deleteItemPanel(null), BorderLayout.CENTER);
 
             revalidate();
             repaint();
             pack();
         });
+        breakDownButton.addActionListener(e -> {
+            String selectedItem = (String) itemDropdown.getEditor().getItem();
+            String selectedSerial = displayToSerialMap.get(selectedItem);
+            Item currSelected = inventory.SerialToItemMap.get(selectedSerial);
 
+            getContentPane().removeAll();
+            add(breakDownPanel(currSelected), BorderLayout.CENTER);
+            revalidate();
+            repaint();
+            pack();
+        });
         JScrollPane scrollPane = new JScrollPane(panel);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         mainPanel.setPreferredSize(new Dimension(550, 400));
         return mainPanel;
     }
-    public JPanel removeItemPanel(Item selected){
+    public JPanel deleteItemPanel(Item selected){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         // Header
         JPanel top = new JPanel();
-        JTextArea info = new JTextArea("Remove Item");
+        JTextArea info = new JTextArea("Delete Item");
         info.setEditable(false);
         info.setOpaque(false);
         info.setFont(UIUtils.FONT_ARIAL_BOLD);
@@ -279,16 +296,16 @@ public class RemoveWindow extends SubWindow {
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
 
-        JButton removeButton = new JButton("Remove Item");
+        JButton deleteButton = new JButton("Delete Item");
         JButton cancelButton = new JButton("Cancel");
         JPanel buttonRow = new JPanel();
-        buttonRow.add(UIUtils.styleButton(removeButton));
+        buttonRow.add(UIUtils.styleButton(deleteButton));
         buttonRow.add(UIUtils.styleButton(cancelButton));
         panel.add(buttonRow, gbc);
 
         panel.registerKeyboardAction(
                 e -> {if (!((String) itemDropdown.getEditor().getItem()).isEmpty()) {
-                    removeButton.doClick();
+                    deleteButton.doClick();
                     }
                 },
                 KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
@@ -300,7 +317,7 @@ public class RemoveWindow extends SubWindow {
                 JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT
         );
         cancelButton.addActionListener(e-> dispose());
-        removeButton.addActionListener(e ->{
+        deleteButton.addActionListener(e ->{
             String selectedItem = (String) itemDropdown.getEditor().getItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
             Item target = inventory.SerialToItemMap.get(selectedSerial);
@@ -308,7 +325,7 @@ public class RemoveWindow extends SubWindow {
             if (selectedItem == null || selectedItem.trim().isEmpty()) {
                 JOptionPane.showMessageDialog(
                         this,
-                        "Please enter or select an item to remove.",
+                        "Please enter or select an item to delete.",
                         "Invalid Input",
                         JOptionPane.ERROR_MESSAGE
                 );
@@ -327,88 +344,7 @@ public class RemoveWindow extends SubWindow {
                         JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            if (!target.getComposesInto().isEmpty()) {
-                StringBuilder composeList = new StringBuilder();
-                for(Item i : target.getComposesInto()){
-                    composeList.append(i.getName()).append("\n");
-                }
-                String composeListStr = composeList.toString();
-                int confirm = JOptionPane.showConfirmDialog(
-                        this,
-                        "Warning: This item is used as a component in other composite items.\n" +
-                                "Removing it may affect those compositions of the following item(s):" + composeListStr +
-                                "\n\nProceed anyway?",
-                        "Composition Warning",
-                        JOptionPane.YES_NO_OPTION,
-                        JOptionPane.WARNING_MESSAGE
-                );
-                if (confirm != JOptionPane.YES_OPTION) return;
-            }
-            //Confirmation
-            String serial = target.getSerialNum();
-
-            String inSerial = JOptionPane.showInputDialog(
-                    this,
-                    "Type the serial number to permanently delete:\n" + serial +
-                            "\n\nThis action cannot be undone! All data about this item will be lost!\n" +
-                            "This will also remove all logs associated with this item!",
-                    "Confirm Deletion",
-                    JOptionPane.WARNING_MESSAGE
-            );
-            if (!inSerial.equals(serial)) {
-                JOptionPane.showMessageDialog(this, "Serial numbers do not match. Item not removed.",
-                        "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            String confirmWord = JOptionPane.showInputDialog(
-                    this,
-                    "Delete \"" + target.getName() + "\" (Serial: " + serial + ")?\n\n" +
-                            "This CANNOT be undone and will delete all logs.\n\n" +
-                            "Type CONFIRM below to continue:",
-                    "Confirm delete " + target.getName(),
-                    JOptionPane.WARNING_MESSAGE
-            );
-            if (confirmWord == null || !confirmWord.trim().equalsIgnoreCase("CONFIRM")) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "You must type CONFIRM to proceed with deletion.",
-                        "Deletion Canceled",
-                        JOptionPane.WARNING_MESSAGE
-                );
-                return;
-            }
-            int choice = JOptionPane.showConfirmDialog(
-                    this,
-                    "Are you absolutely sure you want to delete this item?\n\nItem Serial: " + serial,
-                    "Final Confirmation",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE
-            );
-
-            if (choice != JOptionPane.YES_OPTION) {
-                JOptionPane.showMessageDialog(this, "Deletion canceled.", "Canceled", JOptionPane.INFORMATION_MESSAGE);
-                return;
-            }
-
-            //Success
-            try {
-                inventory.removeItem(target);
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Successfully removed " + target.getName() + " (Serial: " + serial + ")",
-                        "Item Removed",
-                        JOptionPane.INFORMATION_MESSAGE
-                );
-                dispose();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Failed to remove item: " + ex.getMessage(),
-                        "Error",
-                        JOptionPane.ERROR_MESSAGE
-                );
-            }
+            confirmRemoveItem(target);
         });
 
         JScrollPane scrollPane = new JScrollPane(panel);
@@ -416,6 +352,199 @@ public class RemoveWindow extends SubWindow {
         mainPanel.setPreferredSize(new Dimension(400, 300));
         return mainPanel;
     }
+
+    public JPanel breakDownPanel(Item selected) {
+
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        //Header
+        JPanel top = new JPanel();
+        JTextArea info = new JTextArea("Break Down Composite Item");
+        info.setEditable(false);
+        info.setOpaque(false);
+        info.setFont(UIUtils.FONT_ARIAL_BOLD);
+        top.add(info);
+        mainPanel.add(top, BorderLayout.NORTH);
+
+        //Main panel
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(8, 8, 8, 8);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+
+        //Dropdown
+        panel.add(new JLabel("Select Composite Item:"), gbc);
+        gbc.gridx = 1;
+
+        DropdownResult DDRObj = getDropDownMenuCompositeItems();
+        JComboBox<String> itemDropdown = DDRObj.menu;
+        Map<String,String> displayToSerialMap = DDRObj.serialMap;
+        panel.add(itemDropdown, gbc);
+
+        //Remove null and non-composite items
+        if (selected != null) {
+            if(selected.isComposite()){
+                String serial = selected.getSerialNum();
+                for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
+                    if (entry.getValue().equals(serial)) {
+                        itemDropdown.setSelectedItem(entry.getKey());
+                        break;
+                    }
+                }
+            }
+        }
+
+        gbc.gridx = 0; gbc.gridy++;
+        gbc.gridwidth = 2;
+
+        JPanel componentPanel = new JPanel(new GridBagLayout());
+        TitledBorder tableBorder = BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
+                "Components to reclaim",
+                TitledBorder.CENTER,
+                TitledBorder.DEFAULT_POSITION
+        );
+        componentPanel.setBorder(tableBorder);
+        JScrollPane compScroll = new JScrollPane(componentPanel);
+        compScroll.setPreferredSize(new Dimension(400,200));
+        panel.add(compScroll, gbc);
+
+        Map<ItemPacket, JTextField> componentFields = new HashMap<>();
+
+        //Add components to reclaim
+        itemDropdown.addActionListener(e -> {
+            itemDropdown.hidePopup();
+            itemDropdown.getEditor().getEditorComponent().setFocusable(false);
+            itemDropdown.getEditor().getEditorComponent().setFocusable(true);
+
+            componentFields.clear();
+            componentPanel.removeAll();
+
+            String display = (String) itemDropdown.getEditor().getItem();
+            String serial = displayToSerialMap.get(display);
+            Item target = inventory.SerialToItemMap.get(serial);
+
+            if (target == null || !target.isComposite()) {
+                componentPanel.revalidate();
+                componentPanel.repaint();
+                return;
+            }
+
+            int row = 0;
+            for (ItemPacket ip : target.getComposedOf()) {
+                GridBagConstraints cgbc = new GridBagConstraints();
+                cgbc.insets = new Insets(4, 4, 4, 4);
+                cgbc.anchor = GridBagConstraints.WEST;
+
+                //component
+                cgbc.gridx = 0;
+                cgbc.gridy = row;
+                JLabel lbl = new JLabel(ip.getItem().getName() +
+                        " (Max per breakdown: " + ip.getQuantity() + ")");
+                componentPanel.add(lbl, cgbc);
+
+                //Input fields
+                cgbc.gridx = 1;
+                JTextField field = new JTextField(5);
+                field.setText("0");
+                componentPanel.add(field, cgbc);
+
+                componentFields.put(ip, field);
+                row++;
+            }
+
+            componentPanel.revalidate();
+            componentPanel.repaint();
+        });
+
+        // Buttons
+        gbc.gridx = 0; gbc.gridy++;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
+
+        JButton breakButton = new JButton("Break Down");
+        JButton cancelButton = new JButton("Return to Reduce Stock");
+        JPanel buttonRow = new JPanel();
+        buttonRow.add(UIUtils.styleButton(breakButton));
+        buttonRow.add(UIUtils.styleButton(cancelButton));
+        panel.add(buttonRow, gbc);
+
+        breakButton.addActionListener(e -> {
+
+            String display = (String) itemDropdown.getEditor().getItem();
+            String serial = displayToSerialMap.get(display);
+            Item target = inventory.SerialToItemMap.get(serial);
+
+            if (target == null || !target.isComposite()) {
+                JOptionPane.showMessageDialog(this,
+                        "Please select a valid composite item.",
+                        "Invalid Selection", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            //Validate reclaim amount
+            ArrayList<ItemPacket> reclaimedComponents = new ArrayList<>();
+            for (Map.Entry<ItemPacket, JTextField> entry : componentFields.entrySet()) {
+                ItemPacket ip = entry.getKey();
+                JTextField tf = entry.getValue();
+
+                try {
+                    int val = Integer.parseInt(tf.getText().trim());
+
+                    if (val < 0) {
+                        JOptionPane.showMessageDialog(this,
+                                "Negative values are not allowed.",
+                                "Invalid Input", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    if (val > ip.getQuantity()) {
+                        JOptionPane.showMessageDialog(this,
+                                "You cannot reclaim " + val +
+                                        " of " + ip.getItem().getName() +
+                                        ". Maximum is " + ip.getQuantity(),
+                                "Too Many", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    if (val > 0) {
+                        reclaimedComponents.add(new ItemPacket(ip.getItem(), val));
+                    }
+
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this,
+                            "Invalid number for " + ip.getItem().getName(),
+                            "Invalid Input", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+            inventory.breakDownItem(target, reclaimedComponents);
+
+            JOptionPane.showMessageDialog(this,
+                    "Item broken down successfully.\n",
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+            dispose();
+        });
+
+        cancelButton.addActionListener(e -> {
+            getContentPane().removeAll();
+            add(reduceStockPanel(null), BorderLayout.CENTER);
+            revalidate();
+            repaint();
+            pack();
+        });
+
+
+        JScrollPane scrollPane = new JScrollPane(panel);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        mainPanel.setPreferredSize(new Dimension(600, 450));
+
+        return mainPanel;
+    }
+
     String updateReduceText( Item target, int amount){
         String reduceButtonText;
         if (target == null) {
@@ -447,5 +576,49 @@ public class RemoveWindow extends SubWindow {
         Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
         removeButton.setText(updateReduceText(currentTarget, currentAmount));
     }
+    String updateBreakDownText(Item target, int amount) {
+        String breakButtonText;
+
+        if (target == null) {
+            breakButtonText = (amount > 0)
+                    ? "Break down " + amount + " of this item"
+                    : "Break down amount of this item";
+        } else {
+            String name = target.getName();
+            String plural = name.endsWith("s") ? name + "es" : name + "s";
+
+            breakButtonText = (amount > 1)
+                    ? "Break down " + amount + " " + plural
+                    : (amount <= 0 ? "Break down amount of " + name
+                    : "Break down " + amount + " " + name);
+        }
+
+        return breakButtonText;
+    }
+    void updateBreakDownButtonText(
+            JButton breakButton,
+            JComboBox<String> itemDropdown,
+            Map<String, String> displayToSerialMap,
+            JTextField amountField) {
+
+        String currentItem = (String) itemDropdown.getEditor().getItem();
+        String currentSerial = displayToSerialMap.get(currentItem);
+
+        String text = amountField.getText().trim();
+        int amount = 0;
+
+        if (!text.isEmpty()) {
+            try {
+                amount = Integer.parseInt(text);
+            } catch (NumberFormatException ex) {
+                // ignore invalid input; default stays 0
+            }
+        }
+
+        Item target = inventory.SerialToItemMap.get(currentSerial);
+
+        breakButton.setText(updateBreakDownText(target, amount));
+    }
+
 }
 

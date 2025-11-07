@@ -22,7 +22,7 @@ public class LinkWindow extends SubWindow {
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel header = new JLabel("Connect Your Seller Accounts", SwingConstants.CENTER);
-        header.setFont(UIUtils.FONT_UI_LARGE_BOLD);
+        header.setFont(UIUtils.FONT_ARIAL_BOLD);
         mainPanel.add(header, BorderLayout.NORTH);
 
         JPanel content = new JPanel();

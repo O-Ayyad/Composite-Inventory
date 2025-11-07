@@ -93,7 +93,7 @@ public class Item {
         composedOf.addAll(valid);
         syncCompositionDependencies();
     }
-    public boolean isComposite(){return !composedOf.isEmpty();}
+    public boolean isComposite(){ return !composedOf.isEmpty();}
     public Boolean isComposedOf(Item item){
         for(ItemPacket ip : composedOf){
             if(ip.getItem().equals(item)){

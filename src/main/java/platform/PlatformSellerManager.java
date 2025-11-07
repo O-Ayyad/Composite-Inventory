@@ -49,7 +49,7 @@ public class PlatformSellerManager {
             Item item = getItemByPlatform(packet.platform, packet.sku);
 
             if (item == null) {
-                logManager.createLog(Log.LogType.ItemSoldAndNotListedOnPlatforms,
+                logManager.createLog(Log.LogType.ItemSoldAndNotRegisteredInInventory,
                         packet.quantity,
                         "Order " + order.orderId + " on " + packet.platform +
                                 " - SKU " + packet.sku + " not linked.",

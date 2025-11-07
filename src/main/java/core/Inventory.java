@@ -1,5 +1,6 @@
 package core;
 import javax.swing.*;
+import java.lang.reflect.Array;
 import java.util.*;
 
 public class Inventory {
@@ -95,11 +96,10 @@ public class Inventory {
     }
     //Edit the amount of an item
     public void addItemAmount(Item item, int amount){
-        if (!hasItem(item)) {
-            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+        if( item == null){
+            throw new IllegalStateException("Null item called in addItemAmount()");
         }
-        int quantity = MainInventory.getOrDefault(item, 0);
-        MainInventory.put(item, quantity + amount);
+        addItemAmountSilent(item,amount);
         logManager.createLog(Log.LogType.ItemAdded,
                 amount,
                 "Added " + amount + " units of item '" + item.getName() +
@@ -108,6 +108,18 @@ public class Inventory {
                 item.getSerialNum()
         );
     }
+    //Does the same without logs
+    public void addItemAmountSilent(Item item, int amount){
+        if( item == null){
+            throw new IllegalStateException("Null item called in addItemAmount()");
+        }
+        if (!hasItem(item)) {
+            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+        }
+        int quantity = MainInventory.getOrDefault(item, 0);
+        MainInventory.put(item, quantity + amount);
+    }
+
     public void decreaseItemAmount(Item item, int amount){
         if (!hasItem(item)) {
             throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
@@ -124,9 +136,19 @@ public class Inventory {
                 item.getSerialNum()
         );
     }
-    public void setQuantity(Item item,int quantity){
+
+    public void decreaseItemAmountSilent(Item item, int amount){
         if (!hasItem(item)) {
             throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+        }
+
+        int quantity = MainInventory.get(item);
+        quantity = Math.max(0,quantity-amount);
+        MainInventory.put(item, quantity);
+    }
+    public void setQuantity(Item item,int quantity){
+        if (!hasItem(item)) {
+            throw new IllegalStateException("Item not found in setQuantity: " + item.getName());
         }
         if(quantity < 0) return;
         MainInventory.put(item, quantity);
@@ -144,9 +166,9 @@ public class Inventory {
         int IPQuant = ip.getQuantity();
         if(IPQuant == 0) return;
         if(IPQuant > 0){
-            addItemAmount(ip.getItem(), IPQuant);
+            addItemAmountSilent(ip.getItem(), IPQuant);
         } else{
-            decreaseItemAmount(ip.getItem(), IPQuant);
+            decreaseItemAmountSilent(ip.getItem(), IPQuant);
         }
     }
     public void processItemPacketList(ArrayList<ItemPacket> list){
@@ -179,12 +201,106 @@ public class Inventory {
                 return item;
             }
         }
-        System.out.println("getItemByName() called on non-existent item");
+        System.out.println("ERROR: getItemByName() called on non-existent item");
         return null;
     }
 
+    public void composeItem(Item item, int amount) {
+        if (item == null || !item.isComposite() || amount <= 0) {
+            throw new RuntimeException("ComposeItem called on non-existent item, or non-composite Item, or amount is invalid");
+        }
+        for(ItemPacket ip: item.getComposedOf()){ //Check if we have enough of each part
+            long required = (long)ip.getQuantity() * (long)amount;
+            if(required > getQuantity(ip.getItem())){
+                throw new RuntimeException("Not enough "+ ip.getItem().getName() + " to compose item: "+ item.getName() +". " +
+                        "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+getQuantity(ip.getItem()));
+            }
+        }
+        for(int i = 0; i <amount; i++){
+            itemManager.composeItem(item);
+        }
+        //Log the composition
+        if (logManager != null) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Composed ")
+                    .append(amount)
+                    .append(" of ")
+                    .append(item.getName())
+                    .append("' (Serial: ").append(item.getSerialNum()).append(") using: \n");
+
+            for (ItemPacket ip : item.getComposedOf()) {
+                sb.append("[").append(ip.getItem().getName())
+                        .append(" x").append(ip.getQuantity()).append("], \n");
+            }
+
+           logManager.createLog(
+                    Log.LogType.ItemComposed,
+                    1,
+                    sb.toString(),
+                    item.getSerialNum()
+            );
+        }
+    }
+    public void breakDownItem(Item item, ArrayList<ItemPacket> reclaimed) {
+        if (item == null || !item.isComposite()) {
+            throw new RuntimeException("breakDownItem() called on non-existent item, or non-composite Item, or amount is invalid");
+        }
+
+        ItemManager.BreakdownResult result = itemManager.breakDownItem(item,reclaimed);
+
+        StringBuilder originalSB  = new StringBuilder();
+        StringBuilder reclaimedSB = new StringBuilder();
+        StringBuilder wastedSB    = new StringBuilder();
+
+        //Original
+        for (Map.Entry<Item, Integer> e : result.original.entrySet()) {
+            originalSB.append(e.getKey().getName())
+                    .append(" x")
+                    .append(e.getValue())
+                    .append(", ");
+        }
+
+        //Reclaimed
+        for (Map.Entry<Item, Integer> e : result.reclaimed.entrySet()) {
+            reclaimedSB.append(e.getKey().getName())
+                    .append(" x")
+                    .append(e.getValue())
+                    .append(", ");
+        }
+
+        //USed
+        for (Map.Entry<Item, Integer> e : result.wasted.entrySet()) {
+            wastedSB.append(e.getKey().getName())
+                    .append(" x")
+                    .append(e.getValue())
+                    .append(", ");
+        }
+        if (originalSB.length() > 2)  originalSB.setLength(originalSB.length() - 2);
+        if (reclaimedSB.length() > 2) reclaimedSB.setLength(reclaimedSB.length() - 2);
+        if (wastedSB.length() > 2)    wastedSB.setLength(wastedSB.length() - 2);
+
+        String logMessage =
+                "Broke down 1 " + item.getName() + "\n" +
+                        "Original: ["   + originalSB  + "]\n" +
+                        "Reclaimed: ["  + reclaimedSB + "]\n" +
+                        "Used (not reclaimed): [" + wastedSB + "]\n" +
+                        "Inventory: " + result.before + " → " + result.after;
+
+        logManager.createLog(Log.LogType.ItemBrokenDown,1, logMessage,item.getSerialNum());
+    }
     //Rarely used to remove an item completely from inventory
     public void removeItem(Item item){
+        removeItemSilent(item);
+
+        logManager.createLog(
+                Log.LogType.ItemRemoved,
+                0,
+                "Removed item '" + item.getName() +
+                        "' (Serial: " + item.getSerialNum() + ") from inventory and all associated logs.",
+                item.getSerialNum()
+        );
+    }
+    public void removeItemSilent(Item item){
 
         //Remove composition links
         for(Item other: item.getComposesInto()){
@@ -213,14 +329,12 @@ public class Inventory {
             logManager.WarningLogs.removeAll(logsToRemove);
             logManager.NormalLogs.removeAll(logsToRemove);
         }
-
-        logManager.createLog(
-                Log.LogType.ItemRemoved,
-                0,
-                "Removed item '" + item.getName() +
-                        "' (Serial: " + item.getSerialNum() + ") from inventory and all associated logs.",
-                item.getSerialNum()
-        );
+    }
+    public void removeItemSilent(String serial){
+        Item item = getItemBySerial(serial);
+        if (item != null) {
+            removeItemSilent(item); //Not recursive
+        }
     }
     public void removeItem(String serial) {
         Item item = getItemBySerial(serial);

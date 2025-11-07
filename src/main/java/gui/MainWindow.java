@@ -202,7 +202,7 @@ public class MainWindow extends JFrame {
                         "Logs",
                         TitledBorder.CENTER,
                         TitledBorder.DEFAULT_POSITION,
-                        UIUtils.FONT_ARIAL_HEADER,
+                        UIUtils.FONT_ARIAL_LARGE_BOLD,
                         UIUtils.BORDER_DARK
                 )
         ));
@@ -364,7 +364,7 @@ public class MainWindow extends JFrame {
 
                         || String.valueOf(log.getLogID()).contains(s) //ID
 
-                        || log.getItemSerial().toLowerCase().contains(s); //Serial
+                        || log.getSerial().toLowerCase().contains(s); //Serial
             }
         });
     }
@@ -454,8 +454,6 @@ public class MainWindow extends JFrame {
             );
         }
         //Creates main window
-        SwingUtilities.invokeLater(() -> {
-            new MainWindow(inventory,logManager);
-        });
+        SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager));
     }
 }
