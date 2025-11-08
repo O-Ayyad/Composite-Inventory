@@ -6,13 +6,12 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.util.*;
-import java.util.List;
 
 public class EditWindow extends SubWindow {
     public static String windowName = "Edit Item";
     private final Item selectedItem;
     private File selectedImageFile;
-    private final Map<String, Integer> composedComponents = new LinkedHashMap<>();
+    private final Map<String, Integer> componentsBySerial = new LinkedHashMap<>();
 
     public EditWindow(MainWindow mainWindow, Inventory inventory, Item selected) {
         super(mainWindow, windowName, inventory);
@@ -161,13 +160,35 @@ public class EditWindow extends SubWindow {
         DropdownResult DDRObj = getDropDownMenuAllItems();
         JComboBox<String> searchField = DDRObj.menu;
         Map<String, String> componentSerialMap = DDRObj.serialMap;
+
         Set<String> selectedTags = new LinkedHashSet<>();
 
+        searchField.removeAllItems();
+        Map<String, String> filteredSerialMap = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : componentSerialMap.entrySet()) {
+            String displayName = entry.getKey();
+            String serial = entry.getValue();
 
+            Item component = inventory.getItemBySerial(serial);
+            if (component == null) continue;
+            if (serial.equals(selectedItem.getSerialNum())) continue;
+            if (inventory.containsItemRecursively(component, selectedItem.getSerialNum())) continue;
+
+            filteredSerialMap.put(displayName, serial);
+            searchField.addItem(displayName);
+        }
+
+        searchField.setSelectedIndex(-1);
+        JTextField textField = (JTextField) searchField.getEditor().getEditorComponent();
+        textField.setText("");
+
+        final Map<String, String> finalSerialMap = filteredSerialMap;
+
+        //Populate tags
         if (selectedItem.getComposedOf() != null) {
             for (ItemPacket packet : selectedItem.getComposedOf()) {
                 String serial = packet.getItem().getSerialNum();
-                composedComponents.put(serial, packet.getQuantity());
+                componentsBySerial.put(serial, packet.getQuantity());
                 selectedTags.add(serial);
 
                 JPanel tag = makeTagPanel(packet.getItem(), serial, packet.getQuantity(), tagPanel, selectedTags);
@@ -178,19 +199,25 @@ public class EditWindow extends SubWindow {
         //Handle dropdown selection
         searchField.addActionListener(e -> {
             String selectedDisplay = (String) searchField.getEditor().getItem();
-            String selectedSerial = componentSerialMap.get(selectedDisplay);
-            if (selectedSerial == null || selectedTags.contains(selectedSerial)) return;
+            String selectedSerial = finalSerialMap.get(selectedDisplay);
+            if (selectedSerial != null && !selectedTags.contains(selectedSerial)) {
+                Item component = inventory.SerialToItemMap.get(selectedSerial);
+                if (component == null) return;
 
-            Item component = inventory.SerialToItemMap.get(selectedSerial);
-            if (component == null) return;
+                selectedTags.add(selectedSerial);
+                componentsBySerial.put(selectedSerial, 1);
 
-            composedComponents.put(selectedSerial, 1);
-            selectedTags.add(selectedSerial);
-            JPanel tag = makeTagPanel(component, selectedSerial, 1, tagPanel, selectedTags);
-            tagPanel.add(tag);
-            tagPanel.revalidate();
-            tagPanel.repaint();
-            searchField.getEditor().setItem("");
+                JPanel tag = makeTagPanel(component, selectedSerial, 1, tagPanel,selectedTags);
+                tagPanel.add(tag);
+
+                JTextField textBox = (JTextField) searchField.getEditor().getEditorComponent();
+                textBox.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        textBox.setText("");
+                    }
+                });
+            }
         });
 
         JPanel composedContainer = new JPanel(new BorderLayout(5, 5));
@@ -224,6 +251,17 @@ public class EditWindow extends SubWindow {
                 String newEbaySKU = skuEbay.getText().trim();
                 String newWalmartSKU = skuWalmart.getText().trim();
 
+                ArrayList<ItemPacket> newComposition = new ArrayList<>();
+                for(Map.Entry<String,Integer> entry : componentsBySerial.entrySet()){
+
+                    String serial = entry.getKey();
+                    Integer amount = entry.getValue();
+
+                    ItemPacket IP = new ItemPacket(inventory.getItemBySerial(serial),amount);
+
+                    newComposition.add(IP);
+                }
+
 
                 String confirmation = JOptionPane.showInputDialog(
                         this,
@@ -246,8 +284,9 @@ public class EditWindow extends SubWindow {
                 sb.append("<b>Amazon SKU:</b> ").append(selectedItem.getAmazonSellerSKU()).append(" → ").append(newAmazonSKU).append("<br>");
                 sb.append("<b>eBay SKU:</b> ").append(selectedItem.getEbaySellerSKU()).append(" → ").append(newEbaySKU).append("<br>");
                 sb.append("<b>Walmart SKU:</b> ").append(selectedItem.getWalmartSellerSKU()).append(" → ").append(newWalmartSKU).append("<br>");
+                sb.append("<b>Is composite:</b> ").append(selectedItem.isComposite() ? "Yes" : "No").append(" → ").append(compositeCheck.isSelected()? "Yes" : "No").append("<br>");
 
-                if (selectedItem.isComposite()) {
+                if ((selectedItem.isComposite() != compositeCheck.isSelected()) || (selectedItem.getComposedOf() != newComposition)) { //Composition changes
                     StringBuilder beforeText = new StringBuilder();
                     if (selectedItem.getComposedOf() != null && !selectedItem.getComposedOf().isEmpty()) {
                         for (ItemPacket packet : selectedItem.getComposedOf()) {
@@ -261,11 +300,10 @@ public class EditWindow extends SubWindow {
                     }
 
                     StringBuilder afterText = new StringBuilder();
-                    if (composedComponents != null && !composedComponents.isEmpty()) {
-                        for (Map.Entry<String, Integer> entry : composedComponents.entrySet()) {
-                            String serialKey = entry.getKey();
-                            int qty = entry.getValue();
-                            Item component = inventory.SerialToItemMap.get(serialKey);
+                    if (!newComposition.isEmpty()) {
+                        for (ItemPacket IP : newComposition) {
+                            Item component = IP.getItem();
+                            int qty = IP.getQuantity();
                             if (component != null) {
                                 afterText.append("<br>&nbsp;&nbsp;• ").append(component.getName()).append(" x").append(qty);
                             }
@@ -280,7 +318,6 @@ public class EditWindow extends SubWindow {
                             .append(afterText)
                             .append("<br>");
                 }
-
 
                 if (selectedImageFile != null)
                     sb.append("<b>Image:</b> Updated<br>");
@@ -299,7 +336,7 @@ public class EditWindow extends SubWindow {
                     dispose();
                     return;
                 }
-                dispose();
+
                 selectedItem.setName(newName);
                 selectedItem.setLowStockTrigger(trigger);
                 selectedItem.setAmazonSellerSKU(newAmazonSKU);
@@ -309,23 +346,8 @@ public class EditWindow extends SubWindow {
                     selectedItem.setImagePath(selectedImageFile.getAbsolutePath());
 
                 inventory.setQuantity(selectedItem, newQty);
+                selectedItem.replaceComposedOf(newComposition);
                 inventory.checkLowAndOutOfStock();
-
-                if (selectedItem.isComposite()) {
-                    ArrayList<ItemPacket> newComposition = new ArrayList<>();
-
-                    for (Map.Entry<String, Integer> entry : composedComponents.entrySet()) {
-                        String serial = entry.getKey();
-                        int quantity = entry.getValue();
-
-                        Item component = inventory.getItemBySerial(serial);
-                        if (component != null && !component.equals(selectedItem)) {
-                            newComposition.add(new ItemPacket(component, quantity));
-                        }
-                    }
-
-                    selectedItem.replaceComposedOf(newComposition);
-                }
 
                 JOptionPane.showMessageDialog(
                         this,
@@ -352,22 +374,23 @@ public class EditWindow extends SubWindow {
         pack();
     }
 
-    private JPanel makeTagPanel(Item component, String serial, int qty, JPanel tagPanel, Set<String> selectedTags) {
+    protected JPanel makeTagPanel(Item component, String serial, int qty, JPanel tagPanel, Set<String> selectedTags) {
         JPanel tag = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
         tag.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
         JLabel nameLabel = new JLabel(component.getName() + " x" + qty);
         JButton editBtn = new JButton("Edit");
+        editBtn.setSize(27,editBtn.getHeight());
         JButton removeBtn = new JButton("x");
         editBtn.addActionListener(ev -> {
             String input = JOptionPane.showInputDialog(tagPanel, "Enter quantity for " + component.getName() + ":", qty);
             try {
                 int newQty = Integer.parseInt(input.trim());
-                composedComponents.put(serial, newQty);
+                componentsBySerial.put(serial, newQty);
                 nameLabel.setText(component.getName() + " x" + newQty);
             } catch (Exception ignored) {}
         });
         removeBtn.addActionListener(ev -> {
-            composedComponents.remove(serial);
+            componentsBySerial.remove(serial);
             selectedTags.remove(serial);
             tagPanel.remove(tag);
             tagPanel.revalidate();

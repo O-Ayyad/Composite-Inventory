@@ -420,68 +420,22 @@ public class MainWindow extends JFrame {
         ebay.syncOrders();
         walmart.syncOrders();
 
+        inventory.createItem("Battery", "BATT123", 10, null, "path/to/battery/icon", itemManager, "AMAZON123", "EBAY123", null,100);
+        inventory.createItem("Drill", "DRILL123", 5, null, "path/to/drill/icon", itemManager, "AMAZON456", "EBAY456", null,50);
+        inventory.createItem("Charger", "CHARG123", 3, null, "path/to/charger/icon", itemManager, "AMAZON789", "EBAY789", null,30);
 
+        // Create Drill Kit (composed of 2 Batteries and 1 Drill)
+        ArrayList<ItemPacket> drillKitComponents = new ArrayList<>();
+        drillKitComponents.add(new ItemPacket(inventory.getItemBySerial("BATT123"), 2));  // Two batteries
+        drillKitComponents.add(new ItemPacket(inventory.getItemBySerial("DRILL123"), 1));    // One drill
+        inventory.createItem("Drill Kit", "DRILLKIT123", 2, drillKitComponents, "path/to/drillkit/icon", itemManager, "AMAZON321", "EBAY321", null,25);
 
-        for (int i = 1; i <= 10; i++) {
-            String name = "Test Item " + i;
-            String serial = "SER-" + String.format("%03d", i);
-            int quantity = (int) (Math.random() * 50 + 1); // random 1–50
-            int lowTrigger = (i % 3 == 0) ? 100 : 0; // every 3rd item has a low stock trigger
+        // Create Battery Kit (composed of 2 Batteries and 1 Charger)
+        ArrayList<ItemPacket> batteryKitComponents = new ArrayList<>();
+        batteryKitComponents.add(new ItemPacket(inventory.getItemBySerial("BATT123"), 2));  // Two batteries
+        batteryKitComponents.add(new ItemPacket(inventory.getItemBySerial("CHARG123"), 1));  // One charger
+        inventory.createItem("Battery Kit", "BATKIT123", 2, batteryKitComponents, "path/to/batterykit/icon", itemManager, "AMAZON654", "EBAY654", null,50);
 
-            String amazonSKU = "AMZ-" + serial;
-            String ebaySKU = "EBY-" + serial;
-            String walmartSKU = "WMT-" + serial;
-
-            inventory.createItem(
-                    name,
-                    serial,
-                    lowTrigger,
-                    new ArrayList<>(), // no composition yet
-                    null,
-                    itemManager,
-                    amazonSKU,
-                    ebaySKU,
-                    walmartSKU,
-                    quantity
-            );
-        }
-
-        Random rand = new Random();
-
-        for (int i = 1; i <= 4; i++) {
-            String name = "Composite " + i;
-            String serial = "CMP-" + String.format("%03d", i);
-
-            ArrayList<ItemPacket> components = new ArrayList<>();
-            int numComponents = rand.nextInt(3) + 2;
-
-            for (int j = 0; j < numComponents; j++) {
-                int componentIndex = rand.nextInt(10) + 1;
-                String componentSerial = "SER-" + String.format("%03d", componentIndex);
-                Item component = inventory.getItemBySerial(componentSerial);
-                if (component == null) continue;
-
-                int qty = rand.nextInt(3) + 1;
-                components.add(new ItemPacket(component, qty));
-            }
-
-            if (components.isEmpty()) continue;
-
-            int quantity = rand.nextInt(10) + 1;
-
-            inventory.createItem(
-                    name,
-                    serial,
-                    0, // optional trigger
-                    components,
-                    null, // no image for now
-                    itemManager,
-                    "AMZ-" + serial,
-                    "EBY-" + serial,
-                    "WMT-" + serial,
-                    quantity
-            );
-        }
         //Creates main window
         SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager));
     }

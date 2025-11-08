@@ -86,11 +86,21 @@ public class Item {
 
         ArrayList<ItemPacket> valid = new ArrayList<>();
         for (ItemPacket ip : newList) {
-            if (ip == null || ip.getItem() == null) continue;
-            if (ip.getItem().equals(this)) continue;
+            if (ip == null) {
+                System.out.println("Skipping null ItemPacket.");
+                continue;
+            }
+            Item item = ip.getItem();
+            if (item == null) {
+                System.out.println("ItemPacket has a null item. Skipping.");
+                continue;
+            }
+            if (item.equals(this)) {
+                System.out.println("Cannot compose with itself: " + item.getName() + " (Serial: " + item.getSerialNum() + ")");
+                continue;
+            }
             valid.add(ip);
         }
-        if (valid.isEmpty()) return;
 
         composedOf.clear();
         composedOf.addAll(valid);
@@ -99,13 +109,12 @@ public class Item {
     public boolean isComposite(){ return !composedOf.isEmpty();}
     public Boolean isComposedOf(Item item){
         for(ItemPacket ip : composedOf){
-            if(ip.getItem().equals(item)){
+            if(ip.getItem().equals(item)) {
                 return true;
             }
         }
         return false;
     }
-    public Boolean doesComposeInto(Item item){return composesInto.contains(item);}
     //-------------------------------</Edit Composition>-------------------------------
 
 
