@@ -6,6 +6,8 @@ import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.*;
 
@@ -173,7 +175,6 @@ public class AddWindow extends SubWindow {
 
                 selectedTags.add(selectedSerial);
                 composedComponents.put(selectedSerial, 1);
-                searchField.getEditor().setItem("");
 
                 JPanel tag = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
                 tag.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
@@ -220,8 +221,13 @@ public class AddWindow extends SubWindow {
                 tagPanel.revalidate();
                 tagPanel.repaint();
 
-
-                searchField.getEditor().setItem("");
+                JTextField textField = (JTextField) searchField.getEditor().getEditorComponent();
+                textField.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        textField.setText("");
+                    }
+                });
             }
         });
 

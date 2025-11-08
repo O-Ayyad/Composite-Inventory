@@ -177,8 +177,13 @@ public class ItemInfoWindow extends SubWindow {
         inner.setOpaque(false);
 
         for (Item parent : inventory.MainInventory.keySet()) {
-            if (parent.isComposedOf(item)) {
-                inner.add(new JLabel("• " + parent.getName()));
+            if (parent.getComposedOf() != null) {
+                for (ItemPacket packet : parent.getComposedOf()) {
+                    if (packet.getItem().equals(item)) {
+                        inner.add(new JLabel("• " + parent.getName()));
+                        break;
+                    }
+                }
             }
         }
 

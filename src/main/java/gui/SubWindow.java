@@ -4,6 +4,7 @@ import core.Inventory;
 import core.Item;
 
 import java.awt.*;
+import java.awt.event.ItemEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.*;
@@ -76,6 +77,117 @@ public abstract class SubWindow extends JFrame {
         return createFilteredDropdown(Item::isComposite); //include only composites
     }
     //Returns true if user deleted the item
+    private DropdownResult createFilteredDropdown(Predicate<Item> itemFilter) {
+        JComboBox<String> itemDropdown = new JComboBox<>();
+        itemDropdown.setEditable(true);
+
+        Dimension fixedSize = new Dimension(200, 25);
+        itemDropdown.setPreferredSize(fixedSize);
+        itemDropdown.setMaximumSize(fixedSize);
+        itemDropdown.setMinimumSize(fixedSize);
+
+        itemDropdown.setEditor(new BasicComboBoxEditor() {
+            private final JTextField tf = new JTextField();
+            @Override public Component getEditorComponent() { return tf; }
+            @Override public Object getItem() { return tf.getText(); }
+            @Override public void setItem(Object anObject) { }
+        });
+        itemDropdown.putClientProperty("JComboBox.isTableCellEditor", Boolean.TRUE);
+
+        JTextField editor = (JTextField) itemDropdown.getEditor().getEditorComponent();
+        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+        itemDropdown.setModel(model);
+
+        HashMap<String, String> displayToSerialMap = new HashMap<>();
+        ArrayList<String> displayList = new ArrayList<>();
+
+        for (String serial : inventory.SerialToItemMap.keySet()) {
+            Item item = inventory.getItemBySerial(serial);
+            if (item != null && itemFilter.test(item)) {
+                String display = item.getName() + " (" + serial + ")";
+                displayList.add(display);
+                displayToSerialMap.put(display, serial);
+            }
+        }
+
+        displayList.forEach(model::addElement);
+
+        final boolean[] rebuilding = { false };
+        final String[] selectedItem = { null };
+        final boolean[] textCleared = { false };
+
+        int delay = 150;
+        Timer debounceTimer = new Timer(delay, e -> {
+            String text = editor.getText().trim().toLowerCase();
+            if (selectedItem[0] != null && !editor.getText().equals(selectedItem[0])) {
+                selectedItem[0] = null;
+            }
+
+            rebuilding[0] = true;
+            model.removeAllElements();
+
+            if (text.isEmpty()) {
+                displayList.stream()
+                        .filter(d -> !d.equals(selectedItem[0]))
+                        .forEach(model::addElement);
+            } else {
+                displayList.stream()
+                        .filter(d -> !d.equals(selectedItem[0]))
+                        .filter(d -> d.toLowerCase().contains(text) ||
+                                displayToSerialMap.get(d).toLowerCase().contains(text))
+                        .forEach(model::addElement);
+            }
+
+            rebuilding[0] = false;
+            if (model.getSize() > 0) itemDropdown.showPopup();
+            else itemDropdown.hidePopup();
+
+            SwingUtilities.invokeLater(() -> editor.setCaretPosition(editor.getText().length()));
+        });
+        debounceTimer.setRepeats(false);
+
+        //Typing debounce
+        editor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            private void restartTimer() {
+                if (debounceTimer.isRunning()) debounceTimer.restart();
+                else debounceTimer.start();
+            }
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { restartTimer(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { restartTimer(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { restartTimer(); }
+        });
+
+        //Handle selection
+        itemDropdown.addActionListener(e -> {
+            if (!rebuilding[0]) {
+                Object selected = itemDropdown.getSelectedItem();
+                if (selected != null) {
+                    editor.setText(selected.toString());
+                    editor.setCaretPosition(editor.getText().length());
+                    itemDropdown.hidePopup();
+                    selectedItem[0] = selected.toString();
+
+                }
+            }
+        });
+
+
+        //Focus behavior
+        editor.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusGained(java.awt.event.FocusEvent e) {
+                if (model.getSize() > 0) itemDropdown.showPopup();
+            }
+        });
+
+
+        SwingUtilities.invokeLater(() -> {
+            editor.requestFocusInWindow();
+            editor.selectAll();
+        });
+        JTextField textField = (JTextField) itemDropdown.getEditor().getEditorComponent();
+        textField.setText("");
+        return new DropdownResult(itemDropdown, displayToSerialMap, debounceTimer);
+    }
     public boolean confirmRemoveItem(Item target){
         if (!target.getComposesInto().isEmpty()) {
             StringBuilder composeList = new StringBuilder();
@@ -161,111 +273,5 @@ public abstract class SubWindow extends JFrame {
             return false;
         }
         return true;
-    }
-    private DropdownResult createFilteredDropdown(Predicate<Item> itemFilter) {
-        JComboBox<String> itemDropdown = new JComboBox<>();
-        itemDropdown.setEditable(true);
-
-        Dimension fixedSize = new Dimension(200, 25);
-        itemDropdown.setPreferredSize(fixedSize);
-        itemDropdown.setMaximumSize(fixedSize);
-        itemDropdown.setMinimumSize(fixedSize);
-
-        itemDropdown.setEditor(new BasicComboBoxEditor() {
-            private final JTextField tf = new JTextField();
-            @Override public Component getEditorComponent() { return tf; }
-            @Override public Object getItem() { return tf.getText(); }
-            @Override public void setItem(Object anObject) { }
-        });
-        itemDropdown.putClientProperty("JComboBox.isTableCellEditor", Boolean.TRUE);
-
-        JTextField editor = (JTextField) itemDropdown.getEditor().getEditorComponent();
-        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
-        itemDropdown.setModel(model);
-
-        HashMap<String, String> displayToSerialMap = new HashMap<>();
-        ArrayList<String> displayList = new ArrayList<>();
-
-        for (String serial : inventory.SerialToItemMap.keySet()) {
-            Item item = inventory.getItemBySerial(serial);
-            if (item != null && itemFilter.test(item)) {
-                String display = item.getName() + " (" + serial + ")";
-                displayList.add(display);
-                displayToSerialMap.put(display, serial);
-            }
-        }
-
-        displayList.forEach(model::addElement);
-
-        final boolean[] rebuilding = { false };
-        final String[] selectedItem = { null };
-
-        int delay = 150;
-        Timer debounceTimer = new Timer(delay, e -> {
-            String text = editor.getText().trim().toLowerCase();
-            if (selectedItem[0] != null && !editor.getText().equals(selectedItem[0])) {
-                selectedItem[0] = null;
-            }
-
-            rebuilding[0] = true;
-            model.removeAllElements();
-
-            if (text.isEmpty()) {
-                displayList.stream()
-                        .filter(d -> !d.equals(selectedItem[0]))
-                        .forEach(model::addElement);
-            } else {
-                displayList.stream()
-                        .filter(d -> !d.equals(selectedItem[0]))
-                        .filter(d -> d.toLowerCase().contains(text) ||
-                                displayToSerialMap.get(d).toLowerCase().contains(text))
-                        .forEach(model::addElement);
-            }
-
-            rebuilding[0] = false;
-            if (model.getSize() > 0) itemDropdown.showPopup();
-            else itemDropdown.hidePopup();
-
-            SwingUtilities.invokeLater(() -> editor.setCaretPosition(editor.getText().length()));
-        });
-        debounceTimer.setRepeats(false);
-
-        //Typing debounce
-        editor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            private void restartTimer() {
-                if (debounceTimer.isRunning()) debounceTimer.restart();
-                else debounceTimer.start();
-            }
-            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { restartTimer(); }
-            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { restartTimer(); }
-            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { restartTimer(); }
-        });
-
-        //Handle selection
-        itemDropdown.addActionListener(e -> {
-            if (!rebuilding[0]) {
-                Object selected = itemDropdown.getSelectedItem();
-                if (selected != null) {
-                    editor.setText(selected.toString());
-                    editor.setCaretPosition(editor.getText().length());
-                    itemDropdown.hidePopup();
-                    selectedItem[0] = selected.toString();
-                }
-            }
-        });
-
-        //Focus behavior
-        editor.addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override public void focusGained(java.awt.event.FocusEvent e) {
-                if (model.getSize() > 0) itemDropdown.showPopup();
-            }
-        });
-
-        SwingUtilities.invokeLater(() -> {
-            editor.requestFocusInWindow();
-            editor.selectAll();
-        });
-
-        return new DropdownResult(itemDropdown, displayToSerialMap, debounceTimer);
     }
 }

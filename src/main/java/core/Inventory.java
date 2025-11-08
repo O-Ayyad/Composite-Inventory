@@ -29,7 +29,6 @@ public class Inventory {
                 try {
                     checkLowAndOutOfStock();
                 } catch (Exception ex) {
-                    ex.printStackTrace();
                     try {
 
                         Thread.sleep(500);
@@ -304,6 +303,22 @@ public class Inventory {
                         "' (Serial: " + item.getSerialNum() + ") from inventory and all associated logs.",
                 item.getSerialNum()
         );
+    }
+
+    //Checks if for any X, if X has a composite part that contains X anywhere then it returns false.
+    public boolean containsItemRecursively(Item item, String searchSerial) {
+        if (item.getComposedOf() == null) return false;
+
+        for (ItemPacket packet : item.getComposedOf()) {
+            Item component = packet.getItem();
+            if (component.getSerialNum().equals(searchSerial)) {
+                return true;
+            }
+            if (containsItemRecursively(component, searchSerial)) {
+                return true;
+            }
+        }
+        return false;
     }
     public void removeItemSilent(Item item){
 

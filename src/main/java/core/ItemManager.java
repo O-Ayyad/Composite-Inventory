@@ -19,24 +19,6 @@ public class ItemManager {
 
     //-------------------------------<Methods>-------------------------------
 
-    public boolean isComposedOfItem(Item item, Item searchItem) {
-        for (ItemPacket packet : item.getComposedOf()) {
-            if (packet.getItem().equals(searchItem)) {
-                return true; // found the item
-            }
-        }
-        return false; // not found
-    }
-
-    public ItemPacket getItemPacketInComposedOf(Item item, Item searchItem) {
-        for (ItemPacket packet : item.getComposedOf()) {
-            if (packet.getItem().equals(searchItem)) {
-                return packet; // found the item
-            }
-        }
-        return null; // not found
-    }
-
     //Clones an item's composed of then removes the item and adds composed of - removed items
     public BreakdownResult breakDownItem(Item item, ArrayList<ItemPacket> removedItems){
         if (item == null || removedItems == null || inventory == null) throw new IllegalStateException("Item, removedItems, or inventory is null is breakDownItem()");
