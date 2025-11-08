@@ -2,14 +2,12 @@ package gui;
 import core.*;
 
 import javax.swing.*;
-import javax.swing.event.TableModelListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.function.Consumer;
 
 public class LogTableModel extends AbstractTableModel {

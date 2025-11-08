@@ -16,10 +16,10 @@ public class AddWindow extends SubWindow {
     private File selectedImageFile = null;
     private final Map<String, Integer> composedComponents = new LinkedHashMap<>();
 
-    public AddWindow(JFrame mainWindow, Inventory inventory) {
+    public AddWindow(MainWindow mainWindow, Inventory inventory) {
         this(mainWindow,inventory,null,false); //Delegate to unified constructor
     }
-    public AddWindow(JFrame mainWindow, Inventory inventory,Item selected,boolean compose) {
+    public AddWindow(MainWindow mainWindow, Inventory inventory,Item selected,boolean compose) {
         super(mainWindow, windowName,inventory);
         setupUI(selected,compose);
         setVisible(true);
@@ -32,7 +32,7 @@ public class AddWindow extends SubWindow {
         JPanel mainPanel;
 
         if (inventory.MainInventory.isEmpty()) {
-            mainPanel = addNewItemPanel();
+            mainPanel = createNewItemPanel();
         }
         else{
             if(compose){
@@ -46,7 +46,7 @@ public class AddWindow extends SubWindow {
         add(mainPanel, BorderLayout.CENTER);
         pack();
     }
-    public JPanel addNewItemPanel(){
+    public JPanel createNewItemPanel(){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -668,7 +668,7 @@ public class AddWindow extends SubWindow {
 
         newItemButton.addActionListener(e -> {
             getContentPane().removeAll();
-            add(addNewItemPanel(), BorderLayout.CENTER);
+            add(createNewItemPanel(), BorderLayout.CENTER);
             revalidate();
             repaint();
             pack();
@@ -858,7 +858,7 @@ public class AddWindow extends SubWindow {
 
         newItemButton.addActionListener(e -> {
             getContentPane().removeAll();
-            add(addNewItemPanel(), BorderLayout.CENTER);
+            add(createNewItemPanel(), BorderLayout.CENTER);
             revalidate();
             repaint();
             pack();

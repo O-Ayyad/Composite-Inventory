@@ -14,12 +14,16 @@ import java.util.Map;
 
 public class RemoveWindow extends SubWindow {
     public static String windowName = "Remove Item";
-
-    public RemoveWindow(JFrame mainWindow, Inventory inventory,boolean sendToRemoveItem) {
-        this(mainWindow, inventory, null,sendToRemoveItem); //Delegate to unified constructor
+    enum SendTo{
+        Break,
+        Delete,
+        Reduce,
+    }
+    public RemoveWindow(MainWindow mainWindow, Inventory inventory,SendTo send) {
+        this(mainWindow, inventory, null,send); //Delegate to unified constructor
     }
 
-    public RemoveWindow(JFrame mainWindow, Inventory inventory, Item selected, boolean sendToRemoveItem) {
+    public RemoveWindow(MainWindow mainWindow, Inventory inventory, Item selected, SendTo  send) {
         super(mainWindow, windowName,inventory);
         if (inventory.SerialToItemMap.isEmpty()) {
             JOptionPane.showMessageDialog(mainWindow,
@@ -30,21 +34,21 @@ public class RemoveWindow extends SubWindow {
             return;
         }
 
-        setupUI(selected,sendToRemoveItem);
+        setupUI(selected,send);
         setVisible(true);
     }
 
     @Override
     public void setupUI() {
-        setupUI(null,false);
+        setupUI(null,SendTo.Reduce);
     }
 
-    public void setupUI(Item selected,boolean sendToRemoveItem) {
+    public void setupUI(Item selected,SendTo send) {
         JPanel mainPanel;
-        if(sendToRemoveItem){
-            mainPanel = deleteItemPanel(selected);
-        }else{
-            mainPanel = reduceStockPanel(selected);
+        switch(send){
+            case Delete -> mainPanel = deleteItemPanel(selected);
+            case Break -> mainPanel = breakDownPanel(selected);
+            default -> mainPanel = reduceStockPanel(selected);
         }
         add(mainPanel, BorderLayout.CENTER);
         pack();
@@ -404,7 +408,7 @@ public class RemoveWindow extends SubWindow {
         JPanel componentPanel = new JPanel(new GridBagLayout());
         TitledBorder tableBorder = BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
-                "Components to reclaim",
+                "Used components",
                 TitledBorder.CENTER,
                 TitledBorder.DEFAULT_POSITION
         );
@@ -412,6 +416,15 @@ public class RemoveWindow extends SubWindow {
         JScrollPane compScroll = new JScrollPane(componentPanel);
         compScroll.setPreferredSize(new Dimension(400,200));
         panel.add(compScroll, gbc);
+
+        JTextArea disclaimer = new JTextArea("These are items that were used in composition.\n" +
+                "If no items were removed, then leave all fields as 0.");
+        disclaimer.setFont(new Font("Arial", Font.PLAIN, 12));
+        disclaimer.setForeground(Color.GRAY);
+        disclaimer.setWrapStyleWord(true);
+        disclaimer.setLineWrap(true);
+        disclaimer.setEditable(false);
+
 
         Map<ItemPacket, JTextField> componentFields = new HashMap<>();
 
@@ -444,7 +457,7 @@ public class RemoveWindow extends SubWindow {
                 cgbc.gridx = 0;
                 cgbc.gridy = row;
                 JLabel lbl = new JLabel(ip.getItem().getName() +
-                        " (Max per breakdown: " + ip.getQuantity() + ")");
+                        " (Max: " + ip.getQuantity() + ")");
                 componentPanel.add(lbl, cgbc);
 
                 //Input fields
@@ -487,7 +500,7 @@ public class RemoveWindow extends SubWindow {
             }
 
             //Validate reclaim amount
-            ArrayList<ItemPacket> reclaimedComponents = new ArrayList<>();
+            ArrayList<ItemPacket> usedComponents = new ArrayList<>();
             for (Map.Entry<ItemPacket, JTextField> entry : componentFields.entrySet()) {
                 ItemPacket ip = entry.getKey();
                 JTextField tf = entry.getValue();
@@ -504,14 +517,14 @@ public class RemoveWindow extends SubWindow {
 
                     if (val > ip.getQuantity()) {
                         JOptionPane.showMessageDialog(this,
-                                "You cannot reclaim " + val +
+                                "You cannot use " + val +
                                         " of " + ip.getItem().getName() +
                                         ". Maximum is " + ip.getQuantity(),
                                 "Too Many", JOptionPane.ERROR_MESSAGE);
                         return;
                     }
                     if (val > 0) {
-                        reclaimedComponents.add(new ItemPacket(ip.getItem(), val));
+                        usedComponents.add(new ItemPacket(ip.getItem(), val));
                     }
 
                 } catch (Exception ex) {
@@ -521,7 +534,7 @@ public class RemoveWindow extends SubWindow {
                     return;
                 }
             }
-            inventory.breakDownItem(target, reclaimedComponents);
+            inventory.breakDownItem(target, usedComponents);
 
             JOptionPane.showMessageDialog(this,
                     "Item broken down successfully.\n",

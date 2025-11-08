@@ -1,5 +1,6 @@
 package gui;
 
+import com.sun.tools.javac.Main;
 import core.*;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -19,11 +20,8 @@ public class ViewWindow extends SubWindow {
     private JTable itemTable;
     private DefaultTableModel tableModel;
     private JLabel summaryLabel;
-    protected JFrame mainWindow;
 
-
-
-    public ViewWindow(JFrame mainWindow, Inventory inventory) {
+    public ViewWindow(MainWindow mainWindow, Inventory inventory) {
         super(mainWindow, windowName, inventory);
 
         inventory.logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refreshTable));
@@ -74,7 +72,7 @@ public class ViewWindow extends SubWindow {
 
         JButton addBtn = new JButton("Add");
         JButton composeBtn = new JButton("Compose Item");
-        JButton reduceBtn = new JButton("Reduce");
+        JButton reduceBtn = new JButton("Reduce Stock");
         JButton breakBtn = new JButton("Break Down Item");
         JButton editBtn = new JButton("Edit");
         JButton deleteBtn = new JButton("Delete");
@@ -92,21 +90,43 @@ public class ViewWindow extends SubWindow {
 
         addBtn.addActionListener(e -> {
             Item selected = getSelectedItem();
-            new AddWindow(mainWindow, inventory, selected,false);
-        });
+            if (selected == null) {
+                JOptionPane.showMessageDialog(this, "Please select an item to add.", "No item selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
 
-        reduceBtn.addActionListener(e -> {
-            Item selected = getSelectedItem();
-            new RemoveWindow(mainWindow, inventory, selected,false);
+            mainWindow.destroyExistingInstance(AddWindow.class);
+            new AddWindow(mainWindow,inventory,selected,false);
         });
-
         composeBtn.addActionListener(e -> {
             Item selected = getSelectedItem();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(this, "Please select an item to compose.", "No item selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            mainWindow.destroyExistingInstance(AddWindow.class);
             new AddWindow(mainWindow, inventory, selected,true);
+        });
+        reduceBtn.addActionListener(e -> {
+            Item selected = getSelectedItem();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(this, "Please select an item to reduce stock.", "No item selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            mainWindow.destroyExistingInstance(RemoveWindow.class);
+            new RemoveWindow(mainWindow, inventory, selected,RemoveWindow.SendTo.Break);
         });
 
         breakBtn.addActionListener(e -> {
+            Item selected = getSelectedItem();
+            if (selected == null) {
+                JOptionPane.showMessageDialog(this, "Please select an item to break down", "No item selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
 
+            mainWindow.destroyExistingInstance(RemoveWindow.class);
+            new RemoveWindow(mainWindow, inventory, selected, RemoveWindow.SendTo.Break);
         });
 
         editBtn.addActionListener(e -> {
@@ -115,6 +135,8 @@ public class ViewWindow extends SubWindow {
                 JOptionPane.showMessageDialog(this, "Please select an item to edit.", "No item selected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+
+            mainWindow.destroyExistingInstance(EditWindow.class);
             new EditWindow(mainWindow, inventory, selected);
         });
 
@@ -129,8 +151,7 @@ public class ViewWindow extends SubWindow {
                 );
                 return;
             }
-            new RemoveWindow(mainWindow, inventory, selected,true);
-
+            confirmRemoveItem(selected);
         });
 
 
@@ -274,9 +295,11 @@ public class ViewWindow extends SubWindow {
                         if(selected == null) return;
                         if (e.isControlDown()) {
                             //ctrl double to edit
+                            mainWindow.destroyExistingInstance(EditWindow.class);
                             new EditWindow(mainWindow, inventory, selected);
                         } else {
                             //double click for info
+                            mainWindow.destroyExistingInstance(ItemInfoWindow.class);
                             new ItemInfoWindow(mainWindow, inventory, selected);
                         }
                     }

@@ -1,5 +1,6 @@
 package gui;
 
+import com.sun.tools.javac.Main;
 import core.*;
 import javax.swing.*;
 import javax.swing.border.*;
@@ -11,12 +12,11 @@ import java.util.List;
 
 public class ItemInfoWindow extends SubWindow {
 
-    private final Item item;
+    public final Item item;
     private final Inventory inventory;
     private final LogManager logManager;
-    private final JFrame mainWindow;
 
-    public ItemInfoWindow(JFrame mainWindow, Inventory inventory, Item item) {
+    public ItemInfoWindow(MainWindow mainWindow, Inventory inventory, Item item) {
         super(mainWindow, item.getName() + " Information", inventory);
         this.item = item;
         this.inventory = inventory;
@@ -96,7 +96,7 @@ public class ItemInfoWindow extends SubWindow {
         okBtn.addActionListener(e -> dispose());
         editBtn.addActionListener(e -> {
             dispose();
-            new EditWindow((JFrame) getOwner().getOwner(), inventory, item); //Select main window and open the edit window
+            new EditWindow(mainWindow, inventory, item); //Select main window and open the edit window
         });
 
         buttonPanel.add(okBtn, BorderLayout.WEST);

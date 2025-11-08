@@ -16,8 +16,6 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.UUID;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;

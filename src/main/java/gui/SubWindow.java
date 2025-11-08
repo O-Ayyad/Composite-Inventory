@@ -4,20 +4,47 @@ import core.Inventory;
 import core.Item;
 
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.*;
 import java.util.function.Predicate;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
 
-public abstract class SubWindow extends JDialog {
+public abstract class SubWindow extends JFrame {
+
+    MainWindow mainWindow;
     public final String notFoundPNGPath = "icons/itemIcons/imageNotFound.png";
     Inventory inventory;
 
-    public SubWindow(JFrame mainWindow, String name, Inventory inventory) {
-        super(mainWindow, name, true);
+
+    public SubWindow(MainWindow mainWindow, String name, Inventory inventory) {
+        super(name);
+        this.mainWindow = mainWindow;
         this.inventory = inventory;
         setLocationRelativeTo(mainWindow);
+
+        if (mainWindow.hasInstance(getClass())) {
+            SubWindow existing = mainWindow.getInstance(getClass());
+            existing.toFront();
+            existing.requestFocus();
+            dispose();
+            throw new IllegalStateException(getClass().getSimpleName() + "is already open.");
+        }
+        mainWindow.addInstance(this);
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                mainWindow.removeInstance(SubWindow.this);
+            }
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                mainWindow.removeInstance(SubWindow.this);
+            }
+        });
     }
     public abstract void setupUI();
 

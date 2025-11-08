@@ -10,6 +10,7 @@ import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Random;
 
 public class MainWindow extends JFrame {
@@ -29,6 +30,8 @@ public class MainWindow extends JFrame {
     private boolean showSuppressed = true;
 
     private final TableRowSorter<LogTableModel> sorter;
+
+    private static final HashMap<Class<? extends SubWindow>, SubWindow> subWindowInstances = new HashMap<>();
 
     public MainWindow(Inventory inventory,LogManager logManager) {
 
@@ -111,7 +114,7 @@ public class MainWindow extends JFrame {
             @Override public void actionPerformed(ActionEvent e) { new AddWindow(MainWindow.this, inventory); }
         });
         am.put("openRemove", new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent e) { new RemoveWindow(MainWindow.this, inventory,false); }
+            @Override public void actionPerformed(ActionEvent e) { new RemoveWindow(MainWindow.this, inventory, RemoveWindow.SendTo.Reduce); }
         });
         am.put("openView", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { new ViewWindow(MainWindow.this, inventory); }
@@ -123,7 +126,7 @@ public class MainWindow extends JFrame {
 
         addButton.addActionListener(e -> {new AddWindow(this,inventory);
                 requestFocusInWindow();});
-        removeButton.addActionListener(e -> {new RemoveWindow(this,inventory,false);
+        removeButton.addActionListener(e -> {new RemoveWindow(this,inventory, RemoveWindow.SendTo.Reduce);
                 requestFocusInWindow();});
         viewButton.addActionListener(e -> {new ViewWindow(this,inventory);
                 requestFocusInWindow();});
@@ -332,6 +335,31 @@ public class MainWindow extends JFrame {
         return sorted;
     }
 
+    public void addInstance(SubWindow subWindow) {
+        subWindowInstances.put(subWindow.getClass(), subWindow);
+    }
+    public SubWindow getInstance(Class<? extends SubWindow> clazz) {
+        return subWindowInstances.get(clazz);
+    }
+    public boolean hasInstance(Class<? extends SubWindow> clazz) {
+        return subWindowInstances.containsKey(clazz);
+    }
+    public void removeInstance(SubWindow subWindow) {
+        if (subWindow == null) return;
+
+        SubWindow curr = getInstance(subWindow.getClass());
+        if (curr == subWindow) {
+            subWindowInstances.remove(subWindow.getClass());
+        }
+    }
+    //Destroys the current window of type param
+    public void destroyExistingInstance(Class<? extends SubWindow> clazz){
+        SubWindow curr = getInstance(clazz);
+        if(curr == null) return; // nothing to destroy
+        removeInstance(curr);
+        curr.dispose();
+    }
+
     private void applyFilter() {
         sorter.setRowFilter(new RowFilter<>() {
             @Override
@@ -368,6 +396,7 @@ public class MainWindow extends JFrame {
             }
         });
     }
+
 
     public static void main(String[] args) {
         DebugConsole.init();

@@ -12,7 +12,7 @@ public class LogWindow extends SubWindow {
     private final Inventory inventory;
     private final Log log;
 
-    public LogWindow(JFrame mainWindow, Inventory inventory, Log selectedLog, LogManager logManager) {
+    public LogWindow(MainWindow mainWindow, Inventory inventory, Log selectedLog, LogManager logManager) {
         super(mainWindow, windowName,inventory);
 
         this.inventory = inventory;
@@ -42,7 +42,7 @@ public class LogWindow extends SubWindow {
         add(mainPanel, BorderLayout.CENTER);
         pack();
 
-        setSize(new Dimension(650, 480));
+        setSize(new Dimension(600, 700));
         setLocationRelativeTo(getOwner());
     }
     JPanel buildLogPanel(Log log){
@@ -90,7 +90,7 @@ public class LogWindow extends SubWindow {
         addRow(details, gbc, "Type:", new JLabel(log.getType().toString()));
 
         String message = "<html><body style='width:250px; white-space:normal;'>" +
-                log.getMessage() + "</body></html>";
+                log.getMessage().replace("\n", "<br>") +  "</body></html>";
         addRow(details, gbc, "Message:", new JLabel(message));
 
         addRow(details, gbc, "Severity:", new JLabel(log.getSeverity().toString()));
