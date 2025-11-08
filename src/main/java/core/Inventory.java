@@ -1,6 +1,5 @@
 package core;
 import javax.swing.*;
-import java.lang.reflect.Array;
 import java.util.*;
 
 public class Inventory {
@@ -197,11 +196,14 @@ public class Inventory {
         if (name == null || name.isEmpty()) return null;
 
         for (Item item : MainInventory.keySet()) {
-            if (item.getName().equalsIgnoreCase(name)) {
+            if (item == null) {
+                System.err.println("Warning: null item key found in MainInventory!");
+                continue;
+            }
+            if (name.equalsIgnoreCase(item.getName())) {
                 return item;
             }
         }
-        System.out.println("ERROR: getItemByName() called on non-existent item");
         return null;
     }
 
@@ -241,16 +243,16 @@ public class Inventory {
             );
         }
     }
-    public void breakDownItem(Item item, ArrayList<ItemPacket> reclaimed) {
+    public void breakDownItem(Item item, ArrayList<ItemPacket> used) {
         if (item == null || !item.isComposite()) {
             throw new RuntimeException("breakDownItem() called on non-existent item, or non-composite Item, or amount is invalid");
         }
 
-        ItemManager.BreakdownResult result = itemManager.breakDownItem(item,reclaimed);
+        ItemManager.BreakdownResult result = itemManager.breakDownItem(item, used);
 
         StringBuilder originalSB  = new StringBuilder();
         StringBuilder reclaimedSB = new StringBuilder();
-        StringBuilder wastedSB    = new StringBuilder();
+        StringBuilder usedSB = new StringBuilder();
 
         //Original
         for (Map.Entry<Item, Integer> e : result.original.entrySet()) {
@@ -261,30 +263,33 @@ public class Inventory {
         }
 
         //Reclaimed
-        for (Map.Entry<Item, Integer> e : result.reclaimed.entrySet()) {
-            reclaimedSB.append(e.getKey().getName())
+        for (ItemPacket IP : result.remained) {
+            reclaimedSB.append(IP.getItem().getName())
                     .append(" x")
-                    .append(e.getValue())
+                    .append(IP.getQuantity())
                     .append(", ");
         }
 
         //USed
-        for (Map.Entry<Item, Integer> e : result.wasted.entrySet()) {
-            wastedSB.append(e.getKey().getName())
+        for (Map.Entry<Item, Integer> e : result.used.entrySet()) {
+            usedSB.append(e.getKey().getName())
                     .append(" x")
                     .append(e.getValue())
                     .append(", ");
         }
         if (originalSB.length() > 2)  originalSB.setLength(originalSB.length() - 2);
         if (reclaimedSB.length() > 2) reclaimedSB.setLength(reclaimedSB.length() - 2);
-        if (wastedSB.length() > 2)    wastedSB.setLength(wastedSB.length() - 2);
+        if (usedSB.length() > 2)    usedSB.setLength(usedSB.length() - 2);
 
         String logMessage =
                 "Broke down 1 " + item.getName() + "\n" +
-                        "Original: ["   + originalSB  + "]\n" +
-                        "Reclaimed: ["  + reclaimedSB + "]\n" +
-                        "Used (not reclaimed): [" + wastedSB + "]\n" +
-                        "Inventory: " + result.before + " → " + result.after;
+                        "  Original: ["   + originalSB  + "]\n" +
+
+                        "\n  Used : [" + usedSB + "]\n" +
+
+                        "\n  Kept: ["  + reclaimedSB + "]\n" +
+
+                        "\n  Inventory: " + result.before + " → " + result.after;
 
         logManager.createLog(Log.LogType.ItemBrokenDown,1, logMessage,item.getSerialNum());
     }

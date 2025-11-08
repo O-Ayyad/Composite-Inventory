@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>O-Ayyad</groupId>
-    <artifactId>Composite Inventory</artifactId>
+    <artifactId>Composite-Inventory</artifactId>
     <version>1.0</version>
 
     <properties>
@@ -13,8 +13,25 @@
         <maven.compiler.target>17</maven.compiler.target>
     </properties>
 
+
+
     <build>
         <sourceDirectory>src</sourceDirectory>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>gui.MainWindow</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 
     <dependencies>

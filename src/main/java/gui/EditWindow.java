@@ -14,7 +14,7 @@ public class EditWindow extends SubWindow {
     private File selectedImageFile;
     private final Map<String, Integer> composedComponents = new LinkedHashMap<>();
 
-    public EditWindow(JFrame mainWindow, Inventory inventory, Item selected) {
+    public EditWindow(MainWindow mainWindow, Inventory inventory, Item selected) {
         super(mainWindow, windowName, inventory);
         this.selectedItem = selected;
         setupUI();
@@ -246,6 +246,42 @@ public class EditWindow extends SubWindow {
                 sb.append("<b>Amazon SKU:</b> ").append(selectedItem.getAmazonSellerSKU()).append(" → ").append(newAmazonSKU).append("<br>");
                 sb.append("<b>eBay SKU:</b> ").append(selectedItem.getEbaySellerSKU()).append(" → ").append(newEbaySKU).append("<br>");
                 sb.append("<b>Walmart SKU:</b> ").append(selectedItem.getWalmartSellerSKU()).append(" → ").append(newWalmartSKU).append("<br>");
+
+                if (selectedItem.isComposite()) {
+                    StringBuilder beforeText = new StringBuilder();
+                    if (selectedItem.getComposedOf() != null && !selectedItem.getComposedOf().isEmpty()) {
+                        for (ItemPacket packet : selectedItem.getComposedOf()) {
+                            beforeText.append("<br>&nbsp;&nbsp;• ")
+                                    .append(packet.getItem().getName())
+                                    .append(" x")
+                                    .append(packet.getQuantity());
+                        }
+                    } else {
+                        beforeText.append("<br>&nbsp;&nbsp;• None");
+                    }
+
+                    StringBuilder afterText = new StringBuilder();
+                    if (composedComponents != null && !composedComponents.isEmpty()) {
+                        for (Map.Entry<String, Integer> entry : composedComponents.entrySet()) {
+                            String serialKey = entry.getKey();
+                            int qty = entry.getValue();
+                            Item component = inventory.SerialToItemMap.get(serialKey);
+                            if (component != null) {
+                                afterText.append("<br>&nbsp;&nbsp;• ").append(component.getName()).append(" x").append(qty);
+                            }
+                        }
+                    } else {
+                        afterText.append("<br>&nbsp;&nbsp;• None");
+                    }
+                    sb.append("<b>Composition:</b>")
+                            .append("<br><b>Before:</b>")
+                            .append(beforeText)
+                            .append("<br><b>After:</b>")
+                            .append(afterText)
+                            .append("<br>");
+                }
+
+
                 if (selectedImageFile != null)
                     sb.append("<b>Image:</b> Updated<br>");
                 sb.append("</body></html>");
@@ -274,6 +310,22 @@ public class EditWindow extends SubWindow {
 
                 inventory.setQuantity(selectedItem, newQty);
                 inventory.checkLowAndOutOfStock();
+
+                if (selectedItem.isComposite()) {
+                    ArrayList<ItemPacket> newComposition = new ArrayList<>();
+
+                    for (Map.Entry<String, Integer> entry : composedComponents.entrySet()) {
+                        String serial = entry.getKey();
+                        int quantity = entry.getValue();
+
+                        Item component = inventory.getItemBySerial(serial);
+                        if (component != null && !component.equals(selectedItem)) {
+                            newComposition.add(new ItemPacket(component, quantity));
+                        }
+                    }
+
+                    selectedItem.replaceComposedOf(newComposition);
+                }
 
                 JOptionPane.showMessageDialog(
                         this,

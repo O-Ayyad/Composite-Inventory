@@ -6,6 +6,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
 
+import static com.sun.java.accessibility.util.AWTEventMonitor.addMouseListener;
+
 public class UIUtils {
 
     // =============== COLORS==================
@@ -58,6 +60,7 @@ public class UIUtils {
     public static final Font FONT_UI_TITLE       = new Font("Segoe UI Emoji", Font.BOLD, 20);
     public static final Font FONT_UI_TITLE_LARGE = new Font("Segoe UI Emoji", Font.BOLD, 22);
 
+    public static final Font FONT_ARIAL_SMALL = new Font("Arial", Font.PLAIN, 11);
     public static final Font FONT_ARIAL_REGULAR  = new Font("Arial", Font.PLAIN, 14);
     public static final Font FONT_ARIAL_LARGE    = new Font("Arial", Font.PLAIN, 14);
     public static final Font FONT_ARIAL_BOLD_MEDIUM     = new Font("Arial", Font.BOLD, 16);

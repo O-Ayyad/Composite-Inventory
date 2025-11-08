@@ -10,7 +10,7 @@ public class LinkWindow extends SubWindow {
 
     final APIStorage apiStorage;
 
-    public LinkWindow(JFrame mainWindow, Inventory inventory) {
+    public LinkWindow(MainWindow mainWindow, Inventory inventory) {
         super(mainWindow, windowName, inventory);
         apiStorage = new APIStorage();
         setupUI();

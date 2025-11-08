@@ -44,6 +44,12 @@ public class Item {
     public ArrayList<ItemPacket> getComposedOf() { return composedOf; }
     public ArrayList<Item> getComposesInto() { return composesInto; }
 
+    public int getQuantity(){
+        return itemManager.inventory.getQuantity(this);
+    }
+
+
+
     public void setIconPath(String path) {
         this.iconPath = path;
         this.cachedIcon = new ImageIcon(path); // automatically cache
@@ -67,9 +73,6 @@ public class Item {
     public int getLowStockTrigger() { return lowStockTrigger;}
     public void setLowStockTrigger(int lowST){lowStockTrigger = lowST;}
 
-    public int getQuantity(){
-        return itemManager.inventory.getQuantity(this);
-    }
 
     //-------------------------------</Getters and Setters>-------------------------------
 
@@ -159,15 +162,6 @@ public class Item {
 
     //-------------------------------<Other Methods>---------------------------------
 
-    //If an item is broken down, then return a list of its composition and remove what was used.
-    //Then destroy this item
-    //This is all handled in ItemManager
-    public void breakDownItem(ArrayList<ItemPacket> UsedItems){
-        itemManager.breakDownItem(this, UsedItems);
-    }
-    public void composeItem(Item composedItem){
-        itemManager.composeItem(this);
-    }
     //-------------------------------<Overrides>-------------------------------
     @Override
     public boolean equals(Object o) {
