@@ -2,6 +2,8 @@ package gui;
 
 import platform.*;
 import core.*;
+import storage.*;
+
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
@@ -9,9 +11,9 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Random;
+import java.util.*;
+import java.util.Timer;
+
 
 public class MainWindow extends JFrame {
 
@@ -33,11 +35,26 @@ public class MainWindow extends JFrame {
 
     private static final HashMap<Class<? extends SubWindow>, SubWindow> subWindowInstances = new HashMap<>();
 
-    public MainWindow(Inventory inventory,LogManager logManager) {
+    public MainWindow(Inventory inventory,
+                      LogManager logManager,
+                      InventoryFileManager inventoryFileManager,
+                      LogFileManager logFileManager) {
 
         this.logManager = logManager;
 
         logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refresh));
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                for(Class<? extends SubWindow> subWin : subWindowInstances.keySet()){
+                    destroyExistingInstance(subWin);
+                }
+                System.out.println("Saving before exit...");
+                inventoryFileManager.saveInventory();
+                logFileManager.saveLogs();
+            }
+        });
 
         setTitle("Composite Inventory");
         setSize(windowWidth, windowHeight);
@@ -399,44 +416,52 @@ public class MainWindow extends JFrame {
 
 
     public static void main(String[] args) {
-        DebugConsole.init();
 
+
+        //Create and link managers
         LogManager logManager = new LogManager();
         Inventory inventory = new Inventory();
 
         inventory.setLogManager(logManager);
         logManager.setInventory(inventory);
+
         ItemManager itemManager = new ItemManager(inventory);
         inventory.setItemManager(itemManager);
 
-        PlatformSellerManager manager = new PlatformSellerManager(inventory, logManager);
 
-        AmazonSeller amazon = new AmazonSeller(manager);
-        EbaySeller ebay = new EbaySeller(manager);
-        WalmartSeller walmart = new WalmartSeller(manager);
+        //Load logs and inventory form disk
+        InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory);
+        LogFileManager logFileManager = new LogFileManager(logManager);
+
+        PlatformSellerManager platformSellerManager = new PlatformSellerManager(inventory, logManager);
+
+        AmazonSeller amazon = new AmazonSeller(platformSellerManager);
+        EbaySeller ebay = new EbaySeller(platformSellerManager);
+        WalmartSeller walmart = new WalmartSeller(platformSellerManager);
 
         // Sync all platforms
         amazon.syncOrders();
         ebay.syncOrders();
         walmart.syncOrders();
 
-        inventory.createItem("Battery", "BATT123", 10, null, "path/to/battery/icon", itemManager, "AMAZON123", "EBAY123", null,100);
-        inventory.createItem("Drill", "DRILL123", 5, null, "path/to/drill/icon", itemManager, "AMAZON456", "EBAY456", null,50);
-        inventory.createItem("Charger", "CHARG123", 3, null, "path/to/charger/icon", itemManager, "AMAZON789", "EBAY789", null,30);
+        logManager.addChangeListener(inventoryFileManager::saveInventory);
+        logManager.addChangeListener(logFileManager::saveLogs);
 
-        // Create Drill Kit (composed of 2 Batteries and 1 Drill)
-        ArrayList<ItemPacket> drillKitComponents = new ArrayList<>();
-        drillKitComponents.add(new ItemPacket(inventory.getItemBySerial("BATT123"), 2));  // Two batteries
-        drillKitComponents.add(new ItemPacket(inventory.getItemBySerial("DRILL123"), 1));    // One drill
-        inventory.createItem("Drill Kit", "DRILLKIT123", 2, drillKitComponents, "path/to/drillkit/icon", itemManager, "AMAZON321", "EBAY321", null,25);
+        DebugConsole.init();
 
-        // Create Battery Kit (composed of 2 Batteries and 1 Charger)
-        ArrayList<ItemPacket> batteryKitComponents = new ArrayList<>();
-        batteryKitComponents.add(new ItemPacket(inventory.getItemBySerial("BATT123"), 2));  // Two batteries
-        batteryKitComponents.add(new ItemPacket(inventory.getItemBySerial("CHARG123"), 1));  // One charger
-        inventory.createItem("Battery Kit", "BATKIT123", 2, batteryKitComponents, "path/to/batterykit/icon", itemManager, "AMAZON654", "EBAY654", null,50);
+
+        //Autosave
+        Timer autoSaveTimer = new Timer(true);
+        autoSaveTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                inventoryFileManager.saveInventory();
+                logFileManager.saveLogs();
+                System.out.println("Auto-saved inventory and logs at " + new java.util.Date());
+            }
+        }, 7000, 7000);
 
         //Creates main window
-        SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager));
+        SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager,inventoryFileManager,logFileManager));
     }
 }

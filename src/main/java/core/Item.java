@@ -1,28 +1,37 @@
 package core;
 import java.awt.*;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import javax.swing.ImageIcon;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.Expose;
 
 //Blueprint for all items
 //Each item serial number is unique and the quantity is stored by inventory manager
 public class Item {
-
+    @Expose
     private String name;
+    @Expose
     private final String serialNum; //Unique for every item. No two items can have the same serial number
+    @Expose
     private Integer lowStockTrigger; // Creates a log when the quantity of the item is equal or lower than this
 
+    @Expose
     private String walmartSellerSKU; //Used to connect to accounts
+    @Expose
     private String amazonSellerSKU;
+    @Expose
     private String ebaySellerSKU;
 
+    @Expose
     private ArrayList<ItemPacket> composedOf = new ArrayList<>();
     private ArrayList<Item> composesInto = new ArrayList<>();
 
+    @Expose
     private String iconPath;   //path to image file
-    private ImageIcon cachedIcon; //Actual image
-    private final int iconWidth = 50; //Dimension for the image
-    private final int iconHeight = 50;
+    private transient ImageIcon cachedIcon; //Actual image
 
     private final ItemManager itemManager;
 
@@ -44,21 +53,12 @@ public class Item {
     public ArrayList<ItemPacket> getComposedOf() { return composedOf; }
     public ArrayList<Item> getComposesInto() { return composesInto; }
 
-    public int getQuantity(){
-        return itemManager.inventory.getQuantity(this);
-    }
-
-
-
-    public void setIconPath(String path) {
-        this.iconPath = path;
-        this.cachedIcon = new ImageIcon(path); // automatically cache
-    }
     public String getImagePath() {
         return iconPath;
     }
     public void setImagePath(String newPath) {
         iconPath = newPath;
+        this.cachedIcon = new ImageIcon(newPath);
     }
     public ImageIcon getIcon(int width, int height) {
         if (cachedIcon == null && iconPath != null) {
@@ -134,11 +134,14 @@ public class Item {
         this.lowStockTrigger = lowStockTrigger;
         this.composedOf = composedOf != null ? composedOf : new ArrayList<>();
         this.iconPath = iconPath;
+        int iconHeight = 50;
+        //Dimension for the image
+        int iconWidth = 50;
         this.cachedIcon = this.getIcon(iconWidth, iconHeight);
 
-        this.amazonSellerSKU = amazonSellerSKU;
-        this.ebaySellerSKU = ebaySellerSKU;
-        this.walmartSellerSKU = walmartSellerSKU;
+        this.amazonSellerSKU = amazonSellerSKU != null ? amazonSellerSKU : "";
+        this.ebaySellerSKU = ebaySellerSKU != null ? ebaySellerSKU : "";
+        this.walmartSellerSKU = walmartSellerSKU != null ? walmartSellerSKU : "";
 
         this.itemManager = itemManager;
 
@@ -182,6 +185,15 @@ public class Item {
     @Override
     public int hashCode() {
         return serialNum != null ? serialNum.hashCode() : 0;
+    }
+
+    @Override
+    public String toString(){
+        Gson gson = new GsonBuilder()
+                .excludeFieldsWithoutExposeAnnotation()
+                .setPrettyPrinting()
+                .create();
+        return gson.toJson(this);
     }
     //-------------------------------</Overrides>-------------------------------
 }

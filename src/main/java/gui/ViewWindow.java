@@ -1,6 +1,5 @@
 package gui;
 
-import com.sun.tools.javac.Main;
 import core.*;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -389,7 +388,7 @@ public class ViewWindow extends SubWindow {
 
             tableModel.addRow(new Object[]{
                     icon,
-                    i.getQuantity(),
+                    inventory.getQuantity(i),
                     i.getName(),
                     i.getSerialNum(),
                     i.getLowStockTrigger(),
@@ -406,10 +405,10 @@ public class ViewWindow extends SubWindow {
     private void updateSummary() {
         int totalItems = tableModel.getRowCount();
         int totalQuantity = inventory.SerialToItemMap.values().stream()
-                .mapToInt(Item::getQuantity)
+                .mapToInt(i -> inventory.getQuantity(i))
                 .sum();
         long lowStockCount = inventory.SerialToItemMap.values().stream()
-                .filter(i -> i.getLowStockTrigger() > 0 && i.getQuantity() <= i.getLowStockTrigger())
+                .filter(i -> i.getLowStockTrigger() > 0 && inventory.getQuantity(i) <= i.getLowStockTrigger())
                 .count();
 
         summaryLabel.setText("Total Items: " + totalItems +

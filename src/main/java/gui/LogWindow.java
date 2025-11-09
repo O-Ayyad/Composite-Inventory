@@ -9,7 +9,6 @@ public class LogWindow extends SubWindow {
 
     public static String windowName = "Log Window";
     private final LogManager logManager;
-    private final Inventory inventory;
     private final Log log;
 
     public LogWindow(MainWindow mainWindow, Inventory inventory, Log selectedLog, LogManager logManager) {
@@ -96,8 +95,7 @@ public class LogWindow extends SubWindow {
         addRow(details, gbc, "Severity:", new JLabel(log.getSeverity().toString()));
         addRow(details, gbc, "Item Serial:", new JLabel(log.getSerial() != null ? log.getSerial() : "—"));
         addRow(details, gbc, "Amount:", new JLabel(log.getAmount() != null ? log.getAmount().toString() : "—"));
-        addRow(details, gbc, "Timestamp:", new JLabel(log.getTimestamp()));
-        addRow(details, gbc, "Reverted:", new JLabel(log.isReverted() ? "Yes" : "No"));
+        addRow(details, gbc, "Timestamp:", new JLabel(log.getTime()));
         addRow(details, gbc, "Suppressed:", new JLabel(log.isSuppressed() ? "Yes" : "No"));
 
         mainPanel.add(details, BorderLayout.CENTER);
@@ -106,31 +104,6 @@ public class LogWindow extends SubWindow {
 
         JButton closeBtn = UIUtils.styleButton(new JButton("Close"));
         closeBtn.addActionListener(e -> dispose());
-
-        //Revert btn
-        JButton revertBtn = UIUtils.styleButton(new JButton("Revert Log"));
-        revertBtn.setEnabled(logManager.canRevert(log));
-        revertBtn.addActionListener(e -> {
-            try {
-                if (log.getType() == Log.LogType.NewItemCreated) {
-                    //Get item to delete
-                    String serial = log.getSerial();
-                    Item i = inventory.getItemBySerial(serial);
-                    if(!confirmRemoveItem(i)){
-                        throw new RuntimeException("User cancelled");
-                    }
-                }
-                logManager.revertLog(log);
-                JOptionPane.showMessageDialog(this,
-                        "Reverted log #" + log.getLogID(),
-                        "Log Reverted", JOptionPane.INFORMATION_MESSAGE);
-                dispose();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this,
-                        "Failed to revert log: " + ex.getMessage(),
-                        "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
 
         //Solve btn
         JButton solveBtn = UIUtils.styleButton(new JButton("Solve Log"));
@@ -161,7 +134,7 @@ public class LogWindow extends SubWindow {
                 dispose();
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this,
-                        "Failed to revert log: " + ex.getMessage(),
+                        "Failed to solve log: " + ex.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
@@ -203,7 +176,6 @@ public class LogWindow extends SubWindow {
         });
 
         buttonPanel.add(closeBtn);
-        buttonPanel.add(revertBtn);
         buttonPanel.add(solveBtn);
         buttonPanel.add(toggleSuppressBtn);
 

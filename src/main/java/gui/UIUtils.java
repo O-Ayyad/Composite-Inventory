@@ -6,7 +6,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URI;
 
-import static com.sun.java.accessibility.util.AWTEventMonitor.addMouseListener;
 
 public class UIUtils {
 
@@ -14,20 +13,15 @@ public class UIUtils {
     //Base Backgrounds
     public static final Color BACKGROUND_MAIN       = new Color(240, 240, 240);
     public static final Color BACKGROUND_PANEL      = new Color(220, 220, 240);
-    public static final Color BACKGROUND_SECTION    = new Color(250, 250, 255);
-    public static final Color BACKGROUND_TABLE      = new Color(235, 235, 245);
 
     //Text
     public static final Color TEXT_PRIMARY          = Color.BLACK;
     public static final Color TEXT_SECONDARY        = new Color(80, 80, 90);
-    public static final Color TEXT_MUTED            = new Color(140, 140, 150);
-    public static final Color TEXT_HEADER           = new Color(60, 60, 70);
 
     //Log Colors
     public static final Color NORMAL_COLOR          = new Color(220, 220, 235);
     public static final Color WARNING_COLOR         = new Color(255, 245, 180);
     public static final Color CRITICAL_COLOR        = new Color(240, 160, 165);
-    public static final Color REVERTED_COLOR        = new Color(210, 200, 210);
     public static final Color SUPPRESSED_COLOR      = new Color(200, 200, 200);
     //Borders
     public static final Color BORDER_LIGHT          = new Color(200, 200, 210);
@@ -72,7 +66,6 @@ public class UIUtils {
     public static JButton styleButton(JButton button) {
 
         Color normalColor = BUTTON_BG;
-        Color hoverColor = BUTTON_HOVER;
         Color textColor = new Color(50, 50, 50);
 
         button.setBackground(normalColor);
@@ -83,7 +76,7 @@ public class UIUtils {
 
         button.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent evt) {
-                button.setBackground(hoverColor);
+                button.setBackground(BUTTON_HOVER);
             }
 
             public void mouseExited(java.awt.event.MouseEvent evt) {

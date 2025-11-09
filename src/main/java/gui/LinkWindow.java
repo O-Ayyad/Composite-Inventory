@@ -114,8 +114,12 @@ public class LinkWindow extends SubWindow {
         disconnectButton.addActionListener(e -> {
             int choice = JOptionPane.showConfirmDialog(
                     this,
-                    "Are you sure you want to disconnect this account?\n\n" +
-                            "You will need to re-authorize this platform to use it again.",
+                    """
+                            Are you sure you want to disconnect this account?
+                            
+                            You will need to re-authorize this platform to use it again.
+                            
+                            """,
                     "Confirm Disconnect",
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE
@@ -130,6 +134,7 @@ public class LinkWindow extends SubWindow {
                 );
 
                 if (confirm != null && confirm.trim().equalsIgnoreCase("CONFIRM")) {
+                    assert type != null;
                     apiStorage.removeToken(type);
                     statusLabel.setText("Not Connected");
                     statusLabel.setForeground(Color.GRAY);
@@ -165,9 +170,9 @@ public class LinkWindow extends SubWindow {
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Amazon Seller Account:</b><br><br>
-                1. Open <a href='https://solutionproviderportal.amazon.com/'></a>.<br>
+                1. Open <a href='https://solutionproviderportal.amazon.com/'>the amazon solution portal</a>.<br>
                 2. Sign into your amazon account.
-                3. When prompted verify with Amazon (This is usually automatic)
+                4. When prompted verify with Amazon (This is usually automatic)
                 3. Select your app (or create one via Self-Authorization).<br>
                 4. Copy your <b>Client ID</b>, <b>Client Secret</b>, and <b>Refresh Token</b> below. Do not share these codes with anyone and do not save<br>
                 </body></html>
@@ -243,9 +248,12 @@ public class LinkWindow extends SubWindow {
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Walmart Seller Account:</b><br><br>
-                1. Go to <a href='https://seller.walmart.com/'>Seller Center</a> → Settings → API Keys.<br>
-                2. Obtain your <i>Client ID</i> and <i>Client Secret</i>.<br>
-                3. Paste both below to link your account.<br>
+                1. Go to your<a href='https://seller.walmart.com/'> Walmart Seller Center</a>.<br>
+                2. On the top left corner by "Seller Center," press the 9 dots
+                3. Open Developer Portal
+                4. On the top right press "My Account" and log in with Marketplace
+                4. Obtain your <i>Client ID</i> and <i>Client Secret</i>.<br>
+                5. Paste both below to link your account.<br>
                 </body></html>
                 """);
         info.setEditable(false);

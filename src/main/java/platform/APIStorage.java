@@ -22,7 +22,7 @@ import com.google.gson.JsonParser;
 
 
 //Securely read,writes and stores tokens in encrypted folders
-//File : ~/data/encrypted_tokens/(amazon/ebay/walmart)/token.enc
+//File : ~resources/data/encrypted_tokens/(amazon/ebay/walmart)/token.enc
 public class APIStorage {
     private final String passphrase;
     private final SecureRandom secureRandom;
@@ -283,6 +283,8 @@ public class APIStorage {
                 while ((line = br.readLine()) != null) {
                     System.out.println("     " + line);
                 }
+            } catch (Exception e){
+                System.out.println(e.getMessage());
             }
 
             conn.disconnect();

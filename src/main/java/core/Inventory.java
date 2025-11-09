@@ -24,7 +24,7 @@ public class Inventory {
     }
     public void setLogManager(LogManager lm){
         logManager = lm;
-        logManager.addChangeListener(() -> {
+        logManager.addChangeListener(() ->
             SwingUtilities.invokeLater(() -> {
                 try {
                     checkLowAndOutOfStock();
@@ -38,14 +38,8 @@ public class Inventory {
                         throw new RuntimeException(e);
                     }
                 }
-            });
-        });
-        /// -----In main
-        /// LogManager logManager = new LogManager();
-        /// Inventory inventory = new Inventory();
-        ///
-        /// inventory.setLogManager(logManager);
-        /// logManager.setInventory(inventory);
+            })
+        );
     }
     public void setItemManager(ItemManager im){
         itemManager = im;
@@ -64,10 +58,26 @@ public class Inventory {
     ){
         //Check if item with this serial number already exists then just add the amount added
         if (SerialToItemMap.containsKey(serialNum)) {
-            Item i = SerialToItemMap.get(serialNum);
+           Item i = SerialToItemMap.get(serialNum);
+           addItemAmount(i,amount);
+           return;
+        }
+        if (AmazonSKUToItemMap.containsKey(amazonSellerSKU)) {
+            Item i = AmazonSKUToItemMap.get(amazonSellerSKU);
             addItemAmount(i,amount);
             return;
         }
+        if (EbaySKUToItemMap.containsKey(ebaySellerSKU)) {
+            Item i = EbaySKUToItemMap.get(ebaySellerSKU);
+            addItemAmount(i,amount);
+            return;
+        }
+        if (WalmartSKUToItemMap.containsKey(walmartSellerSKU)) {
+            Item i = WalmartSKUToItemMap.get(walmartSellerSKU);
+            addItemAmount(i,amount);
+            return;
+        }
+
 
         //Create new item
         Item newItem = new Item(
@@ -254,7 +264,7 @@ public class Inventory {
         StringBuilder usedSB = new StringBuilder();
 
         //Original
-        for (Map.Entry<Item, Integer> e : result.original.entrySet()) {
+        for (Map.Entry<Item, Integer> e : result.original().entrySet()) {
             originalSB.append(e.getKey().getName())
                     .append(" x")
                     .append(e.getValue())
@@ -262,7 +272,7 @@ public class Inventory {
         }
 
         //Reclaimed
-        for (ItemPacket IP : result.remained) {
+        for (ItemPacket IP : result.remained()) {
             reclaimedSB.append(IP.getItem().getName())
                     .append(" x")
                     .append(IP.getQuantity())
@@ -270,7 +280,7 @@ public class Inventory {
         }
 
         //USed
-        for (Map.Entry<Item, Integer> e : result.used.entrySet()) {
+        for (Map.Entry<Item, Integer> e : result.used().entrySet()) {
             usedSB.append(e.getKey().getName())
                     .append(" x")
                     .append(e.getValue())
@@ -288,18 +298,18 @@ public class Inventory {
 
                         "\n  Kept: ["  + reclaimedSB + "]\n" +
 
-                        "\n  Inventory: " + result.before + " → " + result.after;
+                        "\n  Inventory: " + result.before() + " → " + result.after();
 
         logManager.createLog(Log.LogType.ItemBrokenDown,1, logMessage,item.getSerialNum());
     }
-    //Rarely used to remove an item completely from inventory
+    //Rarely used to delete an item completely from inventory
     public void removeItem(Item item){
         removeItemSilent(item);
 
         logManager.createLog(
-                Log.LogType.ItemRemoved,
+                Log.LogType.ItemDeleted,
                 0,
-                "Removed item '" + item.getName() +
+                "Deleted item '" + item.getName() +
                         "' (Serial: " + item.getSerialNum() + ") from inventory and all associated logs.",
                 item.getSerialNum()
         );
@@ -350,23 +360,13 @@ public class Inventory {
             logManager.NormalLogs.removeAll(logsToRemove);
         }
     }
-    public void removeItemSilent(String serial){
-        Item item = getItemBySerial(serial);
-        if (item != null) {
-            removeItemSilent(item); //Not recursive
-        }
-    }
-    public void removeItem(String serial) {
-        Item item = getItemBySerial(serial);
-        if (item != null) {
-            removeItem(item); //Not recursive
-        }
-    }
 
 
-    //Ensures all 5 hashmaps are always in sync
-    private void registerItemMapping(Item item, int amount){
-        if (item == null) return;
+    //Ensures all  hashmaps are always in sync
+    public void registerItemMapping(Item item, int amount){
+        if (item == null || amount < 0) {
+            throw new RuntimeException("registerItemMapping called on null item or negative quantity");
+        }
 
         MainInventory.put(item, amount);
 
@@ -385,13 +385,13 @@ public class Inventory {
 
         MainInventory.remove(item);
 
-        if (item.getSerialNum() != null)
+        if (item.getSerialNum() != null && !item.getSerialNum().isEmpty())
             SerialToItemMap.remove(item.getSerialNum());
-        if (item.getAmazonSellerSKU() != null)
+        if (item.getAmazonSellerSKU() != null && !item.getAmazonSellerSKU().isEmpty())
             AmazonSKUToItemMap.remove(item.getAmazonSellerSKU());
-        if (item.getEbaySellerSKU() != null)
+        if (item.getEbaySellerSKU() != null && !item.getEbaySellerSKU().isEmpty())
             EbaySKUToItemMap.remove(item.getEbaySellerSKU());
-        if (item.getWalmartSellerSKU() != null)
+        if (item.getWalmartSellerSKU() != null && !item.getWalmartSellerSKU().isEmpty())
             WalmartSKUToItemMap.remove(item.getWalmartSellerSKU());
     }
     //Amazon SKU
@@ -438,15 +438,6 @@ public class Inventory {
     public Item getItemByWalmartSKU(String walmartSKU) {
         if (walmartSKU == null || walmartSKU.isEmpty()) return null;
         return WalmartSKUToItemMap.get(walmartSKU);
-    }
-
-    public boolean findSerial(Item item) {
-        if (item == null || item.getSerialNum() == null) return false;
-        return SerialToItemMap.containsKey(item.getSerialNum());
-    }
-    public boolean findSerial(String serial) {
-        if (serial == null || serial.isEmpty()) return false;
-        return SerialToItemMap.containsKey(serial);
     }
 
     public synchronized void checkLowAndOutOfStock() {

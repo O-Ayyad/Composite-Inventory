@@ -51,17 +51,17 @@ public class DebugConsole extends JFrame {
             if (text == null || text.isBlank()) return;
             String msg = text.strip();
 
-            if(msg.startsWith("at ")) return;
+            String time = "[" + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")) + "]";
+            String formattedMsg = time + msg + "\n";
 
             if (msg.toLowerCase().contains("error") || msg.toLowerCase().contains("exception")) {
                 area.setForeground(Color.RED);
-                area.append("   " + msg + "\n");
+                area.append(formattedMsg);
                 area.setForeground(Color.GREEN);
             } else {
-                area.append("   " + msg + "\n");
+                area.append(formattedMsg);
             }
-            String time = "[" + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")) + "]";
-            area.append(time + msg + "\n");
+
             area.setCaretPosition(area.getDocument().getLength());
         });
     }

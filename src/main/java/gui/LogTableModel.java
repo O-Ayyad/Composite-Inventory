@@ -37,7 +37,7 @@ public class LogTableModel extends AbstractTableModel {
             })  + l.getLogID();
             case 1 -> l.getType();
             case 2 -> l.getMessage();
-            case 3 -> l.getTimestamp();
+            case 3 -> l.getTime();
             default -> "";
         };
     }
@@ -117,15 +117,11 @@ public class LogTableModel extends AbstractTableModel {
                 Color normalColor   = UIUtils.NORMAL_COLOR;
                 Color warningColor  = UIUtils.WARNING_COLOR;
                 Color criticalColor = UIUtils.CRITICAL_COLOR;
-                Color revertedColor = UIUtils.REVERTED_COLOR;
                 Color suppressedColor = UIUtils.SUPPRESSED_COLOR;
 
                 if (isSelected) {
                     c.setBackground(table.getSelectionBackground());
                     c.setForeground(table.getSelectionForeground());
-                } else if (log.isReverted()) {
-                    c.setBackground(revertedColor);
-                    c.setForeground(Color.DARK_GRAY);
                 } else if (log.isSuppressed()) {
                     c.setBackground(getAltered(suppressedColor, even));
                     c.setForeground(Color.DARK_GRAY);
