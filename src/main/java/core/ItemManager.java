@@ -1,5 +1,4 @@
 package core;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -132,23 +131,7 @@ public class ItemManager {
     //-------------------------------</Methods>-------------------------------
 
     //Helper to log in inventory and not here
-    public static class BreakdownResult {
-        public final Map<Item, Integer> original;
-        public final Map<Item, Integer> used;
-        public final ArrayList<ItemPacket> remained;
-        public final int before;
-        public final int after;
-
-        public BreakdownResult(Map<Item, Integer> original,
-                               Map<Item, Integer> used,
-                               ArrayList<ItemPacket> ipArr,
-                               int before,
-                               int after) {
-            this.original = original;
-            this.used = used;
-            this.remained = ipArr;
-            this.before = before;
-            this.after = after;
-        }
+        public record BreakdownResult(Map<Item, Integer> original, Map<Item, Integer> used, ArrayList<ItemPacket> remained,
+                                      int before, int after) {
     }
 }
