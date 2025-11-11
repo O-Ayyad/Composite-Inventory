@@ -4,9 +4,7 @@ import core.Inventory;
 import core.Item;
 
 import java.awt.*;
-import java.awt.event.ItemEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.util.*;
 import java.util.function.Predicate;
 import javax.swing.*;
@@ -114,7 +112,6 @@ public abstract class SubWindow extends JFrame {
 
         final boolean[] rebuilding = { false };
         final String[] selectedItem = { null };
-        final boolean[] textCleared = { false };
 
         int delay = 150;
         Timer debounceTimer = new Timer(delay, e -> {
@@ -184,8 +181,13 @@ public abstract class SubWindow extends JFrame {
             editor.requestFocusInWindow();
             editor.selectAll();
         });
-        JTextField textField = (JTextField) itemDropdown.getEditor().getEditorComponent();
-        textField.setText("");
+        JTextField textBox = (JTextField) itemDropdown.getEditor().getEditorComponent();
+        textBox.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                textBox.setText("");
+            }
+        });
         return new DropdownResult(itemDropdown, displayToSerialMap, debounceTimer);
     }
     public boolean confirmRemoveItem(Item target){

@@ -19,11 +19,13 @@ public class ViewWindow extends SubWindow {
     private JTable itemTable;
     private DefaultTableModel tableModel;
     private JLabel summaryLabel;
+    private final LogManager logManager;
 
-    public ViewWindow(MainWindow mainWindow, Inventory inventory) {
+    public ViewWindow(MainWindow mainWindow, Inventory inventory, LogManager logManager) {
         super(mainWindow, windowName, inventory);
 
-        inventory.logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refreshTable));
+        this.logManager = logManager;
+        logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refreshTable));
 
         setupUI();
         setVisible(true);
@@ -136,7 +138,7 @@ public class ViewWindow extends SubWindow {
             }
 
             mainWindow.destroyExistingInstance(EditWindow.class);
-            new EditWindow(mainWindow, inventory, selected);
+            new EditWindow(mainWindow, inventory, selected, logManager);
         });
 
         deleteBtn.addActionListener(e -> {
@@ -295,7 +297,7 @@ public class ViewWindow extends SubWindow {
                         if (e.isControlDown()) {
                             //ctrl double to edit
                             mainWindow.destroyExistingInstance(EditWindow.class);
-                            new EditWindow(mainWindow, inventory, selected);
+                            new EditWindow(mainWindow, inventory, selected,logManager);
                         } else {
                             //double click for info
                             mainWindow.destroyExistingInstance(ItemInfoWindow.class);
@@ -316,7 +318,7 @@ public class ViewWindow extends SubWindow {
 
                     if (e.isControlDown()) {
                         //Ctrl enter edits
-                        new EditWindow(mainWindow, inventory, selected);
+                        new EditWindow(mainWindow, inventory, selected,logManager);
                     } else {
                         //Regular enter views
                         new ItemInfoWindow(mainWindow, inventory, selected);

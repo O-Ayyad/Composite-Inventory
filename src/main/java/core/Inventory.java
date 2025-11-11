@@ -102,6 +102,47 @@ public class Inventory {
                     serialNum);
         }
     }
+    public void createItemFromSave(Item item, int amount) {
+        //Check if item with this serial number already exists then just add the amount added
+        if(MainInventory.get(item) != null){ //Duplicate item
+            return;
+        }
+        if (SerialToItemMap.containsKey(item.getSerialNum())) {
+            Item i = SerialToItemMap.get(item.getSerialNum());
+            addItemAmount(i,amount);
+            return;
+        }
+        if (AmazonSKUToItemMap.containsKey(item.getAmazonSellerSKU())) {
+            Item i = AmazonSKUToItemMap.get(item.getAmazonSellerSKU());
+            addItemAmount(i,amount);
+            return;
+        }
+        if (EbaySKUToItemMap.containsKey(item.getEbaySellerSKU())){
+            Item i = EbaySKUToItemMap.get(item.getEbaySellerSKU());
+            addItemAmount(i,amount);
+            return;
+        }
+        if (WalmartSKUToItemMap.containsKey(item.getWalmartSellerSKU())) {
+            Item i = WalmartSKUToItemMap.get(item.getWalmartSellerSKU());
+            addItemAmount(i,amount);
+            return;
+        }
+
+        //Create new item
+        Item newItem = new Item(
+                item.getName(),
+                item.getSerialNum(),
+                item.getLowStockTrigger(),
+                item.getComposedOf(),
+                item.getImagePath(),
+                itemManager,
+                item.getAmazonSellerSKU(),
+                item.getEbaySellerSKU(),
+                item.getWalmartSellerSKU()
+        );
+
+        registerItemMapping(newItem, amount);
+    }
     //Edit the amount of an item
     public void addItemAmount(Item item, int amount){
         if( item == null){
@@ -160,13 +201,6 @@ public class Inventory {
         }
         if(quantity < 0) return;
         MainInventory.put(item, quantity);
-        logManager.createLog(Log.LogType.ItemUpdated,
-                0,
-                "Set stock of item '" + item.getName() +
-                        "' (Serial: " + item.getSerialNum() + "). " +
-                        "New quantity: " + MainInventory.get(item),
-                item.getSerialNum()
-        );
     }
 
 
@@ -223,8 +257,8 @@ public class Inventory {
         for(ItemPacket ip: item.getComposedOf()){ //Check if we have enough of each part
             long required = (long)ip.getQuantity() * (long)amount;
             if(required > getQuantity(ip.getItem())){
-                throw new RuntimeException("Not enough "+ ip.getItem().getName() + " to compose item: "+ item.getName() +". " +
-                        "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+getQuantity(ip.getItem()));
+                throw new RuntimeException("Not enough "+ ip.getItem().getName() + " to compose item: "+ item.getName() +". \n" +
+                        "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+getQuantity(ip.getItem()) +")");
             }
         }
         for(int i = 0; i <amount; i++){

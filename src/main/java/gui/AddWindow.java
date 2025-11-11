@@ -221,13 +221,6 @@ public class AddWindow extends SubWindow {
                 tagPanel.revalidate();
                 tagPanel.repaint();
 
-                JTextField textField = (JTextField) searchField.getEditor().getEditorComponent();
-                textField.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseClicked(MouseEvent e) {
-                        textField.setText("");
-                    }
-                });
             }
         });
 
@@ -828,8 +821,8 @@ public class AddWindow extends SubWindow {
             for(ItemPacket ip: target.getComposedOf()){ //Check if we have enough of each part
                 long required = (long) ip.getQuantity() * (long) amount;
                 if(required > inventory.getQuantity(ip.getItem())){
-                    JOptionPane.showMessageDialog(this,"Not enough "+ ip.getItem().getName() + " to compose item: "+ target.getName() +". " +
-                            "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+inventory.getQuantity(ip.getItem()),
+                    JOptionPane.showMessageDialog(this,"Not enough "+ ip.getItem().getName() + " to compose item: "+ target.getName() +". \n " +
+                            "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+inventory.getQuantity(ip.getItem()) + ")",
                             "Not enough items to compose item",
                             JOptionPane.ERROR_MESSAGE);
                     return;

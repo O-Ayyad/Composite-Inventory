@@ -12,10 +12,12 @@ public class EditWindow extends SubWindow {
     private final Item selectedItem;
     private File selectedImageFile;
     private final Map<String, Integer> componentsBySerial = new LinkedHashMap<>();
+    private final LogManager logManager;
 
-    public EditWindow(MainWindow mainWindow, Inventory inventory, Item selected) {
+    public EditWindow(MainWindow mainWindow, Inventory inventory, Item selected,LogManager logManager) {
         super(mainWindow, windowName, inventory);
         this.selectedItem = selected;
+        this.logManager = logManager;
         setupUI();
         setVisible(true);
     }
@@ -177,11 +179,6 @@ public class EditWindow extends SubWindow {
             filteredSerialMap.put(displayName, serial);
             searchField.addItem(displayName);
         }
-
-        searchField.setSelectedIndex(-1);
-        JTextField textField = (JTextField) searchField.getEditor().getEditorComponent();
-        textField.setText("");
-
         final Map<String, String> finalSerialMap = filteredSerialMap;
 
         //Populate tags
@@ -209,14 +206,6 @@ public class EditWindow extends SubWindow {
 
                 JPanel tag = makeTagPanel(component, selectedSerial, 1, tagPanel,selectedTags);
                 tagPanel.add(tag);
-
-                JTextField textBox = (JTextField) searchField.getEditor().getEditorComponent();
-                textBox.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseClicked(MouseEvent e) {
-                        textBox.setText("");
-                    }
-                });
             }
         });
 
@@ -349,6 +338,14 @@ public class EditWindow extends SubWindow {
                 selectedItem.replaceComposedOf(newComposition);
                 inventory.checkLowAndOutOfStock();
 
+                logManager.createLog(Log.LogType.ItemUpdated,
+                        0,
+                        "Set stock of item '" + selectedItem.getName() +
+                                "' (Serial: " + selectedItem.getSerialNum() + "). " +
+                                "New quantity: " + inventory.getQuantity(selectedItem),
+                        selectedItem.getSerialNum()
+                );
+
                 JOptionPane.showMessageDialog(
                         this,
                         " Changes saved successfully!",
@@ -360,6 +357,7 @@ public class EditWindow extends SubWindow {
 
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Error updating item: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                dispose();
             }
         });
 

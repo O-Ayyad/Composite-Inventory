@@ -10,6 +10,7 @@ import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.*;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public class LogFileManager {
@@ -56,7 +57,7 @@ public class LogFileManager {
                         continue; //Log already exists
                     }
                     logManager.addLogToCollections(l);
-                    LogManager.nextlogID++;
+                    LogManager.nextlogID = Collections.max(logs.keySet()) + 1;
                 }
             }
         } catch (FileNotFoundException e) {

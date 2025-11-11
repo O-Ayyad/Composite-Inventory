@@ -9,7 +9,6 @@ import core.*;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.*;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -77,7 +76,7 @@ public class InventoryFileManager {
                 for (Map.Entry<String, Item> entry : items.entrySet()) {
                     Item item = entry.getValue();
                     Integer quantity = quantities.getOrDefault(entry.getKey(), 0);
-                    inventory.registerItemMapping(item, quantity);
+                    inventory.createItemFromSave(item,quantity);
                 }
 
                 for (Item item : items.values()) {
@@ -95,7 +94,7 @@ public class InventoryFileManager {
             System.out.println(e.getMessage());
         }
 
-        System.out.println("Loading inventory from: " + itemsPath.toString());
+        System.out.println("Loaded inventory from: " + itemsPath.toString());
     }
 
 
