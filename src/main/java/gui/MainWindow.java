@@ -134,7 +134,7 @@ public class MainWindow extends JFrame {
             @Override public void actionPerformed(ActionEvent e) { new RemoveWindow(MainWindow.this, inventory, RemoveWindow.SendTo.Reduce); }
         });
         am.put("openView", new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent e) { new ViewWindow(MainWindow.this, inventory); }
+            @Override public void actionPerformed(ActionEvent e) { new ViewWindow(MainWindow.this, inventory,logManager); }
         });
         am.put("openLink", new AbstractAction() {
             @Override public void actionPerformed(ActionEvent e) { new LinkWindow(MainWindow.this, inventory); }
@@ -145,7 +145,7 @@ public class MainWindow extends JFrame {
                 requestFocusInWindow();});
         removeButton.addActionListener(e -> {new RemoveWindow(this,inventory, RemoveWindow.SendTo.Reduce);
                 requestFocusInWindow();});
-        viewButton.addActionListener(e -> {new ViewWindow(this,inventory);
+        viewButton.addActionListener(e -> {new ViewWindow(this,inventory,logManager);
                 requestFocusInWindow();});
         linkButton.addActionListener(e -> {new LinkWindow(this,inventory);
                 requestFocusInWindow();});
@@ -205,7 +205,7 @@ public class MainWindow extends JFrame {
         JCheckBox showNormalBox = new JCheckBox("✅ Normal", true);
         JCheckBox showWarningBox = new JCheckBox("⚠️ Warning", true);
         JCheckBox showCriticalBox = new JCheckBox("❌ Critical", true);
-        JCheckBox showSuppressedBox = new JCheckBox("💤 Suppressed", true);
+        JCheckBox showSuppressedBox = new JCheckBox("💤 Suppressed", false);
 
         for (JCheckBox box : new JCheckBox[]{showNormalBox, showWarningBox, showCriticalBox, showSuppressedBox}) {
             box.setFont(UIUtils.FONT_UI_REGULAR);
@@ -433,16 +433,13 @@ public class MainWindow extends JFrame {
         InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory);
         LogFileManager logFileManager = new LogFileManager(logManager);
 
+
         PlatformSellerManager platformSellerManager = new PlatformSellerManager(inventory, logManager);
 
         AmazonSeller amazon = new AmazonSeller(platformSellerManager);
         EbaySeller ebay = new EbaySeller(platformSellerManager);
         WalmartSeller walmart = new WalmartSeller(platformSellerManager);
 
-        // Sync all platforms
-        amazon.syncOrders();
-        ebay.syncOrders();
-        walmart.syncOrders();
 
         logManager.addChangeListener(inventoryFileManager::saveInventory);
         logManager.addChangeListener(logFileManager::saveLogs);

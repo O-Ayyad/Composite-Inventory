@@ -1,6 +1,7 @@
 package gui;
 import core.*;
-import platform.APIStorage;
+import storage.APIFileManager;
+import platform.PlatformType;
 
 import javax.swing.*;
 import java.awt.*;
@@ -8,11 +9,11 @@ import java.awt.*;
 public class LinkWindow extends SubWindow {
     public static String windowName = "Link Accounts & Platforms";
 
-    final APIStorage apiStorage;
+    final APIFileManager apiStorage;
 
     public LinkWindow(MainWindow mainWindow, Inventory inventory) {
         super(mainWindow, windowName, inventory);
-        apiStorage = new APIStorage();
+        apiStorage = new APIFileManager();
         setupUI();
         setVisible(true);
     }
@@ -88,10 +89,10 @@ public class LinkWindow extends SubWindow {
         buttonPanel.add(UIUtils.styleButton(disconnectButton));
         panel.add(buttonPanel, BorderLayout.EAST);
 
-        APIStorage.PlatformType type = switch (platformName) {
-            case "Amazon" -> APIStorage.PlatformType.AMAZON;
-            case "eBay" -> APIStorage.PlatformType.EBAY;
-            case "Walmart" -> APIStorage.PlatformType.WALMART;
+        PlatformType type = switch (platformName) {
+            case "Amazon" -> PlatformType.AMAZON;
+            case "eBay" -> PlatformType.EBAY;
+            case "Walmart" -> PlatformType.WALMART;
             default -> null;
         };
 
@@ -162,7 +163,7 @@ public class LinkWindow extends SubWindow {
 
         return panel;
     }
-    private void handleAmazonConnect(APIStorage.PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
+    private void handleAmazonConnect(PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(450, 280));
 
@@ -240,7 +241,7 @@ public class LinkWindow extends SubWindow {
             }
         }
     }
-    private void handleWalmartConnect(APIStorage.PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
+    private void handleWalmartConnect(PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(420, 230));
 
@@ -317,7 +318,7 @@ public class LinkWindow extends SubWindow {
             }
         }
     }
-    private void handleEbayConnect(APIStorage.PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
+    private void handleEbayConnect(PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(450, 260));
 
@@ -399,7 +400,7 @@ public class LinkWindow extends SubWindow {
     }
 
 
-    private void processAndShowTokenDialog(APIStorage.PlatformType type, int responseCode,String token) {
+    private void processAndShowTokenDialog(PlatformType type, int responseCode,String token) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(420, 180));
 

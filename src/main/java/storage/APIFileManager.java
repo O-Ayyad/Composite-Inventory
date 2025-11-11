@@ -1,6 +1,4 @@
-package platform;
-
-import core.*;
+package storage;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -19,18 +17,23 @@ import java.util.UUID;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import platform.PlatformType;
 
 
 //Securely read,writes and stores tokens in encrypted folders
 //File : ~resources/data/encrypted_tokens/(amazon/ebay/walmart)/token.enc
-public class APIStorage {
+public class APIFileManager {
     private final String passphrase;
     private final SecureRandom secureRandom;
+
+
+    private static final String BASE_DIR =
+            new File("data" + File.separator + "encrypted_tokens").getAbsolutePath();
 
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
 
-    public APIStorage() {
+    public APIFileManager() {
         try {
             passphrase = generateMachineBoundKey();
             secureRandom = SecureRandom.getInstanceStrong();
@@ -102,11 +105,11 @@ public class APIStorage {
 
     public synchronized void saveToken(PlatformType platform, String token) {
         try {
-            Path dir = Path.of(platform.getStorageDir());
+            Path dir = Path.of(getStorageDir(platform));
             Files.createDirectories(dir);
 
             String encrypted = encrypt(token);
-            Path file = Path.of(platform.getTokenFilePath());
+            Path file = Path.of(getTokenFilePath(platform));
 
             Path tempFile = Paths.get(file.toString() + ".tmp");
             Files.writeString(tempFile, encrypted, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -124,7 +127,7 @@ public class APIStorage {
     }
     public synchronized String loadToken(PlatformType platform) {
         try {
-            Path file = Path.of(platform.getTokenFilePath());
+            Path file = Path.of(getTokenFilePath(platform));
             if (!Files.exists(file)) return null;
 
             String encrypted = Files.readString(file);
@@ -145,7 +148,7 @@ public class APIStorage {
             removeToken(p);
         }
     }
-    public int validateToken(APIStorage.PlatformType type, String token) {
+    public int validateToken(PlatformType type, String token) {
         try {
             System.out.println("[BEGIN VALIDATING TOKEN]");
             HttpURLConnection conn = null;
@@ -305,7 +308,7 @@ public class APIStorage {
     }
     public synchronized void removeToken(PlatformType platform) {
         try {
-            Files.deleteIfExists(Path.of(platform.getTokenFilePath()));
+            Files.deleteIfExists(Path.of(getTokenFilePath(platform)));
         } catch (IOException ignored) {}
     }
     private String getAmazonAccessToken(String clientId, String clientSecret, String refreshToken) {
@@ -437,37 +440,12 @@ public class APIStorage {
             if (conn != null) conn.disconnect();
         }
     }
-    public enum PlatformType {
-        AMAZON("Amazon"),
-        EBAY("eBay"),
-        WALMART("Walmart");
 
-        private final String displayName;
-        private final String storageDir;
+    public static String getStorageDir(PlatformType platform) {
+        return BASE_DIR + File.separator + platform.getDisplayName().toLowerCase();
+    }
 
-        PlatformType(String displayName) {
-            this.displayName = displayName;
-
-            String baseDir = new File("data" + File.separator + "encrypted_tokens").getAbsolutePath();
-
-            this.storageDir = baseDir + File.separator + displayName.toLowerCase();
-        }
-
-        public String getDisplayName() {
-            return displayName;
-        }
-
-        public String getStorageDir() {
-            return storageDir;
-        }
-
-        public String getTokenFilePath() {
-            return storageDir + File.separator + "token.enc";
-        }
-
-        @Override
-        public String toString() {
-            return displayName;
-        }
+    public static String getTokenFilePath(PlatformType platform) {
+        return getStorageDir(platform) + File.separator + "token.enc";
     }
 }

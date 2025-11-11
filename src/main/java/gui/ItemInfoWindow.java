@@ -96,7 +96,7 @@ public class ItemInfoWindow extends SubWindow {
         okBtn.addActionListener(e -> dispose());
         editBtn.addActionListener(e -> {
             dispose();
-            new EditWindow(mainWindow, inventory, item); //Select main window and open the edit window
+            new EditWindow(mainWindow, inventory, item,logManager); //Select main window and open the edit window
         });
 
         buttonPanel.add(okBtn, BorderLayout.WEST);
