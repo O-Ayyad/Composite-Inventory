@@ -1,11 +1,10 @@
 package gui;
 
-import com.sun.tools.javac.Main;
+import constants.*;
 import core.*;
 import javax.swing.*;
 import javax.swing.border.*;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.JTableHeader;
+
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,10 +35,10 @@ public class ItemInfoWindow extends SubWindow {
 
         //header
         JPanel headerPanel = new JPanel(new BorderLayout(10, 10));
-        ImageIcon icon = (item.getImagePath() != null)
-                ? new ImageIcon(new ImageIcon(item.getImagePath())
-                .getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH))
-                : new ImageIcon("default_icon.png");
+        ImageIcon tempIcon = item.getIcon(128);
+        ImageIcon icon = (tempIcon != null)
+                ? tempIcon
+                : new ImageIcon(Constants.NOT_FOUND_PNG);
 
         JLabel imageLabel = new JLabel(icon);
         headerPanel.add(imageLabel, BorderLayout.WEST);
@@ -160,12 +159,13 @@ public class ItemInfoWindow extends SubWindow {
 
         for (ItemPacket p : item.getComposedOf()) {
             Item comp = p.getItem();
-            ImageIcon icon = (comp.getImagePath() != null)
-                    ? new ImageIcon(new ImageIcon(comp.getImagePath())
-                    .getImage().getScaledInstance(40, 40, Image.SCALE_SMOOTH))
-                    : new ImageIcon("default_icon.png");
+            ImageIcon icon = comp.getIcon(48);
+            if (comp.getImagePath().equals(Constants.NOT_FOUND_PNG)) {
+                icon = null;
+            }
 
             JLabel label = new JLabel("• " + comp.getName() + " ×" + p.getQuantity(), icon, JLabel.LEFT);
+            label.setIconTextGap(10);
             inner.add(label);
         }
 
@@ -177,10 +177,18 @@ public class ItemInfoWindow extends SubWindow {
         inner.setOpaque(false);
 
         for (Item parent : inventory.MainInventory.keySet()) {
-            if (parent.getComposedOf() != null) {
+            if (parent.getComposedOf() != null || !parent.getComposedOf().isEmpty()) {
                 for (ItemPacket packet : parent.getComposedOf()) {
                     if (packet.getItem().equals(item)) {
                         inner.add(new JLabel("• " + parent.getName()));
+
+                        ImageIcon icon = parent.getIcon(48);
+                        if (parent.getImagePath().equals(Constants.NOT_FOUND_PNG)) {
+                            icon = null;
+                        }
+
+                        JLabel label = new JLabel("• " + parent.getName(), icon, JLabel.LEFT);
+                        label.setIconTextGap(10);
                         break;
                     }
                 }

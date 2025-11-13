@@ -1,6 +1,7 @@
 package core;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,7 +36,7 @@ public class LogManager {
     //All logs are created from the inventory
     public void createLog(Log.LogType type, int amount, String message, String itemSerial) {
         Log l = new Log(type, amount, message, itemSerial, nextlogID);
-        nextlogID++;
+        LogManager.nextlogID = logById.isEmpty() ? 2: Collections.max(logById.keySet()) + 1;
         addLogToCollections(l);
     }
     public void addLogToCollections(Log l) {
@@ -57,6 +58,7 @@ public class LogManager {
 
         //Remove from all lists
         AllLogs.remove(log);
+
         switch (log.getSeverity()) {
             case Critical -> CriticalLogs.remove(log);
             case Warning -> WarningLogs.remove(log);
@@ -73,7 +75,6 @@ public class LogManager {
             ArrayList<Log> itemLogs = itemToLogs.get(item);
             if (itemLogs != null) {
                 itemLogs.remove(log);
-
                 if (itemLogs.isEmpty()) {
                     itemToLogs.remove(item);
                 }

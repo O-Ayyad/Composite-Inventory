@@ -25,6 +25,8 @@ public class LogFileManager {
 
     Gson gson;
 
+    private boolean loading = false;
+
     public LogFileManager(LogManager logManager){
         this.logManager = logManager;
         gson = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
@@ -42,6 +44,7 @@ public class LogFileManager {
         return Path.of(logFilePath);
     }
     public void loadLogs(){
+        loading = true;
         Path logPath = getLogFilePath();
         //Get all logs
         Map<Integer,Log> logs;
@@ -66,17 +69,18 @@ public class LogFileManager {
             System.out.println("ERROR: Could not load logs");
             System.out.println(e.getMessage());
         }
-
+        loading = false;
         System.out.println("Loading Logs from: " + logPath.toString());
     }
     public void saveLogs() {
+        if (loading) return;
         Path filePath = getLogFilePath();
-        try (FileWriter writer = new FileWriter(filePath.toFile())) {
-            gson.toJson(logManager.logById, writer);
-            System.out.println("SUCCESS: Saved all logs");
+        try {
+            String json = gson.toJson(logManager.logById);
+            Files.writeString(filePath, json, StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException e) {
             System.out.println("ERROR: Could not save logs");
-            System.out.println(e.getMessage());
         }
     }
 }

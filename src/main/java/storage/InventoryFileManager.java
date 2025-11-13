@@ -29,6 +29,8 @@ public class InventoryFileManager {
 
     Inventory inventory;
 
+    boolean loading;
+
     Gson gson;
 
     public InventoryFileManager(Inventory inventory){
@@ -53,7 +55,7 @@ public class InventoryFileManager {
         return Path.of(itemQuantitiesFilePath);
     }
     public void loadInventory() {
-
+        loading = true;
         Path itemsPath = getItemDetailsFilePath();
         Path quantitiesPath = getItemQuantitiesFilePath();
 
@@ -76,9 +78,13 @@ public class InventoryFileManager {
                 for (Map.Entry<String, Item> entry : items.entrySet()) {
                     Item item = entry.getValue();
                     Integer quantity = quantities.getOrDefault(entry.getKey(), 0);
+                    if(item.getIcon(64) == null){
+                        item.setImagePath("src/resources/icons/itemIcons/imageNotFound.png");
+                    }
                     inventory.createItemFromSave(item,quantity);
                 }
 
+                //Convert the serials saved in file into actual item references
                 for (Item item : items.values()) {
                     for (ItemPacket packet : item.getComposedOf()) {
                         packet.reconstructItemReference(inventory);
@@ -93,13 +99,14 @@ public class InventoryFileManager {
             System.out.println("ERROR: Could not load inventory");
             System.out.println(e.getMessage());
         }
-
+        loading = false;
         System.out.println("Loaded inventory from: " + itemsPath.toString());
     }
 
 
     //Saves the whole inventory
     public void saveInventory() {
+        if(loading) return;
         Path itemDetailsFile = getItemDetailsFilePath();
         Path itemQuantitiesFile = getItemQuantitiesFilePath();
 
@@ -119,8 +126,6 @@ public class InventoryFileManager {
 
                 gson.toJson(serialToQuantity, writer);
             }
-
-            System.out.println("SUCCESS: Inventory saved successfully");
 
         } catch (IOException e) {
             System.out.println("ERROR: Could not save inventory");

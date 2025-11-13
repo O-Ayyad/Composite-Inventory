@@ -1,5 +1,6 @@
 package gui;
 
+import com.twelvemonkeys.imageio.stream.URLImageInputStreamSpi;
 import platform.*;
 import core.*;
 import storage.*;
@@ -15,13 +16,14 @@ import java.util.*;
 import java.util.Timer;
 
 
-public class MainWindow extends JFrame {
+public class MainWindow extends JFrame implements Inventory.ItemListener {
 
     public final int windowWidth = 1200;
     public final int windowHeight = 800;
 
     private final LogManager logManager;
 
+    JPanel accountSummary;
     private final JTable logTable;
     private final LogTableModel logTableModel;
 
@@ -35,14 +37,48 @@ public class MainWindow extends JFrame {
 
     private static final HashMap<Class<? extends SubWindow>, SubWindow> subWindowInstances = new HashMap<>();
 
-    public MainWindow(Inventory inventory,
-                      LogManager logManager,
-                      InventoryFileManager inventoryFileManager,
-                      LogFileManager logFileManager) {
+    private final Map<PlatformType, JPanel> platformSquares = new HashMap<>();
+    private final Map<PlatformType, JLabel> platformLabels = new HashMap<>();
 
-        this.logManager = logManager;
+    public MainWindow() {
+
+        DebugConsole.init();
+
+        Inventory inventory = new Inventory();
+        logManager = new LogManager();
+
+        inventory.setLogManager(logManager);
+        logManager.setInventory(inventory);
+
+        ItemManager itemManager = new ItemManager(inventory);
+        inventory.setItemManager(itemManager);
+
+        InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory);
+        LogFileManager logFileManager = new LogFileManager(logManager);
+
+        PlatformManager platformManager = new PlatformManager(inventory, logManager);
+        platformManager.setMainWindow(this);
+        APIFileManager apiFileManager = new APIFileManager();
+
+        AmazonSeller amazon = new AmazonSeller(platformManager, apiFileManager);
+        EbaySeller ebay = new EbaySeller(platformManager, apiFileManager);
+        WalmartSeller walmart = new WalmartSeller(platformManager, apiFileManager);
+
+        // Autosave
+        Timer autoSaveTimer = new Timer(true);
+        autoSaveTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                inventoryFileManager.saveInventory();
+                logFileManager.saveLogs();
+            }
+        }, 3000, 3000);
+
 
         logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refresh));
+
+        inventory.addChangeListener(this);
+
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -137,7 +173,7 @@ public class MainWindow extends JFrame {
             @Override public void actionPerformed(ActionEvent e) { new ViewWindow(MainWindow.this, inventory,logManager); }
         });
         am.put("openLink", new AbstractAction() {
-            @Override public void actionPerformed(ActionEvent e) { new LinkWindow(MainWindow.this, inventory); }
+            @Override public void actionPerformed(ActionEvent e) { new LinkWindow(MainWindow.this, inventory,apiFileManager); }
         });
         requestFocusInWindow();
 
@@ -147,7 +183,7 @@ public class MainWindow extends JFrame {
                 requestFocusInWindow();});
         viewButton.addActionListener(e -> {new ViewWindow(this,inventory,logManager);
                 requestFocusInWindow();});
-        linkButton.addActionListener(e -> {new LinkWindow(this,inventory);
+        linkButton.addActionListener(e -> {new LinkWindow(this,inventory,apiFileManager);
                 requestFocusInWindow();});
 
         buttonPanel.add(addButton);
@@ -189,14 +225,19 @@ public class MainWindow extends JFrame {
 
         //Left buttons
         String[] buttonLabels = {"Btn1", "Btn2", "Btn3", "Btn4"};
-        for (String label : buttonLabels) {
-            JButton btn = new JButton(label);
+        JButton[] toolButtons = new JButton[buttonLabels.length];
+        for (int i = 0; i < buttonLabels.length; i++) {
+            JButton btn = new JButton(buttonLabels[i]);
+            toolButtons[i] = btn;
             btn.setAlignmentX(Component.CENTER_ALIGNMENT);
             btn.setMaximumSize(new Dimension(180, 35));
             UIUtils.styleButton(btn);
             leftTools.add(btn);
             leftTools.add(Box.createRigidArea(new Dimension(0, 20)));
         }
+        toolButtons[0].addActionListener(e->{
+            platformManager.amazonSeller.fetchOrders();
+        });
 
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // horizontal layout
         filterPanel.setOpaque(false);
@@ -274,17 +315,67 @@ public class MainWindow extends JFrame {
             }
         });
 
+
         logsPanel.add(scrollPane, BorderLayout.CENTER);
         logsPanel.add(filterPanel, BorderLayout.SOUTH);
+
+        accountSummary = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        accountSummary.setLayout(new BoxLayout(accountSummary, BoxLayout.Y_AXIS));
+        accountSummary.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+        for (PlatformType p : PlatformType.values()) {
+
+
+            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+
+            JPanel square = new JPanel();
+            square.setPreferredSize(new Dimension(14, 14));
+            square.setBackground(Color.GRAY);
+
+            JLabel label = new JLabel(p.getDisplayName());
+            label.setPreferredSize(new Dimension(300, 20));
+            label.setFont(UIUtils.FONT_UI_BOLD);
+
+            platformSquares.put(p, square);
+            platformLabels.put(p, label);
+
+            row.add(square);
+            row.add(label);
+            accountSummary.add(row);
+            accountSummary.add(Box.createVerticalStrut(10));
+        }
+        Timer accountSquares = new Timer(true);
+        accountSquares.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                for (PlatformType p : PlatformType.values()) {
+                    String existingToken = apiFileManager.loadToken(p);
+                    JPanel square = platformSquares.get(p);
+                    JLabel text = platformLabels.get(p);
+                    if (existingToken != null) {
+                        BaseSeller seller = platformManager.getSeller(p);
+                        if(seller.fetchingOrders){
+                            square.setBackground(UIUtils.FETCHING_ORDERS);
+                            text.setText(p.getDisplayName() + " (Fetching orders...)");
+                        }else{
+                            square.setBackground(UIUtils.LINK_SUCCESS);
+                            text.setText(p.getDisplayName() + " (Connected)");
+                        }
+                    }else{
+                        square.setBackground(Color.GRAY);
+                        text.setText(p.getDisplayName() + " (Not Connected)");
+                    }
+                }
+            }
+        }, 500, 500);
 
         JPanel mainArea = new JPanel(new BorderLayout());
         mainArea.add(leftWrapper, BorderLayout.WEST);
         mainArea.add(logsPanel, BorderLayout.CENTER);
+        mainArea.add(accountSummary,BorderLayout.SOUTH);
 
         add(mainArea, BorderLayout.CENTER);
         setVisible(true);
     }
-
 
     // Window Buttons
     private JButton createIconButton(String text, String iconPath) {
@@ -376,6 +467,28 @@ public class MainWindow extends JFrame {
         removeInstance(curr);
         curr.dispose();
     }
+    //Used to remove windows about an item when an item is deleted
+    public void checkAndDestroy(Item i) {
+        System.out.println("Called on item :" + i.getName());
+        ArrayList<SubWindow> toDestroy = new ArrayList<>();
+        for (SubWindow curr : subWindowInstances.values()) {
+            if (curr instanceof EditWindow e && e.selectedItem == i) {
+                toDestroy.add(curr);
+            }
+            else if (curr instanceof ItemInfoWindow e && e.item == i) {
+                toDestroy.add(curr);
+            }
+            else if (curr instanceof AddWindow e && e.selected == i) {
+                toDestroy.add(curr);
+            }
+            else if (curr instanceof RemoveWindow e && e.selected == i) {
+                toDestroy.add(curr);
+            }
+        }
+        for (SubWindow window : toDestroy) {
+            destroyExistingInstance(window.getClass());
+        }
+    }
 
     private void applyFilter() {
         sorter.setRowFilter(new RowFilter<>() {
@@ -416,49 +529,11 @@ public class MainWindow extends JFrame {
 
 
     public static void main(String[] args) {
-
-
-        //Create and link managers
-        LogManager logManager = new LogManager();
-        Inventory inventory = new Inventory();
-
-        inventory.setLogManager(logManager);
-        logManager.setInventory(inventory);
-
-        ItemManager itemManager = new ItemManager(inventory);
-        inventory.setItemManager(itemManager);
-
-
-        //Load logs and inventory form disk
-        InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory);
-        LogFileManager logFileManager = new LogFileManager(logManager);
-
-
-        PlatformSellerManager platformSellerManager = new PlatformSellerManager(inventory, logManager);
-
-        AmazonSeller amazon = new AmazonSeller(platformSellerManager);
-        EbaySeller ebay = new EbaySeller(platformSellerManager);
-        WalmartSeller walmart = new WalmartSeller(platformSellerManager);
-
-
-        logManager.addChangeListener(inventoryFileManager::saveInventory);
-        logManager.addChangeListener(logFileManager::saveLogs);
-
         DebugConsole.init();
-
-
-        //Autosave
-        Timer autoSaveTimer = new Timer(true);
-        autoSaveTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                inventoryFileManager.saveInventory();
-                logFileManager.saveLogs();
-                System.out.println("Auto-saved inventory and logs at " + new java.util.Date());
-            }
-        }, 7000, 7000);
-
         //Creates main window
-        SwingUtilities.invokeLater(() -> new MainWindow(inventory,logManager,inventoryFileManager,logFileManager));
+        SwingUtilities.invokeLater(() -> new MainWindow());
+    }
+    public void onChange(Item item) {
+        checkAndDestroy(item);
     }
 }

@@ -3,14 +3,11 @@ package gui;
 import core.*;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
-import java.io.File;
 import java.util.*;
 
 public class EditWindow extends SubWindow {
     public static String windowName = "Edit Item";
-    private final Item selectedItem;
-    private File selectedImageFile;
+    public final Item selectedItem;
     private final Map<String, Integer> componentsBySerial = new LinkedHashMap<>();
     private final LogManager logManager;
 
@@ -96,24 +93,9 @@ public class EditWindow extends SubWindow {
         gbc.gridx = 1;
         JButton imageButton = new JButton("Change Image");
         JLabel imageLabel = new JLabel();
-        if (selectedItem.getImagePath() != null && new File(selectedItem.getImagePath()).exists()) {
-            ImageIcon icon = new ImageIcon(selectedItem.getImagePath());
-            Image scaled = icon.getImage().getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-            imageLabel.setIcon(new ImageIcon(scaled));
-        } else {
-            imageLabel.setText("No image selected");
-        }
+        String[] filePath = new String[] {selectedItem.getImagePath()};
 
-        imageButton.addActionListener(e -> {
-            JFileChooser chooser = new JFileChooser();
-            if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                selectedImageFile = chooser.getSelectedFile();
-                ImageIcon icon = new ImageIcon(selectedImageFile.getAbsolutePath());
-                Image scaled = icon.getImage().getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-                imageLabel.setIcon(new ImageIcon(scaled));
-                imageLabel.setText("");
-            }
-        });
+        getImage(imageButton, imageLabel, file -> filePath[0] = file );
 
         panel.add(UIUtils.styleButton(imageButton), gbc);
         gbc.gridx = 1; gbc.gridy++;
@@ -160,8 +142,8 @@ public class EditWindow extends SubWindow {
         });
 
         DropdownResult DDRObj = getDropDownMenuAllItems();
-        JComboBox<String> searchField = DDRObj.menu;
-        Map<String, String> componentSerialMap = DDRObj.serialMap;
+        JComboBox<String> searchField = DDRObj.menu();
+        Map<String, String> componentSerialMap = DDRObj.serialMap();
 
         Set<String> selectedTags = new LinkedHashSet<>();
 
@@ -182,12 +164,12 @@ public class EditWindow extends SubWindow {
         final Map<String, String> finalSerialMap = filteredSerialMap;
 
         //Populate tags
-        if (selectedItem.getComposedOf() != null) {
+        if (selectedItem.getComposedOf() != null || selectedItem.getComposedOf().isEmpty()) {
             for (ItemPacket packet : selectedItem.getComposedOf()) {
                 String serial = packet.getItem().getSerialNum();
                 componentsBySerial.put(serial, packet.getQuantity());
                 selectedTags.add(serial);
-
+                System.out.println("Called populate : " + packet.getItem().getName());
                 JPanel tag = makeTagPanel(packet.getItem(), serial, packet.getQuantity(), tagPanel, selectedTags);
                 tagPanel.add(tag);
             }
@@ -197,6 +179,7 @@ public class EditWindow extends SubWindow {
         searchField.addActionListener(e -> {
             String selectedDisplay = (String) searchField.getEditor().getItem();
             String selectedSerial = finalSerialMap.get(selectedDisplay);
+
             if (selectedSerial != null && !selectedTags.contains(selectedSerial)) {
                 Item component = inventory.SerialToItemMap.get(selectedSerial);
                 if (component == null) return;
@@ -289,7 +272,7 @@ public class EditWindow extends SubWindow {
                     }
 
                     StringBuilder afterText = new StringBuilder();
-                    if (!newComposition.isEmpty()) {
+                    if (!newComposition.isEmpty() && compositeCheck.isSelected()) {
                         for (ItemPacket IP : newComposition) {
                             Item component = IP.getItem();
                             int qty = IP.getQuantity();
@@ -299,6 +282,7 @@ public class EditWindow extends SubWindow {
                         }
                     } else {
                         afterText.append("<br>&nbsp;&nbsp;• None");
+                        newComposition = selectedItem.getComposedOf();
                     }
                     sb.append("<b>Composition:</b>")
                             .append("<br><b>Before:</b>")
@@ -308,7 +292,7 @@ public class EditWindow extends SubWindow {
                             .append("<br>");
                 }
 
-                if (selectedImageFile != null)
+                if (!filePath[0].equals(selectedItem.getImagePath()))
                     sb.append("<b>Image:</b> Updated<br>");
                 sb.append("</body></html>");
 
@@ -326,13 +310,51 @@ public class EditWindow extends SubWindow {
                     return;
                 }
 
+                StringBuilder logMessage = new StringBuilder();
+                logMessage.append("Updated item '").append(selectedItem.getName()).append("' (Serial: ").append(selectedItem.getSerialNum()).append("). \n");
+
+                StringBuilder changes = new StringBuilder();
+
+                if (!selectedItem.getName().equals(newName)) {
+                    changes.append("Name: '").append(selectedItem.getName()).append("' → '").append(newName).append("'\n");
+                }
+
+                if (inventory.getQuantity(selectedItem) != newQty) {
+                    changes.append("Quantity: ").append(inventory.getQuantity(selectedItem)).append(" → ").append(newQty).append("\n");
+                }
+
+                if (selectedItem.getLowStockTrigger() != trigger) {
+                    changes.append("Low Stock Trigger: ").append(selectedItem.getLowStockTrigger()).append(" → ").append(trigger).append("\n");
+                }
+
+                if (!Objects.equals(selectedItem.getAmazonSellerSKU(), newAmazonSKU)) {
+                    changes.append("Amazon SKU: '").append(selectedItem.getAmazonSellerSKU()).append("' → '").append(newAmazonSKU).append("'").append("\n");
+                }
+
+                if (!Objects.equals(selectedItem.getEbaySellerSKU(), newEbaySKU)) {
+                    changes.append("eBay SKU: '").append(selectedItem.getEbaySellerSKU()).append("' → '").append(newEbaySKU).append("'").append("\n");
+                }
+
+                if (!Objects.equals(selectedItem.getWalmartSellerSKU(), newWalmartSKU)) {
+                    changes.append("Walmart SKU: '").append(selectedItem.getWalmartSellerSKU()).append("' → '").append(newWalmartSKU).append("'").append("\n");
+                }
+                if (selectedItem.isComposite() != compositeCheck.isSelected()) {
+                    changes.append("Is Composite: ").append(selectedItem.isComposite() ? "Yes" : "No").append(" → ").append(compositeCheck.isSelected() ? "Yes" : "No").append("\n");
+                }
+                if ((selectedItem.isComposite() != compositeCheck.isSelected()) || (selectedItem.getComposedOf() != newComposition)) {
+                    changes.append("Composition modified").append("\n");
+                }
+                if (!filePath[0].equals(selectedItem.getImagePath())){
+                    changes.append("Image updated").append("\n");
+                }
+                logMessage.append("Changes: \n").append(String.join(", ", changes));
+
                 selectedItem.setName(newName);
                 selectedItem.setLowStockTrigger(trigger);
                 selectedItem.setAmazonSellerSKU(newAmazonSKU);
                 selectedItem.setEbaySellerSKU(newEbaySKU);
                 selectedItem.setWalmartSellerSKU(newWalmartSKU);
-                if (selectedImageFile != null)
-                    selectedItem.setImagePath(selectedImageFile.getAbsolutePath());
+                selectedItem.setImagePath(filePath[0]);
 
                 inventory.setQuantity(selectedItem, newQty);
                 selectedItem.replaceComposedOf(newComposition);
@@ -340,9 +362,7 @@ public class EditWindow extends SubWindow {
 
                 logManager.createLog(Log.LogType.ItemUpdated,
                         0,
-                        "Set stock of item '" + selectedItem.getName() +
-                                "' (Serial: " + selectedItem.getSerialNum() + "). " +
-                                "New quantity: " + inventory.getQuantity(selectedItem),
+                        logMessage.toString(),
                         selectedItem.getSerialNum()
                 );
 
@@ -366,6 +386,8 @@ public class EditWindow extends SubWindow {
         add(mainPanel, BorderLayout.CENTER);
 
         SwingUtilities.invokeLater(() -> {
+            JTextField text = (JTextField) searchField.getEditor().getEditorComponent();
+            text.setText("");
             nameField.requestFocusInWindow();
             nameField.selectAll();
         });
@@ -373,6 +395,7 @@ public class EditWindow extends SubWindow {
     }
 
     protected JPanel makeTagPanel(Item component, String serial, int qty, JPanel tagPanel, Set<String> selectedTags) {
+        System.out.println("Called " + component.getName());
         JPanel tag = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 0));
         tag.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
         JLabel nameLabel = new JLabel(component.getName() + " x" + qty);

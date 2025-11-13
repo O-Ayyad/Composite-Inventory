@@ -1,13 +1,11 @@
 package core;
 import java.awt.*;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import javax.swing.ImageIcon;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.Expose;
-
 //Blueprint for all items
 //Each item serial number is unique and the quantity is stored by inventory manager
 public class Item {
@@ -31,7 +29,6 @@ public class Item {
 
     @Expose
     private String iconPath;   //path to image file
-    private transient ImageIcon cachedIcon; //Actual image
 
     private final ItemManager itemManager;
 
@@ -58,17 +55,20 @@ public class Item {
     }
     public void setImagePath(String newPath) {
         iconPath = newPath;
-        this.cachedIcon = new ImageIcon(newPath);
     }
-    public ImageIcon getIcon(int width, int height) {
-        if (cachedIcon == null && iconPath != null) {
-            cachedIcon = new ImageIcon(iconPath);
-        }
-        if (cachedIcon != null) {
-            Image img = cachedIcon.getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH);
-            return new ImageIcon(img);
-        }
-        return null; //no image set
+    public ImageIcon getIcon(int maxSize) {
+
+        ImageIcon icon = new ImageIcon(iconPath);
+        int w = icon.getIconWidth();
+        int h = icon.getIconHeight();
+
+        double scale = (double) maxSize / Math.max(w, h);
+
+        int newW = (int) (w * scale);
+        int newH = (int) (h * scale);
+
+        Image scaled = icon.getImage().getScaledInstance(newW, newH, Image.SCALE_SMOOTH);
+        return new ImageIcon(scaled);
     }
     public int getLowStockTrigger() { return lowStockTrigger;}
     public void setLowStockTrigger(int lowST){lowStockTrigger = lowST;}
@@ -134,10 +134,6 @@ public class Item {
         this.lowStockTrigger = lowStockTrigger;
         this.composedOf = composedOf != null ? composedOf : new ArrayList<>();
         this.iconPath = iconPath;
-        int iconHeight = 50;
-        //Dimension for the image
-        int iconWidth = 50;
-        this.cachedIcon = this.getIcon(iconWidth, iconHeight);
 
         this.amazonSellerSKU = amazonSellerSKU != null ? amazonSellerSKU : "";
         this.ebaySellerSKU = ebaySellerSKU != null ? ebaySellerSKU : "";

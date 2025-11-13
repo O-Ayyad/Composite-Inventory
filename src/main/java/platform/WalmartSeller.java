@@ -1,20 +1,20 @@
 package platform;
 
-import java.util.List;
+import storage.APIFileManager;
 
 public class WalmartSeller extends BaseSeller<WalmartSeller.WalmartOrder> {
-    public WalmartSeller(PlatformSellerManager manager) {
-        super(PlatformType.WALMART, manager);
+    public WalmartSeller(PlatformManager manager, APIFileManager api) {
+        super(PlatformType.AMAZON, manager,api);
         manager.walmartSeller = this;
     }
     @Override
-    public List<WalmartOrder> fetchOrders() {
+    public void fetchOrders() {
         //Call walmart api, if bad response, regenerate key
         //Pull orders
         //Update last call time
         //Parse the new orders get the order ID, SKU and quantity of each SKU
         //Create the walmart Order into a list and only let Platform Seller call this method
-        return null;
+        return;
     }
     public static class WalmartOrder extends BaseSeller.Order {
         public WalmartOrder(String orderId, BaseSeller.OrderStatus status) {

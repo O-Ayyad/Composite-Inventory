@@ -114,19 +114,6 @@ public class ItemManager {
         //Add the newly composed item
         inventory.addItemAmountSilent(composedItem, 1);
     }
-    public boolean checkIfSerialExists(String serial){
-        return inventory.hasItem(serial);
-    }
-    private void logUpdate(Item item, String message) {
-        if (inventory != null && inventory.logManager != null) {
-            inventory.logManager.createLog(
-                    Log.LogType.ItemUpdated,
-                    0, //amount not relevant
-                    message,
-                    item.getSerialNum()
-            );
-        }
-    }
 
     //-------------------------------</Methods>-------------------------------
 
