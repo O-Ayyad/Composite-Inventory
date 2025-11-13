@@ -111,7 +111,7 @@ public class APIFileManager {
             String encrypted = encrypt(token);
             Path file = Path.of(getTokenFilePath(platform));
 
-            Path tempFile = Paths.get(file.toString() + ".tmp");
+            Path tempFile = Paths.get(file + ".tmp");
             Files.writeString(tempFile, encrypted, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
             try {
@@ -143,15 +143,15 @@ public class APIFileManager {
             return null;
         }
     }
-    public synchronized void clearAll() {
-        for (PlatformType p : PlatformType.values()) {
-            removeToken(p);
-        }
+    public synchronized void removeToken(PlatformType platform) {
+        try {
+            Files.deleteIfExists(Path.of(getTokenFilePath(platform)));
+        } catch (IOException ignored) {}
     }
     public int validateToken(PlatformType type, String token) {
         try {
             System.out.println("[BEGIN VALIDATING TOKEN]");
-            HttpURLConnection conn = null;
+            HttpURLConnection conn;
 
             switch (type) {
                 case AMAZON -> {
@@ -186,27 +186,6 @@ public class APIFileManager {
                     conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
 
                     System.out.println("->Setting timeouts");
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(10000);
-
-                    System.out.println("-> Attempting to get response code");
-                    int response = conn.getResponseCode();
-                    System.out.println("-> Response code: " + response);
-
-                    System.out.println("-> Reading body");
-                    try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                            (response >= 200 && response < 300)
-                                    ? conn.getInputStream()
-                                    : conn.getErrorStream()))) {
-                        String line;
-                        while ((line = br.readLine()) != null) {
-                            System.out.println("     " + line);
-                        }
-                    }
-
-                    conn.disconnect();
-                    System.out.println("-> Finished normally.");
-                    System.out.println("[END AMAZON ACCOUNT]");
                 }
                 case EBAY -> {
                     //Same as amazon
@@ -263,8 +242,6 @@ public class APIFileManager {
                     conn.setRequestProperty("Content-Type", "application/json");
 
                     System.out.println("-> Setting timeouts");
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(10000);
                 }
                 default -> throw new RuntimeException("Platform type not implemented: " + type);
             }
@@ -306,12 +283,20 @@ public class APIFileManager {
             return -1;
         }
     }
-    public synchronized void removeToken(PlatformType platform) {
-        try {
-            Files.deleteIfExists(Path.of(getTokenFilePath(platform)));
-        } catch (IOException ignored) {}
+    public String[] getCredentialsArray(PlatformType platform) {
+        String token = loadToken(platform);
+        if (token == null) return null;
+        String[] parts = token.split("\\|::\\|");
+
+        if ((platform == PlatformType.WALMART && parts.length != 2) ||
+                ((platform == PlatformType.AMAZON || platform == PlatformType.EBAY) && parts.length != 3)) {
+            System.out.println("ERROR: Invalid token format for " + platform);
+            return null;
+        }
+
+        return parts;
     }
-    private String getAmazonAccessToken(String clientId, String clientSecret, String refreshToken) {
+    public String getAmazonAccessToken(String clientId, String clientSecret, String refreshToken) {
         HttpURLConnection conn = null;
         try {
             URL url = new URL("https://api.amazon.com/auth/o2/token");
@@ -366,7 +351,7 @@ public class APIFileManager {
             }
         }
     }
-    private String getWalmartAccessToken(String clientId, String clientSecret) {
+    public String getWalmartAccessToken(String clientId, String clientSecret) {
         HttpURLConnection conn = null;
         try {
             System.out.println("[Walmart] Requesting new access token...");
@@ -440,7 +425,55 @@ public class APIFileManager {
             if (conn != null) conn.disconnect();
         }
     }
+    //If we have the access token the just try the token
+    public int vaildateAmazonAccessToken(String accessToken){
+        System.out.println("[BEGIN VALIDATING ACCESS TOKEN]");
+        try{
+            HttpURLConnection conn;
+            System.out.println("-> Opening SP-API connection...");
+            URL url = new URL("https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations");
+            conn = (HttpURLConnection) url.openConnection();
 
+            System.out.println("-> Setting request method...");
+            conn.setRequestMethod("GET");
+
+            System.out.println("-> Adding headers...");
+            conn.setRequestProperty("x-amz-access-token", accessToken);
+            conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
+
+            System.out.println("->Setting timeouts");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+
+            System.out.println("-> Attempting to get response code");
+            int response = conn.getResponseCode();
+            System.out.println("-> Response code: " + response);
+
+            System.out.println("-> Reading body");
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (response >= 200 && response < 300)
+                            ? conn.getInputStream()
+                            : conn.getErrorStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    System.out.println("     " + line);
+                }
+            }
+
+            conn.disconnect();
+            System.out.println("[VALIDATING ACCESS TOKEN END] Response code: " + response);
+
+            if(response >= 200 && response < 300) {
+                System.out.println("Success. Good HTTP response");
+            }else{
+                System.out.println("ERROR. Bad HTTP response");
+            }
+            return response;
+        }catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+        return -1;
+    }
     public static String getStorageDir(PlatformType platform) {
         return BASE_DIR + File.separator + platform.getDisplayName().toLowerCase();
     }

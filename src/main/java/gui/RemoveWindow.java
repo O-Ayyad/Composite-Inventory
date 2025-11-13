@@ -6,8 +6,6 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,6 +17,7 @@ public class RemoveWindow extends SubWindow {
         Delete,
         Reduce,
     }
+    public Item selected;
     public RemoveWindow(MainWindow mainWindow, Inventory inventory,SendTo send) {
         this(mainWindow, inventory, null,send); //Delegate to unified constructor
     }
@@ -31,6 +30,7 @@ public class RemoveWindow extends SubWindow {
                     "Inventory Empty",
                     JOptionPane.WARNING_MESSAGE);
             dispose();
+            mainWindow.destroyExistingInstance(this.getClass());
             return;
         }
 
@@ -45,15 +45,16 @@ public class RemoveWindow extends SubWindow {
 
     public void setupUI(Item selected,SendTo send) {
         JPanel mainPanel;
+        this.selected = selected;
         switch(send){
-            case Delete -> mainPanel = deleteItemPanel(selected);
-            case Break -> mainPanel = breakDownPanel(selected);
-            default -> mainPanel = reduceStockPanel(selected);
+            case Delete -> mainPanel = deleteItemPanel();
+            case Break -> mainPanel = breakDownPanel();
+            default -> mainPanel = reduceStockPanel();
         }
         add(mainPanel, BorderLayout.CENTER);
         pack();
     }
-    public JPanel reduceStockPanel(Item selected){
+    public JPanel reduceStockPanel(){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -81,8 +82,8 @@ public class RemoveWindow extends SubWindow {
         panel.add(new JLabel("Select Item:"), gbc);
         gbc.gridx = 1;
         DropdownResult DDRObj = getDropDownMenuAllItems();
-        JComboBox<String> itemDropdown = DDRObj.menu;
-        Map<String,String> displayToSerialMap = DDRObj.serialMap;
+        JComboBox<String> itemDropdown = DDRObj.menu();
+        Map<String,String> displayToSerialMap = DDRObj.serialMap();
         panel.add(itemDropdown, gbc);
 
         if (selected != null) {
@@ -94,6 +95,17 @@ public class RemoveWindow extends SubWindow {
                 }
             }
         }
+        itemDropdown.addActionListener(e -> {
+            String selectedDisplay = (String) itemDropdown.getSelectedItem();
+            if (selectedDisplay == null) return;
+            String selectedSerial = displayToSerialMap.get(selectedDisplay);
+            if (selectedSerial == null) return;
+            Item newItem = inventory.getItemBySerial(selectedSerial);
+            if (newItem == null) return;
+
+            selected = newItem;
+            System.out.println("Got itme  "+selected.getName());
+        });
 
         //Reduce text
         gbc.gridx = 0; gbc.gridy++;
@@ -231,7 +243,7 @@ public class RemoveWindow extends SubWindow {
             // Replace current content with remove item panel
             getContentPane().removeAll();
             //Create panel
-            add(deleteItemPanel(null), BorderLayout.CENTER);
+            add(deleteItemPanel(), BorderLayout.CENTER);
 
             revalidate();
             repaint();
@@ -243,7 +255,7 @@ public class RemoveWindow extends SubWindow {
             Item currSelected = inventory.SerialToItemMap.get(selectedSerial);
 
             getContentPane().removeAll();
-            add(breakDownPanel(currSelected), BorderLayout.CENTER);
+            add(breakDownPanel(), BorderLayout.CENTER);
             revalidate();
             repaint();
             pack();
@@ -253,7 +265,7 @@ public class RemoveWindow extends SubWindow {
         mainPanel.setPreferredSize(new Dimension(550, 400));
         return mainPanel;
     }
-    public JPanel deleteItemPanel(Item selected){
+    public JPanel deleteItemPanel(){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -281,8 +293,8 @@ public class RemoveWindow extends SubWindow {
         panel.add(new JLabel("Select Item:"), gbc);
         gbc.gridx = 1;
         DropdownResult DDRObj = getDropDownMenuAllItems();
-        JComboBox<String> itemDropdown = DDRObj.menu;
-        Map<String,String> displayToSerialMap = DDRObj.serialMap;
+        JComboBox<String> itemDropdown = DDRObj.menu();
+        Map<String,String> displayToSerialMap = DDRObj.serialMap();
         panel.add(itemDropdown, gbc);
 
         if (selected != null) {
@@ -294,6 +306,16 @@ public class RemoveWindow extends SubWindow {
                 }
             }
         }
+        itemDropdown.addActionListener(e -> {
+            String selectedDisplay = (String) itemDropdown.getSelectedItem();
+            if (selectedDisplay == null) return;
+            String selectedSerial = displayToSerialMap.get(selectedDisplay);
+            if (selectedSerial == null) return;
+            Item newItem = inventory.getItemBySerial(selectedSerial);
+            if (newItem == null) return;
+
+            selected = newItem;
+        });
 
         //Remove buttons
         gbc.gridx = 0; gbc.gridy++;
@@ -357,7 +379,7 @@ public class RemoveWindow extends SubWindow {
         return mainPanel;
     }
 
-    public JPanel breakDownPanel(Item selected) {
+    public JPanel breakDownPanel() {
 
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -385,8 +407,8 @@ public class RemoveWindow extends SubWindow {
         gbc.gridx = 1;
 
         DropdownResult DDRObj = getDropDownMenuCompositeItems();
-        JComboBox<String> itemDropdown = DDRObj.menu;
-        Map<String,String> displayToSerialMap = DDRObj.serialMap;
+        JComboBox<String> itemDropdown = DDRObj.menu();
+        Map<String,String> displayToSerialMap = DDRObj.serialMap();
         panel.add(itemDropdown, gbc);
 
         //Remove null and non-composite items
@@ -401,6 +423,7 @@ public class RemoveWindow extends SubWindow {
                 }
             }
         }
+
 
         gbc.gridx = 0; gbc.gridy++;
         gbc.gridwidth = 2;
@@ -544,7 +567,7 @@ public class RemoveWindow extends SubWindow {
 
         cancelButton.addActionListener(e -> {
             getContentPane().removeAll();
-            add(reduceStockPanel(null), BorderLayout.CENTER);
+            add(reduceStockPanel(), BorderLayout.CENTER);
             revalidate();
             repaint();
             pack();
@@ -632,6 +655,5 @@ public class RemoveWindow extends SubWindow {
 
         breakButton.setText(updateBreakDownText(target, amount));
     }
-
 }
 

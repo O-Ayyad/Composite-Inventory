@@ -1,5 +1,11 @@
 package core;
+import constants.Constants;
+
 import javax.swing.*;
+import java.io.FileReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 public class Inventory {
@@ -19,6 +25,9 @@ public class Inventory {
 
     public LogManager logManager;
     public ItemManager itemManager;
+
+    //Used to close edit and view window when an item is deleted. Main window is the only one here
+    private final ArrayList<ItemListener> listeners = new ArrayList<>();
 
     public Inventory(){
     }
@@ -384,15 +393,25 @@ public class Inventory {
 
         //Remove all mappings
         unregisterItemMapping(item);
-        ArrayList<Log> logsToRemove = logManager.itemToLogs.remove(item);
+
+        //Remove all logs
+        ArrayList<Log> logsToRemove = logManager.itemToLogs.get(item);
 
         if (logsToRemove != null) {
-
-            logManager.AllLogs.removeAll(logsToRemove);
-            logManager.CriticalLogs.removeAll(logsToRemove);
-            logManager.WarningLogs.removeAll(logsToRemove);
-            logManager.NormalLogs.removeAll(logsToRemove);
+            ArrayList<Log> copy = new ArrayList<>(logsToRemove);
+            for (Log l : copy) {
+                logManager.removeLog(l);
+            }
         }
+
+        if(!item.getImagePath().equals(Constants.NOT_FOUND_PNG)){
+            try{
+                Files.deleteIfExists(Paths.get(item.getImagePath()));
+            } catch (Exception e){
+                System.out.println("Could not delete image files for item: " + item.getName());
+            }
+        }
+        notifyListeners(item);
     }
 
 
@@ -534,5 +553,18 @@ public class Inventory {
                 if (outOfStockLog != null) logManager.removeLog(outOfStockLog);
             }
         }
+    }
+    public void addChangeListener(ItemListener listener) {
+        listeners.add(listener);
+    }
+
+    private void notifyListeners(Item i) {
+        for (ItemListener listener : listeners) {
+            listener.onChange(i);
+        }
+    }
+    @FunctionalInterface
+    public interface ItemListener {
+        void onChange(Item item);
     }
 }

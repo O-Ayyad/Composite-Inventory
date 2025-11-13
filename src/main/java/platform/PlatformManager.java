@@ -1,16 +1,20 @@
 package platform;
 
 import core.*;
+import gui.MainWindow;
+
+import javax.swing.*;
 import java.util.*;
-import java.util.stream.Stream;
 
 
-public class PlatformSellerManager {
+public class PlatformManager {
     private final Inventory inventory;
     private final LogManager logManager;
     public AmazonSeller amazonSeller;
     public EbaySeller ebaySeller;
     public WalmartSeller walmartSeller;
+
+    MainWindow mainWindow;
 
 
     //Order ID lookup
@@ -18,7 +22,7 @@ public class PlatformSellerManager {
     private final Map<PlatformType, Map<String, BaseSeller.Order>> platformOrders =
             new EnumMap<>(PlatformType.class);
 
-    public PlatformSellerManager(Inventory inv, LogManager lm){
+    public PlatformManager(Inventory inv, LogManager lm){
         inventory = inv;
         logManager = lm;
 
@@ -41,5 +45,18 @@ public class PlatformSellerManager {
     }
     public void putOrder(PlatformType platform, BaseSeller.Order order) {
         platformOrders.get(platform).put(order.getOrderId(), order);
+    }
+    public BaseSeller getSeller(PlatformType p){
+        return switch (p){
+            case EBAY -> ebaySeller;
+            case AMAZON -> amazonSeller;
+            case WALMART -> walmartSeller;
+        };
+    }
+    public void setMainWindow(MainWindow minWin){
+        mainWindow = minWin;
+    }
+    public MainWindow getMainWindow(){
+        return mainWindow;
     }
 }

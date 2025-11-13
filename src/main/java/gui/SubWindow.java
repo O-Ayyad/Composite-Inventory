@@ -2,11 +2,16 @@ package gui;
 
 import core.Inventory;
 import core.Item;
+import constants.*;
 
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
@@ -14,7 +19,6 @@ import javax.swing.plaf.basic.BasicComboBoxEditor;
 public abstract class SubWindow extends JFrame {
 
     MainWindow mainWindow;
-    public final String notFoundPNGPath = "icons/itemIcons/imageNotFound.png";
     Inventory inventory;
 
 
@@ -46,25 +50,6 @@ public abstract class SubWindow extends JFrame {
         });
     }
     public abstract void setupUI();
-
-    protected String formatItemCount(int count, String itemName, String action) {
-        return String.format("%s %d × %s", action, count, itemName);
-    }
-
-    protected ImageIcon getItemIcon(Item item, int width, int height) {
-        ImageIcon itemIcon = item.getIcon(width,height);
-        if(itemIcon != null){
-            return itemIcon;
-        }
-        String iconPath = item.getImagePath();
-        if (iconPath == null || iconPath.isEmpty()) {
-            iconPath = notFoundPNGPath;
-        }
-
-        ImageIcon icon = new ImageIcon(iconPath);
-        Image scaled = icon.getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH);
-        return new ImageIcon(scaled);
-    }
 
     //Creates a searchable dropdown menu of all items
     public DropdownResult getDropDownMenuAllItems() {
@@ -119,7 +104,6 @@ public abstract class SubWindow extends JFrame {
             if (selectedItem[0] != null && !editor.getText().equals(selectedItem[0])) {
                 selectedItem[0] = null;
             }
-
             rebuilding[0] = true;
             model.removeAllElements();
 
@@ -134,12 +118,11 @@ public abstract class SubWindow extends JFrame {
                                 displayToSerialMap.get(d).toLowerCase().contains(text))
                         .forEach(model::addElement);
             }
-
             rebuilding[0] = false;
             if (model.getSize() > 0) itemDropdown.showPopup();
             else itemDropdown.hidePopup();
-
             SwingUtilities.invokeLater(() -> editor.setCaretPosition(editor.getText().length()));
+
         });
         debounceTimer.setRepeats(false);
 
@@ -163,7 +146,6 @@ public abstract class SubWindow extends JFrame {
                     editor.setCaretPosition(editor.getText().length());
                     itemDropdown.hidePopup();
                     selectedItem[0] = selected.toString();
-
                 }
             }
         });
@@ -171,26 +153,34 @@ public abstract class SubWindow extends JFrame {
 
         //Focus behavior
         editor.addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override public void focusGained(java.awt.event.FocusEvent e) {
-                if (model.getSize() > 0) itemDropdown.showPopup();
+            @Override
+            public void focusGained(java.awt.event.FocusEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    editor.selectAll();
+                    if (itemDropdown.isShowing() && model.getSize() > 0 && !editor.getText().trim().isEmpty()) {
+                        itemDropdown.showPopup();
+                    }
+                });
             }
         });
 
-
-        SwingUtilities.invokeLater(() -> {
-            editor.requestFocusInWindow();
-            editor.selectAll();
-        });
-        JTextField textBox = (JTextField) itemDropdown.getEditor().getEditorComponent();
-        textBox.addMouseListener(new MouseAdapter() {
+        editor.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                textBox.setText("");
+                editor.setText("");
             }
         });
-        return new DropdownResult(itemDropdown, displayToSerialMap, debounceTimer);
+
+        SwingUtilities.invokeLater(() ->{
+                editor.setCaretPosition(editor.getText().length());
+                editor.requestFocusInWindow();
+                editor.selectAll();
+                itemDropdown.hidePopup();
+        });
+
+        return new DropdownResult(itemDropdown, displayToSerialMap);
     }
-    public boolean confirmRemoveItem(Item target){
+    public void confirmRemoveItem(Item target){
         if (!target.getComposesInto().isEmpty()) {
             StringBuilder composeList = new StringBuilder();
             for(Item i : target.getComposesInto()){
@@ -206,7 +196,7 @@ public abstract class SubWindow extends JFrame {
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE
             );
-            if (confirm != JOptionPane.YES_OPTION) return false;
+            if (confirm != JOptionPane.YES_OPTION) return;
         }
         //Confirmation
         String serial = target.getSerialNum();
@@ -222,7 +212,7 @@ public abstract class SubWindow extends JFrame {
         if (!inSerial.equals(serial)) {
             JOptionPane.showMessageDialog(this, "Serial numbers do not match. Item not removed.",
                     "Error", JOptionPane.ERROR_MESSAGE);
-            return false;
+            return;
         }
 
         String confirmWord = JOptionPane.showInputDialog(
@@ -240,7 +230,7 @@ public abstract class SubWindow extends JFrame {
                     "Deletion Canceled",
                     JOptionPane.WARNING_MESSAGE
             );
-            return false;
+            return;
         }
         int choice = JOptionPane.showConfirmDialog(
                 this,
@@ -252,7 +242,7 @@ public abstract class SubWindow extends JFrame {
 
         if (choice != JOptionPane.YES_OPTION) {
             JOptionPane.showMessageDialog(this, "Deletion canceled.", "Canceled", JOptionPane.INFORMATION_MESSAGE);
-            return false;
+            return;
         }
 
         //Success
@@ -264,7 +254,11 @@ public abstract class SubWindow extends JFrame {
                     "Item Removed",
                     JOptionPane.INFORMATION_MESSAGE
             );
-            dispose();
+
+            //This is parentwindow
+            if(!(this instanceof ViewWindow)){
+                dispose();
+            }
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(
                     this,
@@ -272,8 +266,113 @@ public abstract class SubWindow extends JFrame {
                     "Error",
                     JOptionPane.ERROR_MESSAGE
             );
-            return false;
         }
-        return true;
+    }
+    public void getImage(JButton imageButton, JLabel imageLabel, Consumer<String> onImageSelected){
+        imageButton.addActionListener(e -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ex) {
+                System.out.println(ex.getMessage());
+            }
+
+            JFileChooser fileChooser = getJFileChooser();
+            int result = fileChooser.showOpenDialog(SwingUtilities.getWindowAncestor(imageButton));
+            if (result != JFileChooser.APPROVE_OPTION) return;
+
+            File selectedImageFile = fileChooser.getSelectedFile();
+            try {
+                BufferedImage original = ImageIO.read(selectedImageFile);
+                if (original == null) {
+                    imageLabel.setText("Unsupported image");
+                    return;
+                }
+                Icon itemIcon = scaleImage(original);
+                imageLabel.setIcon(itemIcon);
+                imageLabel.setText("");
+
+                String path = "src/main/resources/icons/itemIcons/";
+                File resourcesDir = new File(path);
+                if (!resourcesDir.exists()) {
+                    resourcesDir.mkdirs();
+                }
+                String timestamp = String.valueOf(System.currentTimeMillis());
+                String fileName = "item_" + timestamp + ".png";
+                String savedPath = path + fileName;
+                File outputFile = new File(savedPath);
+                ImageIO.write(original, "png", outputFile);
+
+                if (onImageSelected != null) {
+                    onImageSelected.accept(savedPath);
+                }
+            } catch (Exception ex) {
+                imageLabel.setText("Failed to load image");
+            }
+        });
+    }
+
+    Icon scaleImage(Image selectedImage){
+        float aspectRatio = (float) selectedImage.getWidth(null) / (float) selectedImage.getHeight(null);
+        int scaledWidth = 128,
+                scaledHeight = 128;
+
+        if(aspectRatio != 1f ){
+            if (aspectRatio > 1) {
+                scaledHeight = (int) (128 / aspectRatio);
+            } else{
+                scaledWidth = (int) (128 * aspectRatio);
+            }
+        }
+        BufferedImage scaled = new BufferedImage(128, 128, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = scaled.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        int x = (128- scaledWidth) / 2;
+        int y = (128 - scaledHeight) / 2;
+        g2.drawImage(selectedImage, x, y, scaledWidth, scaledHeight, null);
+        g2.dispose();
+
+        return new ImageIcon(scaled);
+    }
+    private static JFileChooser getJFileChooser() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Select an Image");
+
+        String userHome = System.getProperty("user.home");
+        File downloadsFolder = new File(userHome, "Downloads");
+        if (downloadsFolder.exists()) {
+            fileChooser.setCurrentDirectory(downloadsFolder);
+        }
+
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            @Override
+            public boolean accept(File f) {
+                if (f.isDirectory()) return true;
+                String name = f.getName().toLowerCase();
+                return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")
+                        || name.endsWith(".gif") || name.endsWith(".bmp") || name.endsWith(".webp");
+            }
+
+            @Override
+            public String getDescription() {
+                return "Image Files (*.png, *.jpg, *.jpeg, *.gif, *.bmp, *.webp)";
+            }
+        });
+        return fileChooser;
+    }
+    public ImageIcon getScaledIconTo(ImageIcon icon, float scaled) {
+        int w = icon.getIconWidth();
+        int h = icon.getIconHeight();
+
+        float scale = scaled / Math.max(w, h);
+
+        int newW = Math.round(w * scale);
+        int newH = Math.round(h * scale);
+
+        Image img = icon.getImage().getScaledInstance(newW, newH, Image.SCALE_SMOOTH);
+        return new ImageIcon(img);
+    }
+    public record DropdownResult(JComboBox<String> menu, HashMap<String, String> serialMap) {
     }
 }

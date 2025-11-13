@@ -11,7 +11,6 @@ import java.awt.event.KeyEvent;
 import java.util.*;
 import java.util.List;
 
-import java.io.File;
 
 public class ViewWindow extends SubWindow {
     public static String windowName = "View Items and Update Inventory";
@@ -116,7 +115,7 @@ public class ViewWindow extends SubWindow {
             }
 
             mainWindow.destroyExistingInstance(RemoveWindow.class);
-            new RemoveWindow(mainWindow, inventory, selected,RemoveWindow.SendTo.Break);
+            new RemoveWindow(mainWindow, inventory, selected,RemoveWindow.SendTo.Reduce);
         });
 
         breakBtn.addActionListener(e -> {
@@ -375,18 +374,9 @@ public class ViewWindow extends SubWindow {
         List<Item> items = new ArrayList<>(inventory.MainInventory.keySet());
 
         for (Item i : items) {
-            ImageIcon icon;
 
-            //Get image icon
-            if (i.getImagePath() != null && new File(i.getImagePath()).exists()) {
-                //Load and scale it
-                Image img = new ImageIcon(i.getImagePath()).getImage().getScaledInstance(48, 48, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(img);
-            } else {
-                Image placeholder = new ImageIcon("icons\\itemIcons\\imageNotFound.png")
-                        .getImage().getScaledInstance(48, 48, Image.SCALE_SMOOTH);
-                icon = new ImageIcon(placeholder);
-            }
+            ImageIcon icon = new ImageIcon(i.getImagePath());
+            icon = getScaledIconTo(icon, 128f);
 
             tableModel.addRow(new Object[]{
                     icon,
@@ -400,7 +390,26 @@ public class ViewWindow extends SubWindow {
                     nullToNA(i.getWalmartSellerSKU())
             });
         }
-
+        itemTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object icon, boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel label = new JLabel();
+                if (icon instanceof ImageIcon) {
+                    label.setIcon(getScaledIconTo((ImageIcon)icon,64));
+                    label.setHorizontalAlignment(JLabel.CENTER);
+                }
+                if (isSelected) {
+                    label.setBackground(table.getSelectionBackground());
+                    label.setForeground(table.getSelectionForeground());
+                } else {
+                    label.setBackground(table.getBackground());
+                    label.setForeground(table.getForeground());
+                }
+                label.setOpaque(true);
+                return label;
+            }
+        });
+        itemTable.setRowHeight(70);
         updateSummary();
     }
 

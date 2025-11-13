@@ -9,11 +9,11 @@ import java.awt.*;
 public class LinkWindow extends SubWindow {
     public static String windowName = "Link Accounts & Platforms";
 
-    final APIFileManager apiStorage;
+    final APIFileManager apiFileManager;
 
-    public LinkWindow(MainWindow mainWindow, Inventory inventory) {
+    public LinkWindow(MainWindow mainWindow, Inventory inventory,APIFileManager apiFileManager) {
         super(mainWindow, windowName, inventory);
-        apiStorage = new APIFileManager();
+        this.apiFileManager = apiFileManager;
         setupUI();
         setVisible(true);
     }
@@ -97,7 +97,7 @@ public class LinkWindow extends SubWindow {
         };
 
         if (type != null) {
-            String existingToken = apiStorage.loadToken(type);
+            String existingToken = apiFileManager.loadToken(type);
             if (existingToken != null) {
                 statusLabel.setText("Connected (" + platformName + ")");
                 statusLabel.setForeground(UIUtils.LINK_SUCCESS);
@@ -136,7 +136,7 @@ public class LinkWindow extends SubWindow {
 
                 if (confirm != null && confirm.trim().equalsIgnoreCase("CONFIRM")) {
                     assert type != null;
-                    apiStorage.removeToken(type);
+                    apiFileManager.removeToken(type);
                     statusLabel.setText("Not Connected");
                     statusLabel.setForeground(Color.GRAY);
                     connectButton.setEnabled(true);
@@ -225,7 +225,7 @@ public class LinkWindow extends SubWindow {
             }
 
             String combined = clientId + "|::|" + clientSecret + "|::|" + refreshToken;
-            int response = apiStorage.validateToken(type, combined);
+            int response = apiFileManager.validateToken(type, combined);
 
             processAndShowTokenDialog(type, response, combined);
 
@@ -301,7 +301,7 @@ public class LinkWindow extends SubWindow {
             }
 
             String combined = consumerId + "|::|" + privateKey;
-            int response = apiStorage.validateToken(type, combined);
+            int response = apiFileManager.validateToken(type, combined);
 
             processAndShowTokenDialog(type, response, combined);
 
@@ -381,7 +381,7 @@ public class LinkWindow extends SubWindow {
 
             String combined = clientId + "|::|" + clientSecret + "|::|" + refreshToken;
 
-            int response = apiStorage.validateToken(type, combined);
+            int response = apiFileManager.validateToken(type, combined);
 
             processAndShowTokenDialog(type, response, combined);
 
@@ -412,11 +412,11 @@ public class LinkWindow extends SubWindow {
         if ( responseCode >= 200 && responseCode <= 299) { //Success
             messageText += "Account connected successfully. Orders can now be fetched and processed";
             title = "Account connected";
-            apiStorage.saveToken(type, token);
+            apiFileManager.saveToken(type, token);
             messageType = JOptionPane.INFORMATION_MESSAGE;
 
         }else{ //Failure
-            apiStorage.removeToken(type);
+            apiFileManager.removeToken(type);
             if (responseCode == 401 || responseCode == 403) {
                 messageText += "\nYour " + platformName + " API token appears to be invalid, expired, or unauthorized.\n\n" +
                         "To fix this issue: Do the following:\n\n" +
@@ -430,12 +430,17 @@ public class LinkWindow extends SubWindow {
             }
             messageType = JOptionPane.WARNING_MESSAGE;
         }
-        messageText += "\n\nSecurity Tip:\n" +
-                "You should clear your clipboard history to prevent sensitive keys from being recovered.\n\n" +
-                "If you are using Windows:\n" +
-                " - Press the Windows key + V\n" +
-                " - Click 'Clear all'\n\n" +
-                "This helps ensure your API keys and tokens remain private and only on your device.";
+        messageText += """
+                
+                
+                Security Tip:
+                You should clear your clipboard history to prevent sensitive keys from being recovered.
+                
+                If you are using Windows:
+                 - Press the Windows key + V
+                 - Click 'Clear all'
+                
+                This helps ensure your API keys and tokens remain private and only on your device.""";
         JTextArea message = new JTextArea(messageText);
         message.setWrapStyleWord(true);
         message.setLineWrap(true);

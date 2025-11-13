@@ -2,8 +2,7 @@ package storage;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import core.Inventory;
-import platform.PlatformSellerManager;
+import platform.PlatformManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,11 +23,11 @@ public class OrderFileManager {
     private final String amazonOrdersFilePath = dataDir + File.separator + AMAZON_ORDERS_FILENAME;
     private final String walmartOrdersFilePath = dataDir + File.separator + WALMART_ORDERS_FILENAME;
 
-    private final PlatformSellerManager platformSellerManager;
+    private final PlatformManager platformSellerManager;
 
     Gson gson;
 
-    public OrderFileManager(PlatformSellerManager platformSellerManager) {
+    public OrderFileManager(PlatformManager platformSellerManager) {
         this.platformSellerManager = platformSellerManager;
         this.gson = new GsonBuilder()
                 .excludeFieldsWithoutExposeAnnotation()

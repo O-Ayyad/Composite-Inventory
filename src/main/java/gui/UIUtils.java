@@ -39,9 +39,10 @@ public class UIUtils {
 
 
     //Link Colors
-    public static final Color LINK_SUCCESS        = new Color(0, 128, 0);
+    public static final Color LINK_SUCCESS        = new Color(0, 208, 0);
     public static final Color UNLINKED            = new Color(180, 240, 180);
     public static final Color LINK_ERROR          = new Color(255, 240, 180);
+    public static final Color FETCHING_ORDERS     = new Color(80,120,200);
 
     // ================ FONTS ==============
 

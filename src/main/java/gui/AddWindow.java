@@ -1,22 +1,19 @@
 package gui;
+import constants.Constants;
 import core.*;
+
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.io.File;
 import java.util.*;
 
 
 public class AddWindow extends SubWindow {
     public static String windowName = "Add Item";
-
-    private File selectedImageFile = null;
     private final Map<String, Integer> composedComponents = new LinkedHashMap<>();
+    public Item selected;
 
     public AddWindow(MainWindow mainWindow, Inventory inventory) {
         this(mainWindow,inventory,null,false); //Delegate to unified constructor
@@ -32,16 +29,16 @@ public class AddWindow extends SubWindow {
     }
     public void setupUI(Item selected, boolean compose) {
         JPanel mainPanel;
-
+        this.selected = selected;
         if (inventory.MainInventory.isEmpty()) {
             mainPanel = createNewItemPanel();
         }
         else{
             if(compose){
-                mainPanel = composeItemPanel(selected);
+                mainPanel = composeItemPanel();
             }
             else {
-                mainPanel = addToExistingItemPanel(selected);
+                mainPanel = addToExistingItemPanel();
             }
         }
 
@@ -125,18 +122,9 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 1;
         JButton imageButton = new JButton("Select Image");
         JLabel imageLabel = new JLabel("No image selected", SwingConstants.LEFT);
-        imageButton.addActionListener(e -> {
-            JFileChooser chooser = new JFileChooser();
-            chooser.setFileFilter(new FileNameExtensionFilter("Image files", "png", "jpg", "jpeg", "gif"));
-            if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                selectedImageFile = chooser.getSelectedFile();
-                File file = chooser.getSelectedFile();
-                ImageIcon icon = new ImageIcon(file.getAbsolutePath());
-                Image scaled = icon.getImage().getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-                imageLabel.setIcon(new ImageIcon(scaled));
-                imageLabel.setText("");
-            }
-        });
+        String[] filePath = new String[] {Constants.NOT_FOUND_PNG};
+        getImage(imageButton, imageLabel, file -> filePath[0] = file );
+
         panel.add(UIUtils.styleButton(imageButton), gbc);
         gbc.gridx = 1; gbc.gridy++;
         panel.add(imageLabel, gbc);
@@ -159,8 +147,8 @@ public class AddWindow extends SubWindow {
         tagPanel.setLayout(new UIUtils.WrapLayout(FlowLayout.LEFT, 5, 5));
 
         DropdownResult DDRObj = getDropDownMenuAllItems();
-        JComboBox<String> searchField = DDRObj.menu;
-        Map<String, String> componentSerialMap = DDRObj.serialMap;
+        JComboBox<String> searchField = DDRObj.menu();
+        Map<String, String> componentSerialMap = DDRObj.serialMap();
 
         Set<String> selectedTags = new LinkedHashSet<>();
 
@@ -460,7 +448,6 @@ public class AddWindow extends SubWindow {
             if (lowStockTrigger == null) {
                 lowStockTrigger = 0;
             }
-            String iconPath = (selectedImageFile != null) ? selectedImageFile.getAbsolutePath() : null;
             int choice = JOptionPane.showConfirmDialog(
                     this,
                     summary,
@@ -477,14 +464,13 @@ public class AddWindow extends SubWindow {
                     serial,
                     lowStockTrigger,
                     composedOfPackets,
-                    iconPath,
+                    filePath[0],
                     inventory.itemManager,
                     skuAmazonText,
                     skuEbayText,
                     skuWalmartText,
                     quantity
             );
-
             dispose();
         });
 
@@ -499,7 +485,7 @@ public class AddWindow extends SubWindow {
         });
         return mainPanel;
     }
-    public JPanel addToExistingItemPanel(Item selected) {
+    public JPanel addToExistingItemPanel() {
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -521,12 +507,13 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 0;
         gbc.gridy = 0;
 
+
         //Dropdown
         panel.add(new JLabel("Select Item:"), gbc);
-        gbc.gridx = 1;
+        gbc.gridx = 0;
         DropdownResult DDRObj = getDropDownMenuAllItems();
-        JComboBox<String> itemDropdown = DDRObj.menu;
-        Map<String,String> displayToSerialMap = DDRObj.serialMap;
+        JComboBox<String> itemDropdown = DDRObj.menu();
+        Map<String,String> displayToSerialMap = DDRObj.serialMap();
 
         if (selected != null) {
             String serial = selected.getSerialNum();
@@ -537,7 +524,36 @@ public class AddWindow extends SubWindow {
                 }
             }
         }
+        gbc.gridx = 1;
         panel.add(itemDropdown, gbc);
+
+        JLabel previewLabel = new JLabel();
+        previewLabel.setPreferredSize(new Dimension(64, 64));
+
+        itemDropdown.addActionListener(e -> {
+            String displayName = (String) itemDropdown.getSelectedItem();
+            if (displayName == null) return;
+
+            String serial = displayToSerialMap.get(displayName);
+            if (serial == null) return;
+
+            Item selectedItem = inventory.getItemBySerial(serial);
+            if (selectedItem == null) {
+                return;
+            }
+
+            if (!selectedItem.getImagePath().equals(Constants.NOT_FOUND_PNG)) {
+                previewLabel.setIcon(selectedItem.getIcon(64));
+            } else {
+                previewLabel.setIcon(null);
+            }
+        });
+
+        gbc.gridx = 2;
+        panel.add(previewLabel, gbc);
+
+
+
 
         // Quantity
         gbc.gridx = 0; gbc.gridy++;
@@ -677,10 +693,10 @@ public class AddWindow extends SubWindow {
             //Get currently selected item
             String selectedItem = (String) itemDropdown.getEditor().getItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
-            Item currSelected = inventory.SerialToItemMap.get(selectedSerial);
+            selected = inventory.SerialToItemMap.get(selectedSerial);
 
             getContentPane().removeAll();
-            add(composeItemPanel(currSelected), BorderLayout.CENTER);
+            add(composeItemPanel(), BorderLayout.CENTER);
             revalidate();
             repaint();
             pack();
@@ -689,7 +705,7 @@ public class AddWindow extends SubWindow {
         mainPanel.add(panel, BorderLayout.CENTER);
         return mainPanel;
     }
-    public JPanel composeItemPanel(Item selected){
+    public JPanel composeItemPanel(){
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
@@ -717,8 +733,8 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 1;
 
         DropdownResult DDRObj = getDropDownMenuCompositeItems();
-        JComboBox<String> itemDropdown = DDRObj.menu;
-        Map<String,String> displayToSerialMap = DDRObj.serialMap;
+        JComboBox<String> itemDropdown = DDRObj.menu();
+        Map<String,String> displayToSerialMap = DDRObj.serialMap();
 
         //Remove null and non-composite items
         if (selected != null) {
@@ -733,6 +749,31 @@ public class AddWindow extends SubWindow {
             }
         }
         panel.add(itemDropdown, gbc);
+
+        JLabel previewLabel = new JLabel();
+        previewLabel.setPreferredSize(new Dimension(64, 64));
+
+        itemDropdown.addActionListener(e -> {
+            String displayName = (String) itemDropdown.getSelectedItem();
+            if (displayName == null) return;
+
+            String serial = displayToSerialMap.get(displayName);
+            if (serial == null) return;
+
+            Item selectedItem = inventory.getItemBySerial(serial);
+            if (selectedItem == null) {
+                return;
+            }
+
+            if (!selectedItem.getImagePath().equals(Constants.NOT_FOUND_PNG)) {
+                previewLabel.setIcon(selectedItem.getIcon(64));
+            } else {
+                previewLabel.setIcon(null);
+            }
+        });
+
+        gbc.gridx = 2;
+        panel.add(previewLabel, gbc);
 
         // Quantity
         gbc.gridx = 0; gbc.gridy++;
@@ -865,7 +906,7 @@ public class AddWindow extends SubWindow {
 
         returnButton.addActionListener(e -> {
             getContentPane().removeAll();
-            add(addToExistingItemPanel(null), BorderLayout.CENTER);
+            add(addToExistingItemPanel(), BorderLayout.CENTER);
             revalidate();
             repaint();
             pack();
