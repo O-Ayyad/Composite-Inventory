@@ -143,6 +143,15 @@ public class APIFileManager {
             return null;
         }
     }
+    public synchronized boolean hasToken(PlatformType platform) {
+        try {
+            Path file = Path.of(getTokenFilePath(platform));
+            return Files.exists(file);
+        }catch (Exception e) {
+            System.out.println("ERROR: Could not find token for "+ platform.name());
+            return false;
+        }
+    }
     public synchronized void removeToken(PlatformType platform) {
         try {
             Files.deleteIfExists(Path.of(getTokenFilePath(platform)));

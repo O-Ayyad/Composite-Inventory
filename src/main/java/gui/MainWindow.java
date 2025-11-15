@@ -1,6 +1,5 @@
 package gui;
 
-import com.twelvemonkeys.imageio.stream.URLImageInputStreamSpi;
 import platform.*;
 import core.*;
 import storage.*;
@@ -235,9 +234,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
             leftTools.add(btn);
             leftTools.add(Box.createRigidArea(new Dimension(0, 20)));
         }
-        toolButtons[0].addActionListener(e->{
-            platformManager.amazonSeller.fetchOrders();
-        });
+        toolButtons[0].addActionListener(e->platformManager.amazonSeller.fetchOrders());
 
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // horizontal layout
         filterPanel.setOpaque(false);
@@ -348,10 +345,9 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
             @Override
             public void run() {
                 for (PlatformType p : PlatformType.values()) {
-                    String existingToken = apiFileManager.loadToken(p);
                     JPanel square = platformSquares.get(p);
                     JLabel text = platformLabels.get(p);
-                    if (existingToken != null) {
+                    if (apiFileManager.hasToken(p)) {
                         BaseSeller seller = platformManager.getSeller(p);
                         if(seller.fetchingOrders){
                             square.setBackground(UIUtils.FETCHING_ORDERS);
@@ -531,7 +527,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
     public static void main(String[] args) {
         DebugConsole.init();
         //Creates main window
-        SwingUtilities.invokeLater(() -> new MainWindow());
+        SwingUtilities.invokeLater(MainWindow::new);
     }
     public void onChange(Item item) {
         checkAndDestroy(item);
