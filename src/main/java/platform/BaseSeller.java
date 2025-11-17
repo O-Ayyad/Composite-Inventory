@@ -19,7 +19,7 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
     public LocalDateTime lastAccessTokenGetTime;
     public LocalDateTime lastGetOrderTime;
     public int tokenExpirationTimeMinutes;
-    private volatile List<Order> lastFetchedOrders = new ArrayList<>();
+    public volatile List<T> lastFetchedOrders = new ArrayList<>();
 
     public boolean fetchingOrders = false;
 

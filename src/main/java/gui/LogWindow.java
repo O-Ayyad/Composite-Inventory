@@ -93,7 +93,8 @@ public class LogWindow extends SubWindow {
         addRow(details, gbc, "Message:", new JLabel(message));
 
         addRow(details, gbc, "Severity:", new JLabel(log.getSeverity().toString()));
-        addRow(details, gbc, "Item Serial:", new JLabel(log.getSerial() != null ? log.getSerial() : "—"));
+
+        addRow(details, gbc, "Item Serial:", new JLabel(log.getSerial() != null || log.getSerial().isEmpty() ? log.getSerial() : "—"));
         addRow(details, gbc, "Amount:", new JLabel(log.getAmount() != null ? log.getAmount().toString() : "—"));
         addRow(details, gbc, "Timestamp:", new JLabel(log.getTime()));
         addRow(details, gbc, "Suppressed:", new JLabel(log.isSuppressed() ? "Yes" : "No"));
@@ -152,7 +153,9 @@ public class LogWindow extends SubWindow {
             }
 
             toggleSuppressBtn.setEnabled(
-                    !(log.getSeverity() == Log.Severity.Normal ||log.getType() ==  Log.LogType.ItemSoldAndNotRegisteredInInventory)
+                    !(      log.getSeverity() == Log.Severity.Normal ||
+                            log.getType() ==  Log.LogType.ItemShippedNotRegistered ||
+                            log.getType() ==  Log.LogType.OrderReceivedItemNotRegistered)
             );
         };
         updateSuppressButton.run();

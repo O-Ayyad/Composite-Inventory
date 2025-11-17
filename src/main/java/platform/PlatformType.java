@@ -1,7 +1,5 @@
 package platform;
 
-import java.io.File;
-
 public enum PlatformType {
     AMAZON("Amazon"),
     EBAY("eBay"),

@@ -360,7 +360,7 @@ public class EditWindow extends SubWindow {
                 selectedItem.replaceComposedOf(newComposition);
                 inventory.checkLowAndOutOfStock();
 
-                logManager.createLog(Log.LogType.ItemUpdated,
+                logManager.createLog(Log.LogType.UpdatedItem,
                         0,
                         logMessage.toString(),
                         selectedItem.getSerialNum()

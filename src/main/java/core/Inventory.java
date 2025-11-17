@@ -11,7 +11,6 @@ public class Inventory {
     //This inventory stores all the items that exist
     //If the item is not it stock then it is still in MainInventory with quantity 0
     //Item packets are sent by the ItemManager to here to update inventory
-    //If an item is not in MainInventory then it does not exist in any way
 
     public Map<Item, Integer> MainInventory = new HashMap<>();
     public Map<String, Item> SerialToItemMap = new HashMap<>();
@@ -27,8 +26,7 @@ public class Inventory {
     //Used to close edit and view window when an item is deleted. Main window is the only one here
     private final ArrayList<ItemListener> listeners = new ArrayList<>();
 
-    public Inventory(){
-    }
+    public Inventory(){}
     public void setLogManager(LogManager lm){
         logManager = lm;
         logManager.addChangeListener(() ->
@@ -103,7 +101,7 @@ public class Inventory {
 
         String quantityMessage = amount > 0 ? "Quantity : "+ amount : "";
         if (logManager != null) {
-            logManager.createLog(Log.LogType.NewItemCreated,
+            logManager.createLog(Log.LogType.CreatedNewItem,
                       0,
                     "Created new item: " + name + " (Serial: " + serialNum + ") " +quantityMessage,
                     serialNum);
@@ -156,7 +154,7 @@ public class Inventory {
             throw new IllegalStateException("Null item called in addItemAmount()");
         }
         addItemAmountSilent(item,amount);
-        logManager.createLog(Log.LogType.ItemAdded,
+        logManager.createLog(Log.LogType.AddedItem,
                 amount,
                 "Added " + amount + " units of item '" + item.getName() +
                         "' (Serial: " + item.getSerialNum() + "). " +
@@ -184,7 +182,7 @@ public class Inventory {
         int quantity = MainInventory.get(item);
         quantity = Math.max(0,quantity-amount);
         MainInventory.put(item, quantity);
-        logManager.createLog(Log.LogType.ItemRemoved,
+        logManager.createLog(Log.LogType.ReducedStock,
                 amount,
                 "Removed " + amount + " units of item '" + item.getName() +
                         "' (Serial: " + item.getSerialNum() + "). " +
@@ -286,7 +284,7 @@ public class Inventory {
             }
 
            logManager.createLog(
-                    Log.LogType.ItemComposed,
+                    Log.LogType.ComposedItem,
                     1,
                     sb.toString(),
                     item.getSerialNum()
@@ -341,14 +339,14 @@ public class Inventory {
 
                         "\n  Inventory: " + result.before() + " → " + result.after();
 
-        logManager.createLog(Log.LogType.ItemBrokenDown,1, logMessage,item.getSerialNum());
+        logManager.createLog(Log.LogType.BrokenDownItem,1, logMessage,item.getSerialNum());
     }
     //Rarely used to delete an item completely from inventory
     public void removeItem(Item item){
         removeItemSilent(item);
 
         logManager.createLog(
-                Log.LogType.ItemDeleted,
+                Log.LogType.DeletedItem,
                 0,
                 "Deleted item '" + item.getName() +
                         "' (Serial: " + item.getSerialNum() + ") from inventory and all associated logs.",
