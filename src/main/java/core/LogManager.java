@@ -1,9 +1,6 @@
 package core;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class LogManager {
     public Inventory inventory;
@@ -35,9 +32,17 @@ public class LogManager {
     //-------------------------------------Log Creation
     //All logs are created from the inventory
     public void createLog(Log.LogType type, int amount, String message, String itemSerial) {
+        if(inventory.getItemBySerial(itemSerial) == null && !itemSerial.isEmpty()){
+            itemSerial = "";
+        }
+
         Log l = new Log(type, amount, message, itemSerial, nextlogID);
-        LogManager.nextlogID = logById.isEmpty() ? 2: Collections.max(logById.keySet()) + 1;
+        nextlogID++;
         addLogToCollections(l);
+
+        if(type == Log.LogType.SystemError){
+            System.out.println(message);
+        }
     }
     public void addLogToCollections(Log l) {
         if (l == null) return;
@@ -52,6 +57,19 @@ public class LogManager {
             case Normal -> NormalLogs.add(l);
         }
         notifyListeners();
+    }
+    public void addLogToCollectionsWithoutNotify(Log l) {
+        if (l == null) return;
+        Item i = inventory.getItemBySerial(l.getSerial());
+        AllLogs.add(l);
+        logById.put(l.getLogID(), l);
+        itemToLogs.computeIfAbsent(i, k -> new ArrayList<>()).add(l);
+
+        switch (l.getSeverity()) {
+            case Critical -> CriticalLogs.add(l);
+            case Warning -> WarningLogs.add(l);
+            case Normal -> NormalLogs.add(l);
+        }
     }
     public void removeLog(Log log) {
         if (log == null) return;
@@ -91,7 +109,7 @@ public class LogManager {
 
         removeLog(l);
         String msg = "Solved log #" + l.getLogID() + " (" + l.getSeverity() + "): \"" + l.getMessage() + "\"";
-        createLog(Log.LogType.LogSolved, 0, msg, l.getSerial());
+        createLog(Log.LogType.SolvedLog, 0, msg, l.getSerial());
     }
     public void suppressLog(Log l){
         if (l == null) {
@@ -102,8 +120,12 @@ public class LogManager {
                     + l.getLogID() + "). Only Warning or Critical logs can be suppressed.");
         }
 
-        if (l.getType() == Log.LogType.ItemSoldAndNotRegisteredInInventory) {
-            throw new RuntimeException("suppressLog() called on ItemSoldAndNotRegisteredInInventory log (Log ID: "
+        if (l.getType() == Log.LogType.ItemShippedNotRegistered) {
+            throw new RuntimeException("unsuppressLog() called on ItemShippedNotRegistered log (Log ID: "
+                    + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
+        }
+        if (l.getType() == Log.LogType.OrderReceivedItemNotRegistered) {
+            throw new RuntimeException("unsuppressLog() called on OrderReceivedItemNotRegistered log (Log ID: "
                     + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
         }
 
@@ -113,7 +135,7 @@ public class LogManager {
         }
 
         String msg = "Suppressed log #" + l.getLogID() + " (" + l.getSeverity() + "): \"" + l.getMessage() + "\"";
-        createLog(Log.LogType.LogSuppressed, 0, msg, l.getSerial());
+        createLog(Log.LogType.SuppressedLog, 0, msg, l.getSerial());
     }
 
     public void unsuppressLog(Log l) {
@@ -125,11 +147,14 @@ public class LogManager {
                     + l.getLogID() + "). Only Warning or Critical logs can be suppressed.");
         }
 
-        if (l.getType() == Log.LogType.ItemSoldAndNotRegisteredInInventory) {
-            throw new RuntimeException("unsuppressLog() called on ItemSoldAndNotRegisteredInInventory log (Log ID: "
+        if (l.getType() == Log.LogType.ItemShippedNotRegistered) {
+            throw new RuntimeException("unsuppressLog() called on ItemShippedNotRegistered log (Log ID: "
                     + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
         }
-
+        if (l.getType() == Log.LogType.OrderReceivedItemNotRegistered) {
+            throw new RuntimeException("unsuppressLog() called on OrderReceivedItemNotRegistered log (Log ID: "
+                    + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
+        }
         if (!l.isSuppressed()) {
             throw new RuntimeException("unsuppressLog() called, but log #" + l.getLogID()
                     + " is not suppressed.");
@@ -148,7 +173,7 @@ public class LogManager {
 
         Log toRemove = null;
         for (Log suppressLog : itemLogs) {
-            if (suppressLog.getType() == Log.LogType.LogSuppressed &&
+            if (suppressLog.getType() == Log.LogType.SuppressedLog &&
                     suppressLog.getMessage().contains("#" + l.getLogID())){ //Double check that the suppressed log is specifically for this log
                 toRemove = suppressLog;
                 System.out.println("found");
@@ -166,7 +191,7 @@ public class LogManager {
         listeners.add(listener);
     }
 
-    private void notifyListeners() {
+    public void notifyListeners() {
         for (Runnable listener : listeners) {
             listener.run();
         }

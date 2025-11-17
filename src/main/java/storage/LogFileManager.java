@@ -56,21 +56,22 @@ public class LogFileManager {
                     Log l = entry.getValue();
                     Integer id = entry.getKey();
                     if(logManager.logById.get(id) != null){
-                        System.out.println("Duplicate log found with ID: "+ id);
+                        System.out.println("[LogFileManager] Duplicate log found with ID: "+ id);
                         continue; //Log already exists
                     }
-                    logManager.addLogToCollections(l);
+                    logManager.addLogToCollectionsWithoutNotify(l);
                     LogManager.nextlogID = Collections.max(logs.keySet()) + 1;
                 }
             }
         } catch (FileNotFoundException e) {
-            System.out.println("INFO: Log file not found. Starting with no logs.");
+            System.out.println("[LogFileManager]INFO: Log file not found. Starting with no logs.");
         } catch (Exception e) {
-            System.out.println("ERROR: Could not load logs");
+            System.out.println("[LogFileManager]ERROR: Could not load logs");
             System.out.println(e.getMessage());
         }
         loading = false;
-        System.out.println("Loading Logs from: " + logPath.toString());
+        logManager.notifyListeners();
+        System.out.println("[LogFileManager] Loading Logs from: " + logPath.toString());
     }
     public void saveLogs() {
         if (loading) return;
@@ -80,7 +81,7 @@ public class LogFileManager {
             Files.writeString(filePath, json, StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException e) {
-            System.out.println("ERROR: Could not save logs");
+            System.out.println("[LogFileManager] ERROR: Could not save logs");
         }
     }
 }

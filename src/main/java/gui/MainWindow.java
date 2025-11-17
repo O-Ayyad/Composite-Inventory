@@ -234,7 +234,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
             leftTools.add(btn);
             leftTools.add(Box.createRigidArea(new Dimension(0, 20)));
         }
-        toolButtons[0].addActionListener(e->platformManager.amazonSeller.fetchOrders());
+        toolButtons[0].addActionListener(e->platformManager.fetchAllRecentOrders());
 
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // horizontal layout
         filterPanel.setOpaque(false);
@@ -525,8 +525,6 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
 
     public static void main(String[] args) {
-        DebugConsole.init();
-        //Creates main window
         SwingUtilities.invokeLater(MainWindow::new);
     }
     public void onChange(Item item) {

@@ -24,7 +24,6 @@ import java.util.List;
 public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
 
     private static final String API_BASE_URL = "https://sellingpartnerapi-na.amazon.com";
-    private volatile List<AmazonOrder> lastFetchedOrders = new ArrayList<>();
 
     public AmazonSeller(PlatformManager manager, APIFileManager api) {
         super(PlatformType.AMAZON, manager,api);
@@ -35,12 +34,13 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
     @Override
     public void fetchOrders() {
         //Amazon seller should not call fetch orders if amazon is not linked return null
+        fetchingOrders = true;
         Path file = Path.of(APIFileManager.getTokenFilePath(PlatformType.AMAZON));
         if (!Files.exists(file)) {
             log("No file exist for token: " + PlatformType.AMAZON.getDisplayName() );
+            fetchingOrders = false;
             return;
         }
-        fetchingOrders = true;
         try {
             //For errors
             JFrame parent = platformManager.getMainWindow();
@@ -83,7 +83,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
             //We have a valid non-expired token, so get recent orders and parse
             log(" Valid access token");
             String createdAfter = lastGetOrderTime
-                    .minusDays(14)
+                    .minusDays(3)
                     .atZone(ZoneId.systemDefault())
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
@@ -173,7 +173,10 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
 
                     case "shipped" -> OrderStatus.SHIPPED;
 
-                    case "canceled", "unfulfillable" -> OrderStatus.CANCELLED; default -> OrderStatus.CONFIRMED; };
+                    case "canceled", "unfulfillable" -> OrderStatus.CANCELLED;
+
+                    default -> OrderStatus.CONFIRMED;
+                };
                 String updateDateString = getString(orderObj, "LastUpdateDate");
                 LocalDateTime updateDate = LocalDateTime.parse(updateDateString,
                         DateTimeFormatter.ISO_DATE_TIME);
@@ -183,8 +186,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 if(existing != null) {
                     //Order already exists and nothing changed, no need to parse again
                     if (existing.getStatus() == orderStatus &&
-                            existing.getLastUpdated().isEqual(updateDate))
-                    {
+                            existing.getLastUpdated().isEqual(updateDate)) {
                         continue;
                     }
                 }
@@ -242,7 +244,6 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                         publish("Error fetching order " + info.orderId + ": " + e.getMessage());
                     }
                 }
-                fetchingOrders = false;
                 return allOrders;
             }
 
