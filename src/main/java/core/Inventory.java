@@ -143,7 +143,7 @@ public class Inventory {
                 name,
                 serialNum,
                 lowStockTrigger,
-                composedOf,
+                composedOf == null ? new HashMap<>(): composedOf,
                 iconPath,
                 itemManager,
                 amazonSellerSKU,
@@ -186,13 +186,16 @@ public class Inventory {
             addItemAmount(i,amount);
             return;
         }
-
+        Map<Item,Integer> newComposedOf = new HashMap<>();
+        for(Map.Entry<String, Integer> serialized : item.getComposedOfSerialized().entrySet()){
+            newComposedOf.put(getItemBySerial(serialized.getKey()), serialized.getValue());
+        }
         //Create new item
         Item newItem = new Item(
                 item.getName(),
                 item.getSerialNum(),
                 item.getLowStockTrigger(),
-                item.getComposedOf(),
+                newComposedOf,
                 item.getImagePath(),
                 itemManager,
                 item.getAmazonSellerSKU(),
@@ -616,64 +619,158 @@ public class Inventory {
     }
     //If an item is not in stock, but we need it, find composite items that could be broken down to compose fulfill neededItem
     //Only for orders
-    //Each list are composite items that can be broken down to fulfill the item.
-    public List<List<ItemPacket>> possibleBreakDownsForItem(Item neededItem, int amountNeeded){
+    //Each map is a solution where the item is the one to be broken down and the int is the amount that needs to be broken down.
+    public List<Map<Item, Integer>> possibleBreakDownsForItem(Item neededItem, int amountNeeded){
         if(isItemInStockRecursive(neededItem, amountNeeded)){
             return new ArrayList<>();
         }
-        List<List<Item>> solutions = new ArrayList<>();
+        List<Map<Item, Integer>> solutions = new ArrayList<>();
 
         // Step 1, what are we missing?
         Map<Item, Integer> missing = getMissingItemsRecursive(neededItem, amountNeeded);
 
-        //Step 2, find all items that could be solutions
-        // Map missing item to list of composite items that can produce it
-        // Drill -> (Drill kit, double drill kit, etc.)
-        Map<Item, List<Item>> sources = new HashMap<>();
-        Map<Item, Boolean> itemSolved = new HashMap<>();
-
-        for (Map.Entry<Item, Integer> mp : missing.entrySet()) {
-            Item missingItem = mp.getKey();
-            sources.put(missingItem, missingItem.getComposesInto());
-            itemSolved.put(missingItem, Boolean.FALSE);
-        }
-
-        //Step 3, solve
-        for(Map.Entry<Item, List<Item>> itemToSolve : sources.entrySet()){
-            Item item = itemToSolve.getKey();
-            List<Item> composesInto = itemToSolve.getValue();
-            int amountNeededToSolve = missing.get(item);
-
-            //Now we have the amount we need and the items that break down into to get enough of the item if it is available
-            for(Item itemToBreak : composesInto){
-                //Find the needed item
+        //Check if all missing items can actually be made
+        for(Map.Entry<Item,Integer> e : missing.entrySet()){
+            if(e.getKey().getComposedOf() == null || e.getKey().getComposesInto().isEmpty()){
+                System.out.println("There are no possible available breakdowns to get item:" + e.getKey().getName());
+                return solutions;
             }
         }
-        return null;
+
+        //Step 2, find all composite items that produce what we are missing
+        Set<Item> compositeItemsWeCareAbout = new HashSet<>();
+
+        for (Item missingItem : missing.keySet()) {
+            compositeItemsWeCareAbout.addAll(missingItem.getComposesInto());
+        }
+
+        List<Item> compositeList = new ArrayList<>(compositeItemsWeCareAbout);
+
+        //Step 3, solve
+        int MAX_SOLUTIONS = 5;
+        int MAX_COMBINATION_SIZE = 10;
+        outerLoop:
+        for(int i = 1; i <= MAX_COMBINATION_SIZE; i++) {
+            List<List<Item>> combos = getAllPossibleCombinations(compositeList, i);
+
+            //Check if any list has composite items that can map to every missing
+            for (List<Item> combo : combos) {
+
+                // Step 3 Compute base parts produced by the combo
+                Map<Item, Integer> producedTotals = new HashMap<>();
+
+                for (Item composite : combo) {
+                    Map<Item, Integer> flat = getBaseComposition(composite, 1);
+                    mergeInto(producedTotals, flat);
+                }
+                //Check if the combo covers ALL missing items
+                boolean coversAll = true;
+                for (Map.Entry<Item, Integer> need : missing.entrySet()) {
+                    int have = producedTotals.getOrDefault(need.getKey(), 0);
+                    if (have < need.getValue()) {
+                        coversAll = false;
+                        break;
+                    }
+                }
+                if (!coversAll) continue;
+
+                //Count how many of each composite item the combo uses
+                Map<Item, Integer> counted = new HashMap<>();
+                for (Item c : combo) {
+                    counted.merge(c, 1, Integer::sum);
+                }
+                //Make sure all these items are in stock
+                boolean allInStock = true;
+                for (Map.Entry<Item, Integer> entry : counted.entrySet()) {
+                    if (getAvailableQuantity(entry.getKey()) < entry.getValue()) {
+                        allInStock = false;
+                        break;
+                    }
+                }
+                if (!allInStock) continue;
+
+
+                //IF a solution is 1 of Item A, then don't add item A and ITem b
+                boolean isSuperset = false;
+                for (Map<Item, Integer> existing : solutions) {
+                    boolean containsAll = true;
+                    for (Map.Entry<Item, Integer> entry : existing.entrySet()) {
+                        if (counted.getOrDefault(entry.getKey(), 0) < entry.getValue()) {
+                            containsAll = false;
+                            break;
+                        }
+                    }
+                    if (containsAll && counted.size() >= existing.size()) {
+                        isSuperset = true;
+                        break;
+                    }
+                }
+
+                if (!isSuperset) {
+                    solutions.add(counted);
+                    if(solutions.size() >= MAX_SOLUTIONS) break outerLoop;
+                }
+            }
+        }
+
+        return solutions;
     }
+    //Give all possible Combinations of a list,
+    //If list = 1,2,3,4 and amount is 2, then it will return
+    // 11, 12, 13, 14, 22, 23, 24, 33, 34, 44 without duplicates
+    <T> List<List<T>> getAllPossibleCombinations(List<T> list, int length) {
+        List<List<T>> result = new ArrayList<>();
+        getCombination(list, length, 0, new ArrayList<>(), result);
+        return result;
+    }
+    private <T> void getCombination(List<T> list,
+                              int length,
+                              int start,
+                              List<T> current,
+                              List<List<T>> result) {
+        if (length == 0) {
+            result.add(new ArrayList<>(current));
+            return;
+        }
 
-    //Returns the composition of items in from elementry parts
-    //A is composed of 2C and 1 B and each B is composed of 3 D and each. So getBaseCompositon of A is 2 C, 3 D.
-    // So getBaseCompositon of (1A) = 2C, 3D
+        for (int i = start; i < list.size(); i++) {
+            current.add(list.get(i));
+            getCombination(list, length - 1, i, current, result);
+            current.remove(current.size() - 1);
+        }
+    }
+    //Returns the composition of items in from elementary parts
+    //A is composed of 2C and 1 B and each B is composed of 3 D and each. So getBaseComposition of A is 2 C, 3 D.
+    // So getBaseComposition of (1A) = 2C, 3D
+    private transient Map<Item, Map<Item, Integer>> baseCompositionCache = new HashMap<>(); //Cache items we already broke down into parts, but only for 1
     public Map<Item, Integer> getBaseComposition(Item item, int amount) {
-        Map<Item, Integer> aggregated = new HashMap<>();
+        Map<Item, Integer> baseUnit = baseCompositionCache.get(item);
+        if (baseUnit == null) {
+            baseUnit = new HashMap<>();
 
-        // Base case not composite
-        if (!item.isComposite()) {
-            aggregated.merge(item, amount, Integer::sum);
-            return aggregated;
+            if (!item.isComposite()) {
+                baseUnit.put(item, 1);
+            } else {
+                for (Map.Entry<Item, Integer> component : item.getComposedOf().entrySet()) {
+                    Item subItem = component.getKey();
+                    int componentAmount = component.getValue();
+
+                    Map<Item, Integer> subMap = getBaseComposition(subItem, componentAmount);
+                    mergeInto(baseUnit, subMap);
+                }
+            }
+
+            baseCompositionCache.put(item, baseUnit);
+        }
+        if (amount == 1) {
+            return new HashMap<>(baseUnit);
         }
 
-        // Item is composite -> expand components
-        for (Map.Entry<Item, Integer> component : item.getComposedOf().entrySet()) {
-            Item subItem = component.getKey();
-            int scaledQuantity = component.getValue() * amount;
-
-            Map<Item, Integer> subMap = getBaseComposition(subItem, scaledQuantity);
-            mergeInto(aggregated,subMap);
+        Map<Item, Integer> scaled = new HashMap<>();
+        for (Map.Entry<Item, Integer> entry : baseUnit.entrySet()) {
+            scaled.put(entry.getKey(), entry.getValue() * amount);
         }
-
-        return aggregated;
+        return scaled;
     }
 
     public void mergeInto(Map<Item, Integer> target, Map<Item, Integer> source) {

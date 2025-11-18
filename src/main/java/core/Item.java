@@ -1,8 +1,6 @@
 package core;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import javax.swing.ImageIcon;
 
 import com.google.gson.Gson;
@@ -27,13 +25,14 @@ public class Item {
 
     @Expose
     private Map<String, Integer> composedOfSerialized = new HashMap<>(); //Used for saving and loading
-    private Map<Item,Integer> composedOf = new HashMap<>();
-    private ArrayList<Item> composesInto = new ArrayList<>();
+
+    private transient  Map<Item,Integer> composedOf = new HashMap<>();
+    private transient Set<Item> composesInto = new HashSet<>();
 
     @Expose
     private String iconPath;   //path to image file
 
-    private final ItemManager itemManager;
+    private transient final ItemManager itemManager;
 
     //-------------------------------<Getters and Setters>-------------------------------
     public String getName() { return name; }
@@ -51,7 +50,7 @@ public class Item {
     public void setEbaySellerSKU(String ebaySellerSKU) {this.ebaySellerSKU = ebaySellerSKU;}
 
     public Map<Item, Integer> getComposedOf() { return composedOf; }
-    public ArrayList<Item> getComposesInto() { return composesInto; }
+    public Set<Item> getComposesInto() { return composesInto; }
 
     public Map<String,Integer> getComposedOfSerialized() { return composedOfSerialized; }
 
@@ -167,7 +166,7 @@ public class Item {
             }
         }
     }
-    //-------------------------------</Constructor>-------------------------------
+
 
 
     //-------------------------------<Overrides>-------------------------------

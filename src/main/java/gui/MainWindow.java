@@ -12,6 +12,7 @@ import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
+import java.util.List;
 import java.util.Timer;
 
 
@@ -526,6 +527,27 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(MainWindow::new);
+    }
+
+    private static void printSolutions(List<Map<Item, Integer>> solutions) {
+        if (solutions.isEmpty()) {
+            System.out.println("No solutions found!");
+        } else {
+            System.out.println("Found " + solutions.size() + " solution(s):");
+            for (int i = 0; i < solutions.size(); i++) {
+                System.out.print("  Solution " + (i + 1) + ": Break down ");
+                Map<Item, Integer> solution = solutions.get(i);
+                boolean first = true;
+                int totalItems = 0;
+                for (Map.Entry<Item, Integer> entry : solution.entrySet()) {
+                    if (!first) System.out.print(", ");
+                    System.out.print(entry.getValue() + "x " + entry.getKey().getName());
+                    totalItems += entry.getValue();
+                    first = false;
+                }
+                System.out.println(" (Total: " + totalItems + " items)");
+            }
+        }
     }
     public void onChange(Item item) {
         checkAndDestroy(item);
