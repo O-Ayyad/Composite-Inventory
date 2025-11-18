@@ -1,5 +1,4 @@
 package core;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,18 +18,15 @@ public class ItemManager {
     //-------------------------------<Methods>-------------------------------
 
     //Clones an item's composed of then removes the item and adds composed of - removed items
-    public BreakdownResult breakDownItem(Item item, ArrayList<ItemPacket> removedItems){
+    public BreakdownResult breakDownItem(Item item, Map<Item,Integer> removedItems){
         if (item == null || removedItems == null || inventory == null) throw new IllegalStateException("Item, removedItems, or inventory is null is breakDownItem()");
 
-        Map<Item, Integer> originalMap = new HashMap<>();
-        for (ItemPacket ip : item.getComposedOf()) {
-            originalMap.put(ip.getItem(), ip.getQuantity());
-        }
+        Map<Item, Integer> originalMap = new HashMap<>(item.getComposedOf());
 
         //Make sure everything is right before breaking down
-        for (ItemPacket userIP : removedItems) {
-            Item component = userIP.getItem();
-            int userQty = userIP.getQuantity();
+        for (Map.Entry<Item, Integer> entry : removedItems.entrySet()) {
+            Item component = entry.getKey();
+            int userQty = entry.getValue();
 
             if (!originalMap.containsKey(component)) {
                 throw new IllegalArgumentException("Cannot remove " + component.getName() +
@@ -47,26 +43,30 @@ public class ItemManager {
 
         //Map of what was used
         Map<Item, Integer> usedMap = new HashMap<>();
-        for (ItemPacket ip : removedItems) {
-            if (ip.getQuantity() > 0) {
-                usedMap.put(ip.getItem(), ip.getQuantity());
+        for (Map.Entry<Item, Integer> e : removedItems.entrySet()) {
+            if (e.getValue() > 0) {
+                usedMap.put(e.getKey(), e.getValue());
             }
         }
 
 
         //Find remainders
-        ArrayList<ItemPacket> remainderComponents = new ArrayList<>();
-        for(Item toIP : originalMap.keySet()){
-            Integer amountUsed = usedMap.get(toIP);
-            amountUsed = (amountUsed == null) ? 0:amountUsed;
+        Map<Item, Integer> remainderComponents = new HashMap<>();
+        for (Map.Entry<Item, Integer> orig : originalMap.entrySet()) {
 
-            ItemPacket IP = new ItemPacket(toIP, originalMap.get(toIP) - amountUsed);
-            remainderComponents.add(IP);
+            Item component = orig.getKey();
+            int originalQty = orig.getValue();
+
+            int usedQty = usedMap.getOrDefault(component, 0);
+            int remainderQty = originalQty - usedQty;
+
+            remainderComponents.put(component, remainderQty);
         }
 
         int beforeQuantity = inventory.getQuantity(item);
 
-        inventory.processItemPacketList(removedItems);
+        inventory.processItemMap(removedItems);
+
         inventory.decreaseItemAmountSilent(item, 1);
 
         int afterQuantity = inventory.getQuantity(item);
@@ -87,9 +87,7 @@ public class ItemManager {
         if (composedItem == null || inventory == null) throw new IllegalStateException("composeItem called on null item or inventory is null");
 
         //Verify all components exist in inventory
-        for (ItemPacket required : composedItem.getComposedOf()) {
-
-            Item component = required.getItem();
+        for (Item component : composedItem.getComposedOf().keySet()) {
 
             if (!inventory.hasItem(component)) { //Does item part exist in inventory
                 throw new RuntimeException("Unable to find item " + component.getName() + " to compose item: "+ composedItem.getName());
@@ -107,8 +105,8 @@ public class ItemManager {
             }
         }
 
-        for (ItemPacket ip : composedItem.getComposedOf()){ //We have all the items so consume
-            inventory.decreaseItemAmountSilent(ip.getItem(),ip.getQuantity());
+        for (Map.Entry<Item,Integer> ip : composedItem.getComposedOf().entrySet()){ //We have all the items so consume
+            inventory.decreaseItemAmountSilent(ip.getKey(),ip.getValue());
         }
 
         //Add the newly composed item
@@ -118,7 +116,7 @@ public class ItemManager {
     //-------------------------------</Methods>-------------------------------
 
     //Helper to log in inventory and not here
-        public record BreakdownResult(Map<Item, Integer> original, Map<Item, Integer> used, ArrayList<ItemPacket> remained,
+        public record BreakdownResult(Map<Item, Integer> original, Map<Item, Integer> used, Map<Item,Integer> remained,
                                       int before, int after) {
     }
 }

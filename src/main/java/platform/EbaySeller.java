@@ -2,6 +2,8 @@ package platform;
 
 import storage.APIFileManager;
 
+import java.time.LocalDateTime;
+
 public class EbaySeller extends BaseSeller<EbaySeller.EbayOrder> {
     public EbaySeller(PlatformManager manager, APIFileManager api) {
         super(PlatformType.AMAZON, manager,api);
@@ -17,8 +19,8 @@ public class EbaySeller extends BaseSeller<EbaySeller.EbayOrder> {
         return;
     }
     public static class EbayOrder extends BaseSeller.Order {
-        public EbayOrder(String orderId, BaseSeller.OrderStatus status) {
-            super(orderId,status);
+        public EbayOrder(String orderId, BaseSeller.OrderStatus status, LocalDateTime dateTime) {
+            super(orderId, status, dateTime);
         }
     }
 }

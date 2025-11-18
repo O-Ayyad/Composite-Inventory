@@ -1,10 +1,13 @@
 package core;
 import constants.Constants;
+import platform.BaseSeller;
+import platform.PlatformType;
 
 import javax.swing.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Inventory {
 
@@ -25,6 +28,57 @@ public class Inventory {
 
     //Used to close edit and view window when an item is deleted. Main window is the only one here
     private final ArrayList<ItemListener> listeners = new ArrayList<>();
+
+    //Reserved items are for orders only. Users will be notified that amount that is reserved
+    // Map structure: Item -> Map of (OrderID -> Quantity Reserved)
+    private final Map<Item, Map<String, Integer>> orderReservations = new ConcurrentHashMap<>();
+
+    //Returns amountInStock - amountReserved
+    public int getAvailableQuantity(Item item) {
+        int actual = getQuantity(item);
+        int reserved = getTotalReservedForItem(item);
+        return actual - reserved;
+    }
+
+    public int getTotalReservedForItem(Item item) {
+        Map<String, Integer> reservationsForItem = orderReservations.get(item);
+        if (reservationsForItem == null) {
+            return 0;
+        }
+        return reservationsForItem.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    public void reserveItemsForOrder(PlatformType platform, BaseSeller.Order order) {
+        String orderId = order.getOrderId();
+        for (BaseSeller.OrderPacket op : order.getItems()) {
+            Item item = getItemByPlatformAndSKU(platform, op.sku());
+            if (item != null) {
+                orderReservations
+                        .computeIfAbsent(item, k -> new ConcurrentHashMap<>())
+                        .put(orderId, op.quantity());
+            }
+        }
+    }
+
+    public void releaseReservationForOrder(PlatformType platform, BaseSeller.Order order) {
+        String orderId = order.getOrderId();
+        for (BaseSeller.OrderPacket op : order.getItems()) {
+            Item item = getItemByPlatformAndSKU(platform, op.sku());
+            if (item != null) {
+                Map<String, Integer> reservationsForItem = orderReservations.get(item);
+                if (reservationsForItem != null) {
+                    reservationsForItem.remove(orderId);
+                    if (reservationsForItem.isEmpty()) {
+                        orderReservations.remove(item);
+
+                        orderReservations.computeIfPresent(item, (k, v) ->
+                                v.isEmpty() ? null : v
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     public Inventory(){}
     public void setLogManager(LogManager lm){
@@ -53,7 +107,7 @@ public class Inventory {
             String name,
             String serialNum,
             Integer lowStockTrigger,
-            ArrayList<ItemPacket> composedOf,
+            Map<Item,Integer> composedOf,
             String iconPath,
             ItemManager itemManager,
             String amazonSellerSKU,
@@ -208,7 +262,11 @@ public class Inventory {
         MainInventory.put(item, quantity);
     }
 
-
+    public void processItemMap(Map<Item, Integer> items) {
+        for(Map.Entry<Item,Integer> e : items.entrySet()){
+            processItemPacket(new ItemPacket(e.getKey(),e.getValue()));
+        }
+    }
     public void processItemPacket(ItemPacket ip){
         int IPQuant = ip.getQuantity();
         if(IPQuant == 0) return;
@@ -259,11 +317,13 @@ public class Inventory {
         if (item == null || !item.isComposite() || amount <= 0) {
             throw new RuntimeException("ComposeItem called on non-existent item, or non-composite Item, or amount is invalid");
         }
-        for(ItemPacket ip: item.getComposedOf()){ //Check if we have enough of each part
-            long required = (long)ip.getQuantity() * (long)amount;
-            if(required > getQuantity(ip.getItem())){
-                throw new RuntimeException("Not enough "+ ip.getItem().getName() + " to compose item: "+ item.getName() +". \n" +
-                        "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+getQuantity(ip.getItem()) +")");
+        for(Map.Entry<Item,Integer> ip: item.getComposedOf().entrySet()){ //Check if we have enough of each part
+            Item i = ip.getKey();
+            int ipAmount = ip.getValue();
+            long required = (long)ipAmount * (long)amount;
+            if(required > getQuantity(i)){
+                throw new RuntimeException("Not enough "+ i.getName() + " to compose item: "+ item.getName() +". \n" +
+                        "(Amount needed = "+ipAmount*amount + " || Amount available = "+getQuantity(i) +")");
             }
         }
         for(int i = 0; i <amount; i++){
@@ -278,9 +338,9 @@ public class Inventory {
                     .append(item.getName())
                     .append("' (Serial: ").append(item.getSerialNum()).append(") using: \n");
 
-            for (ItemPacket ip : item.getComposedOf()) {
-                sb.append("[").append(ip.getItem().getName())
-                        .append(" x").append(ip.getQuantity()).append("], \n");
+            for (Map.Entry<Item,Integer> ip : item.getComposedOf().entrySet()) {
+                sb.append("[").append(ip.getKey().getName())
+                        .append(" x").append(ip.getValue()).append("], \n");
             }
 
            logManager.createLog(
@@ -291,7 +351,7 @@ public class Inventory {
             );
         }
     }
-    public void breakDownItem(Item item, ArrayList<ItemPacket> used) {
+    public void breakDownItem(Item item, Map<Item,Integer> used) {
         if (item == null || !item.isComposite()) {
             throw new RuntimeException("breakDownItem() called on non-existent item, or non-composite Item, or amount is invalid");
         }
@@ -311,10 +371,10 @@ public class Inventory {
         }
 
         //Reclaimed
-        for (ItemPacket IP : result.remained()) {
-            reclaimedSB.append(IP.getItem().getName())
+        for (Map.Entry<Item,Integer> IP : result.remained().entrySet()) {
+            reclaimedSB.append(IP.getKey().getName())
                     .append(" x")
-                    .append(IP.getQuantity())
+                    .append(IP.getValue())
                     .append(", ");
         }
 
@@ -358,8 +418,8 @@ public class Inventory {
     public boolean containsItemRecursively(Item item, String searchSerial) {
         if (item.getComposedOf() == null) return false;
 
-        for (ItemPacket packet : item.getComposedOf()) {
-            Item component = packet.getItem();
+        for (Map.Entry<Item,Integer> packet : item.getComposedOf().entrySet()) {
+            Item component = packet.getKey();
             if (component.getSerialNum().equals(searchSerial)) {
                 return true;
             }
@@ -378,10 +438,7 @@ public class Inventory {
 
             other.getComposesInto().remove(item);
 
-            other.getComposedOf().removeIf(packet -> {
-                Item component = packet.getItem();
-                return component != null && component.equals(item);
-            });
+            other.getComposedOf().remove(item);
         }
 
         item.getComposesInto().clear();
@@ -550,6 +607,181 @@ public class Inventory {
             }
         }
     }
+    public Item getItemByPlatformAndSKU(PlatformType p, String SKU){
+        return switch (p){
+            case EBAY -> getItemByEbaySKU(SKU);
+            case AMAZON -> getItemByAmazonSKU(SKU);
+            case WALMART -> getItemByWalmartSKU(SKU);
+        };
+    }
+    //If an item is not in stock, but we need it, find composite items that could be broken down to compose fulfill neededItem
+    //Only for orders
+    //Each list are composite items that can be broken down to fulfill the item.
+    public List<List<ItemPacket>> possibleBreakDownsForItem(Item neededItem, int amountNeeded){
+        if(isItemInStockRecursive(neededItem, amountNeeded)){
+            return new ArrayList<>();
+        }
+        List<List<Item>> solutions = new ArrayList<>();
+
+        // Step 1, what are we missing?
+        Map<Item, Integer> missing = getMissingItemsRecursive(neededItem, amountNeeded);
+
+        //Step 2, find all items that could be solutions
+        // Map missing item to list of composite items that can produce it
+        // Drill -> (Drill kit, double drill kit, etc.)
+        Map<Item, List<Item>> sources = new HashMap<>();
+        Map<Item, Boolean> itemSolved = new HashMap<>();
+
+        for (Map.Entry<Item, Integer> mp : missing.entrySet()) {
+            Item missingItem = mp.getKey();
+            sources.put(missingItem, missingItem.getComposesInto());
+            itemSolved.put(missingItem, Boolean.FALSE);
+        }
+
+        //Step 3, solve
+        for(Map.Entry<Item, List<Item>> itemToSolve : sources.entrySet()){
+            Item item = itemToSolve.getKey();
+            List<Item> composesInto = itemToSolve.getValue();
+            int amountNeededToSolve = missing.get(item);
+
+            //Now we have the amount we need and the items that break down into to get enough of the item if it is available
+            for(Item itemToBreak : composesInto){
+                //Find the needed item
+            }
+        }
+        return null;
+    }
+
+    //Returns the composition of items in from elementry parts
+    //A is composed of 2C and 1 B and each B is composed of 3 D and each. So getBaseCompositon of A is 2 C, 3 D.
+    // So getBaseCompositon of (1A) = 2C, 3D
+    public Map<Item, Integer> getBaseComposition(Item item, int amount) {
+        Map<Item, Integer> aggregated = new HashMap<>();
+
+        // Base case not composite
+        if (!item.isComposite()) {
+            aggregated.merge(item, amount, Integer::sum);
+            return aggregated;
+        }
+
+        // Item is composite -> expand components
+        for (Map.Entry<Item, Integer> component : item.getComposedOf().entrySet()) {
+            Item subItem = component.getKey();
+            int scaledQuantity = component.getValue() * amount;
+
+            Map<Item, Integer> subMap = getBaseComposition(subItem, scaledQuantity);
+            mergeInto(aggregated,subMap);
+        }
+
+        return aggregated;
+    }
+
+    public void mergeInto(Map<Item, Integer> target, Map<Item, Integer> source) {
+        for (Map.Entry<Item, Integer> entry : source.entrySet()) {
+            target.merge(entry.getKey(), entry.getValue(), Integer::sum);
+        }
+    }
+    // Recursively checks stock availability for an item and its subcomponents.
+    public Map<Item, Integer> getAmountToReduceStockRecursive(Item item, int qty) {
+        if (!isItemInStockRecursive(item, qty)) {
+            System.out.println("ERROR : getAmountToReduceStockRecursive called when item is not in stock recursively");
+            return new HashMap<>(); //Return empty, but this should not happen
+        }
+
+        Map<Item, Integer> itemsToShip = new HashMap<>();
+
+        int availableDirectly = getAvailableQuantity(item);
+        int amountToReduceDirectly = Math.min(qty, availableDirectly);
+
+        // Try to reduce stock directly if available
+        if (amountToReduceDirectly > 0) {
+            decreaseItemAmount(item, amountToReduceDirectly);
+            itemsToShip.put(item, amountToReduceDirectly);
+        }
+
+        int remainingQtyToBuild = qty - amountToReduceDirectly;
+
+        if (remainingQtyToBuild > 0) {
+            // Try to fulfill using subcomponents
+            for (Map.Entry<Item, Integer> entry : item.getComposedOf().entrySet()) {
+                Item componentItem = entry.getKey();
+                int neededQty = remainingQtyToBuild * entry.getValue();
+
+                Map<Item, Integer> partsUsed =
+                        getAmountToReduceStockRecursive(componentItem, neededQty);
+
+                mergeInto(itemsToShip, partsUsed);
+            }
+        }
+
+        return itemsToShip;
+    }
+    //If an item is not in stock, what are we missing?
+    //Only returns non-composite items that can be used to build
+    public Map<Item, Integer> getMissingItemsRecursive(Item item, int qty) {
+        if (isItemInStockRecursive(item, qty)) {
+            System.out.println("ERROR : getMissingItemsRecursive called when item is in stock recursively");
+            return new HashMap<>();
+        }
+
+        Map<Item, Integer> missing = new HashMap<>();
+        int available = getAvailableQuantity(item);
+
+        //We simply don't have enough, base case
+        if (!item.isComposite()) {
+            int shortage = qty - available;
+            if (shortage > 0) {
+                missing.put(item, shortage);
+            }
+            return missing;
+        }
+
+        int shortage = qty - available;
+        if (shortage <= 0) {
+            return missing;
+        }
+
+        for (Map.Entry<Item, Integer> entry : item.getComposedOf().entrySet()) {
+            Item component = entry.getKey();
+            int componentQtyNeeded = shortage * entry.getValue();
+
+            if (isItemInStockRecursive(component, componentQtyNeeded)) { //If in stock, great!
+                continue;
+            }
+
+            Map<Item, Integer> componentMissing =
+                    getMissingItemsRecursive(component, componentQtyNeeded); //Get what's missing
+
+            mergeInto(missing, componentMissing);
+        }
+
+        return missing;
+    }
+    // Recursively checks stock availability for an item and its subcomponents.
+    public boolean isItemInStockRecursive(Item item, int amountNeeded) {
+        int inStock = getAvailableQuantity(item);
+
+        if (!item.isComposite()) {
+            return inStock >= amountNeeded;
+        }
+
+        if (inStock >= amountNeeded) {
+            return true;
+        }
+
+        int shortage = amountNeeded - inStock;
+
+        for (Map.Entry<Item, Integer> entry : item.getComposedOf().entrySet()) {
+            Item component = entry.getKey();
+            int componentNeeded = entry.getValue() * shortage;
+
+            if (!isItemInStockRecursive(component, componentNeeded)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
     public void addChangeListener(ItemListener listener) {
         listeners.add(listener);
     }
@@ -559,6 +791,8 @@ public class Inventory {
             listener.onChange(i);
         }
     }
+
+
     @FunctionalInterface
     public interface ItemListener {
         void onChange(Item item);

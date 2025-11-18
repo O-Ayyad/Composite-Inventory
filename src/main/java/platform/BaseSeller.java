@@ -48,11 +48,7 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
         };
     }
 
-    public enum OrderStatus {
-        CONFIRMED, //Order confirmed, ready to ship. Log but don't touch inventory
-        SHIPPED, //Order has been shipped, reduce stock
-        CANCELLED, //Order cancelled, delete the order
-    }
+
     // Every seller fetches its own orders with apis
     public abstract void fetchOrders();
 
@@ -70,17 +66,23 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
         return obj.get(name).getAsString();
 
     }
-
+    public enum OrderStatus {
+        CONFIRMED, //Order confirmed, ready to ship. Log but don't touch inventory
+        SHIPPED, //Order has been shipped, reduce stock
+        CANCELLED, //Order cancelled, delete the order
+    }
     //Each platform has orders but each order is different
-    public static abstract class Order {
+    public static class Order {
         private final String orderId;
         private OrderStatus status;
         private final List<OrderPacket> items;
+        private LocalDateTime lastUpdated;
 
-        public Order(String orderId, OrderStatus status) {
+        public Order(String orderId, OrderStatus status,LocalDateTime lastUpdated) {
             this.orderId = orderId;
             this.status = status;
             this.items = new ArrayList<>();
+            this.lastUpdated = lastUpdated;
         }
         public String getOrderId() {return orderId;}
 
@@ -89,6 +91,14 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
         public void setStatus(OrderStatus status) {this.status = status;}
 
         public List<OrderPacket> getItems() {return Collections.unmodifiableList(items);}
+
+        public LocalDateTime getLastUpdated(){
+            return lastUpdated;
+        }
+        public void setLastUpdated(LocalDateTime time){
+            lastUpdated = time;
+        }
+
 
         protected void addItem(String sku, int quantity) {items.add(new OrderPacket(sku, quantity));}
         protected void addItem(OrderPacket op) {items.add(op);}

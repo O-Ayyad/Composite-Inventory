@@ -266,7 +266,7 @@ public class AddWindow extends SubWindow {
             String skuEbayText = skuEbay.getText().trim();
             String skuWalmartText = skuWalmart.getText().trim();
             boolean isComposite = compositeCheck.isSelected();
-            ArrayList<ItemPacket> composedOfPackets = new ArrayList<>();
+            Map<Item, Integer> composedOfPackets = new HashMap<>();
             String lowStockText = lowStockField.getText().trim();
             Integer lowStockTrigger = null;
 
@@ -277,7 +277,7 @@ public class AddWindow extends SubWindow {
                     int qty = entry.getValue();
                     Item component = inventory.SerialToItemMap.get(serialKey);
                     if (component != null) {
-                        composedOfPackets.add(new ItemPacket(component, qty));
+                        composedOfPackets.put(component, qty);
                     }
                 }
 
@@ -859,11 +859,13 @@ public class AddWindow extends SubWindow {
                 JOptionPane.showMessageDialog(this, "Item is not composite", "Not composite", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            for(ItemPacket ip: target.getComposedOf()){ //Check if we have enough of each part
-                long required = (long) ip.getQuantity() * (long) amount;
-                if(required > inventory.getQuantity(ip.getItem())){
-                    JOptionPane.showMessageDialog(this,"Not enough "+ ip.getItem().getName() + " to compose item: "+ target.getName() +". \n " +
-                            "(Amount needed = "+ip.getQuantity()*amount + " || Amount available = "+inventory.getQuantity(ip.getItem()) + ")",
+            for(Map.Entry<Item,Integer> ip: target.getComposedOf().entrySet()){ //Check if we have enough of each part
+                Item item = ip.getKey();
+                int qty = ip.getValue();
+                long required = (long) qty * (long) amount;
+                if(required > inventory.getQuantity(item)){
+                    JOptionPane.showMessageDialog(this,"Not enough "+ item.getName() + " to compose item: "+ target.getName() +". \n " +
+                            "(Amount needed = "+qty*amount + " || Amount available = "+inventory.getQuantity(item) + ")",
                             "Not enough items to compose item",
                             JOptionPane.ERROR_MESSAGE);
                     return;

@@ -292,7 +292,7 @@ public class APIFileManager {
             return -1;
         }
     }
-    public String[] getCredentialsArray(PlatformType platform) {
+    public String[] getCredentialsFromFile(PlatformType platform) {
         String token = loadToken(platform);
         if (token == null) return null;
         String[] parts = token.split("\\|::\\|");

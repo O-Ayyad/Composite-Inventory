@@ -2,7 +2,6 @@ package platform;
 
 import com.google.gson.*;
 import storage.APIFileManager;
-import storage.LogFileManager;
 
 import javax.swing.*;
 import java.io.BufferedReader;
@@ -41,44 +40,97 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
             fetchingOrders = false;
             return;
         }
+        //Store all fetched orders
+        ArrayList<IdAndStatus> orderIds = new ArrayList<>();
         try {
-            //For errors
             JFrame parent = platformManager.getMainWindow();
 
-            //There is no access token or expired, get new token
-            if (Duration.between(lastAccessTokenGetTime, LocalDateTime.now()).toMinutes() > tokenExpirationTimeMinutes
-                    || accessToken == null) {
+            //token age
+            long tokenAgeMinutes = Duration.between(lastAccessTokenGetTime, LocalDateTime.now()).toMinutes();
+            boolean tokenIsOld = tokenAgeMinutes > tokenExpirationTimeMinutes;
 
-                String [] t = apiFileManager.getCredentialsArray(PlatformType.AMAZON);
-                accessToken = apiFileManager.getAmazonAccessToken(t[0], t[1], t[2]);
+            //Get token if old or missing
+            if (tokenIsOld || accessToken == null) {
+                log("Token expired or missing. Fetching new token...");
+                String[] credentials = apiFileManager.getCredentialsFromFile(PlatformType.AMAZON);
+                accessToken = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
                 lastAccessTokenGetTime = LocalDateTime.now();
             }
 
-            //Try current access token
+            //Validate current access token
             int response = apiFileManager.vaildateAmazonAccessToken(accessToken);
 
-            if (response> 299 || response < 200){
-                //Delete current access token
-                if(response != 429 && response <500){
-                accessToken = null;
-                }
-                SwingUtilities.invokeLater(() -> {
-                    String message = String.format(
-                            "Failed to authenticate with Amazon.\n\n" +
-                                    "HTTP Response Code: %d\n\n" +
-                                    "Possible causes:\n" +
-                                    "  1. Invalid client credentials\n" +
-                                    "  2. Expired or revoked refresh token\n" +
-                                    "  3. Network connectivity issues\n" +
-                                    "  4. Amazon API service outage\n\n" +
-                                    "Please check your credentials in the link window and try again.",
-                            response
-                    );
+            if (response < 200 || response > 299) {
+                log("Token validation failed with code: " + response);
 
-                    JOptionPane.showMessageDialog(parent, message, "Amazon Authentication Error", JOptionPane.ERROR_MESSAGE);
-                });
-                fetchingOrders = false;
-                return;
+                //Only retry if token was old, or we haven't tried refreshing yet
+                if (tokenIsOld || tokenAgeMinutes > 5) {  // If token is more than 5 minutes old
+                    log("Attempting token refresh...");
+
+                    String[] credentials = apiFileManager.getCredentialsFromFile(PlatformType.AMAZON);
+                    accessToken = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
+                    lastAccessTokenGetTime = LocalDateTime.now();
+
+                    //Validate the new token
+                    int response2 = apiFileManager.vaildateAmazonAccessToken(accessToken);
+
+                    if (response2 >= 200 && response2 <= 299) {
+                        log("Token refresh successful!");
+                        //Break here, continue to fetch orders
+                    } else {
+                        //Second attempt failed
+                        log("Token refresh failed with code: " + response2);
+                        if (response2 != 429 && response2 < 500) {
+                            accessToken = null;
+                        }
+
+                        //Show error dialog
+                        SwingUtilities.invokeLater(() -> {
+                            String message = String.format(
+                                    "Failed to authenticate with Amazon after retry.\n\n" +
+                                            "HTTP Response Code: %d\n\n" +
+                                            "Possible causes:\n" +
+                                            "  1. Invalid client credentials\n" +
+                                            "  2. Expired or revoked refresh token\n" +
+                                            "  3. Network connectivity issues\n" +
+                                            "  4. Amazon API service outage\n\n" +
+                                            "Please check your credentials in the link window and try again.",
+                                    response2
+                            );
+                            JOptionPane.showMessageDialog(parent, message,
+                                    "Amazon Authentication Error", JOptionPane.ERROR_MESSAGE);
+                        });
+
+                        fetchingOrders = false;
+                        return;
+                    }
+                } else {
+                    //Token is fresh but still failed
+                    log("Fresh token failed validation. Not retrying.");
+                    if (response != 429 && response < 500) {
+                        accessToken = null;
+                    }
+                    final int finalResponseCode = response;
+                    SwingUtilities.invokeLater(() -> {
+                        String message = String.format(
+                                "Failed to authenticate with Amazon.\n\n" +
+                                        "HTTP Response Code: %d\n\n" +
+                                        "Possible causes:\n" +
+                                        "  1. Invalid client credentials\n" +
+                                        "  2. Expired or revoked refresh token\n" +
+                                        "  3. Network connectivity issues\n" +
+                                        "  4. Amazon API service outage\n\n" +
+                                        "Please check your credentials in the link window and try again.",
+                                finalResponseCode
+                        );
+                        JOptionPane.showMessageDialog(parent, message,
+                                "Amazon Authentication Error", JOptionPane.ERROR_MESSAGE);
+                    });
+                    fetchingOrders = false;
+                    return;
+                }
+            } else {
+                log("Valid access token (code: " + response + ")");
             }
             //We have a valid non-expired token, so get recent orders and parse
             log(" Valid access token");
@@ -157,8 +209,9 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 return;
             }
             JsonArray orders = payload.getAsJsonArray("Orders");
+
             log("Fetched " + orders.size() + " orders");
-            ArrayList<IdAndStatus> orderIds = new ArrayList<>();
+
             for(JsonElement orderElement : ordersList) {
                 JsonObject orderObj = orderElement.getAsJsonObject();
 
@@ -193,10 +246,18 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
 
                 orderIds.add(new IdAndStatus(orderId, orderStatus, updateDate));
             }
-            fetchOrderItemsAsync(orderIds);
+            try {
+                fetchOrderItemsAsync(orderIds);
+            } catch (Exception ex) {
+                log("Failed to start async order fetch: " + ex.getMessage());
+                fetchingOrders = false;
+            }
         }catch (Exception e){
-            fetchingOrders = false;
             log(e.getMessage());
+        } finally {
+            if (lastFetchedOrders == null || orderIds.isEmpty()) {
+                fetchingOrders = false;
+            }
         }
     }
     void fetchOrderItemsAsync(List<IdAndStatus> orderIds){
@@ -252,10 +313,10 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 try {
                     lastFetchedOrders = get();
                     log("Fetched " + lastFetchedOrders.size() + " orders.");
-                    fetchingOrders = false;
                 } catch (Exception e) {
-                    fetchingOrders = false;
                     log("Failed to fetch order items: " + e.getMessage());
+                }finally{
+                    fetchingOrders = false;
                 }
             }
         };
@@ -282,13 +343,8 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
     }
 
     public static class AmazonOrder extends BaseSeller.Order {
-        public LocalDateTime lastUpdated;
         public AmazonOrder(String orderId, BaseSeller.OrderStatus status, LocalDateTime lastUpdated) {
-            super(orderId,status);
-            this.lastUpdated = lastUpdated;
-        }
-        LocalDateTime getLastUpdated(){
-            return lastUpdated;
+            super(orderId,status,lastUpdated);
         }
     }
     public record IdAndStatus(String orderId,OrderStatus status, LocalDateTime updateDate){}
