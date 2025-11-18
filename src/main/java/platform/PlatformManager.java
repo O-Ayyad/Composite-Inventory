@@ -240,6 +240,7 @@ public class PlatformManager {
             boolean registered = true;
             boolean anyViaComposition = false;
             StringBuilder orderSummary = new StringBuilder();
+            StringBuilder breakdownSuggestions = new StringBuilder();
             orderSummary.append("Order ").append(newOrder.getOrderId()).append(" received: \n");
 
             for (BaseSeller.OrderPacket op : soldItems) {
@@ -266,6 +267,27 @@ public class PlatformManager {
                             allInStock = false;
                             orderSummary.append(quantitySold).append("x ").append(itemSold.getName())
                                     .append(" (OUT OF STOCK), \n");
+                            List<Map<Item, Integer>> breakdowns = inventory.possibleBreakDownsForItem(itemSold, quantityNeeded);
+
+                            if (!breakdowns.isEmpty()) {
+                                if (breakdownSuggestions.isEmpty()) {
+                                    breakdownSuggestions.append("\n\nThis can be solved by breaking down the following items:\n");
+                                }
+                                breakdownSuggestions.append("For ").append(quantityNeeded).append("x ").append(itemSold.getName()).append(":\n");
+                                for (int i = 0; i < Math.min(breakdowns.size(), 3); i++) {
+                                    breakdownSuggestions.append("  Option ").append(i + 1).append(": ");
+                                    Map<Item, Integer> breakdown = breakdowns.get(i);
+                                    boolean first = true;
+                                    for (Map.Entry<Item, Integer> entry : breakdown.entrySet()) {
+                                        if (!first) breakdownSuggestions.append(", ");
+                                        breakdownSuggestions.append(entry.getValue()).append("x ").append(entry.getKey().getName());
+                                        first = false;
+                                    }
+                                    breakdownSuggestions.append("\n");
+                                }
+                            }else{
+                                breakdownSuggestions.append("\n\nNo viable combination of breakdowns could be found to fulfill this order)");
+                            }
                         }
                     }
                 }
@@ -325,6 +347,7 @@ public class PlatformManager {
             boolean allFulfilled = true;
             boolean anyViaComposition = false;
             StringBuilder orderSummary = new StringBuilder();
+            StringBuilder breakdownSuggestions = new StringBuilder();
             orderSummary.append("Order ").append(newOrder.getOrderId()).append(" shipped:\n");
 
 
@@ -356,6 +379,28 @@ public class PlatformManager {
                         allFulfilled = false;
                         orderSummary.append(quantitySold).append("x ").append(itemSold.getName())
                                 .append(" (OUT OF STOCK)\n");
+                        List<Map<Item, Integer>> breakdowns = inventory.possibleBreakDownsForItem(itemSold, quantityNeeded);
+
+
+                        if (!breakdowns.isEmpty()) {
+                            if (breakdownSuggestions.length() == 0) {
+                                breakdownSuggestions.append("\n\nThis can be solved by breaking down the following items:\n");
+                            }
+                            breakdownSuggestions.append("For ").append(quantityNeeded).append("x ").append(itemSold.getName()).append(":\n");
+                            for (int i = 0; i < Math.min(breakdowns.size(), 3); i++) {
+                                breakdownSuggestions.append("  Option ").append(i + 1).append(": ");
+                                Map<Item, Integer> breakdown = breakdowns.get(i);
+                                boolean first = true;
+                                for (Map.Entry<Item, Integer> entry : breakdown.entrySet()) {
+                                    if (!first) breakdownSuggestions.append(", ");
+                                    breakdownSuggestions.append(entry.getValue()).append("x ").append(entry.getKey().getName());
+                                    first = false;
+                                }
+                                breakdownSuggestions.append("\n");
+                            }
+                        }else{
+                            breakdownSuggestions.append("\n\nNo viable combination of breakdowns could be found to fulfill this order)");
+                        }
                     }
                 }
             }

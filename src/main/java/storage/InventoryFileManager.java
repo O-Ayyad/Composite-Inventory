@@ -83,29 +83,6 @@ public class InventoryFileManager {
                     }
                     inventory.createItemFromSave(item,quantity);
                 }
-
-                //Convert the serials saved in file into actual item references
-                for (Item item : items.values()) {
-
-                    Map<String, Integer> serialized = item.getComposedOfSerialized();
-                    Map<Item, Integer> rebuilt = new HashMap<>();
-
-                    for (Map.Entry<String, Integer> entry : serialized.entrySet()) {
-                        String serial = entry.getKey();
-                        int qty = entry.getValue();
-
-                        Item component = inventory.SerialToItemMap.get(serial);
-
-                        if (component == null) {
-                            System.out.println("ERROR: Unknown component serial " + serial +
-                                    " while loading the composition for " + item.getName());
-                            continue;
-                        }
-
-                        rebuilt.put(component, qty);
-                    }
-                    item.replaceComposedOf(rebuilt);
-                }
                 System.out.println("SUCCESS: Loaded " + items.size() + " items from storage");
             }
 
@@ -114,6 +91,7 @@ public class InventoryFileManager {
         } catch (Exception e) {
             System.out.println("ERROR: Could not load inventory");
             System.out.println(e.getMessage());
+            e.printStackTrace();
         }
         loading = false;
         System.out.println("Loaded inventory from: " + itemsPath.toString());
