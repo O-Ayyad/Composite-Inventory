@@ -165,12 +165,14 @@ public class EditWindow extends SubWindow {
 
         //Populate tags
         if (selectedItem.getComposedOf() != null || selectedItem.getComposedOf().isEmpty()) {
-            for (ItemPacket packet : selectedItem.getComposedOf()) {
-                String serial = packet.getItem().getSerialNum();
-                componentsBySerial.put(serial, packet.getQuantity());
+            for (Map.Entry<Item,Integer> packet : selectedItem.getComposedOf().entrySet()) {
+                Item i = packet.getKey();
+                int amount = packet.getValue();
+                String serial = i.getSerialNum();
+                componentsBySerial.put(serial, amount);
                 selectedTags.add(serial);
-                System.out.println("Called populate : " + packet.getItem().getName());
-                JPanel tag = makeTagPanel(packet.getItem(), serial, packet.getQuantity(), tagPanel, selectedTags);
+                System.out.println("Called populate : " + i.getName());
+                JPanel tag = makeTagPanel(i, serial, amount, tagPanel, selectedTags);
                 tagPanel.add(tag);
             }
         }
@@ -223,15 +225,15 @@ public class EditWindow extends SubWindow {
                 String newEbaySKU = skuEbay.getText().trim();
                 String newWalmartSKU = skuWalmart.getText().trim();
 
-                ArrayList<ItemPacket> newComposition = new ArrayList<>();
+                Map<Item,Integer> newComposition = new HashMap<>();
                 for(Map.Entry<String,Integer> entry : componentsBySerial.entrySet()){
 
                     String serial = entry.getKey();
                     Integer amount = entry.getValue();
 
-                    ItemPacket IP = new ItemPacket(inventory.getItemBySerial(serial),amount);
+                    Item i = inventory.getItemBySerial(serial);
 
-                    newComposition.add(IP);
+                    newComposition.put(i,amount);
                 }
 
 
@@ -261,11 +263,13 @@ public class EditWindow extends SubWindow {
                 if ((selectedItem.isComposite() != compositeCheck.isSelected()) || (selectedItem.getComposedOf() != newComposition)) { //Composition changes
                     StringBuilder beforeText = new StringBuilder();
                     if (selectedItem.getComposedOf() != null && !selectedItem.getComposedOf().isEmpty()) {
-                        for (ItemPacket packet : selectedItem.getComposedOf()) {
+                        for (Map.Entry<Item,Integer> packet : selectedItem.getComposedOf().entrySet()) {
+                            Item i = packet.getKey();
+                            int amount = packet.getValue();
                             beforeText.append("<br>&nbsp;&nbsp;• ")
-                                    .append(packet.getItem().getName())
+                                    .append(i.getName())
                                     .append(" x")
-                                    .append(packet.getQuantity());
+                                    .append(amount);
                         }
                     } else {
                         beforeText.append("<br>&nbsp;&nbsp;• None");
@@ -273,9 +277,9 @@ public class EditWindow extends SubWindow {
 
                     StringBuilder afterText = new StringBuilder();
                     if (!newComposition.isEmpty() && compositeCheck.isSelected()) {
-                        for (ItemPacket IP : newComposition) {
-                            Item component = IP.getItem();
-                            int qty = IP.getQuantity();
+                        for (Map.Entry<Item,Integer> IP : newComposition.entrySet()) {
+                            Item component = IP.getKey();
+                            int qty = IP.getValue();
                             if (component != null) {
                                 afterText.append("<br>&nbsp;&nbsp;• ").append(component.getName()).append(" x").append(qty);
                             }

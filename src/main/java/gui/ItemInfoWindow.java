@@ -8,6 +8,7 @@ import javax.swing.border.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class ItemInfoWindow extends SubWindow {
 
@@ -157,14 +158,14 @@ public class ItemInfoWindow extends SubWindow {
         JPanel inner = new JPanel(new GridLayout(0, 1, 5, 5));
         inner.setOpaque(false);
 
-        for (ItemPacket p : item.getComposedOf()) {
-            Item comp = p.getItem();
+        for (Map.Entry<Item,Integer> ip : item.getComposedOf().entrySet()) {
+            Item comp = ip.getKey();
             ImageIcon icon = comp.getIcon(48);
             if (comp.getImagePath().equals(Constants.NOT_FOUND_PNG)) {
                 icon = null;
             }
 
-            JLabel label = new JLabel("• " + comp.getName() + " ×" + p.getQuantity(), icon, JLabel.LEFT);
+            JLabel label = new JLabel("• " + comp.getName() + " ×" + ip.getValue(), icon, JLabel.LEFT);
             label.setIconTextGap(10);
             inner.add(label);
         }
@@ -177,10 +178,9 @@ public class ItemInfoWindow extends SubWindow {
         inner.setOpaque(false);
 
         for (Item parent : inventory.MainInventory.keySet()) {
-            if (parent.getComposedOf() != null || !parent.getComposedOf().isEmpty()) {
-                for (ItemPacket packet : parent.getComposedOf()) {
-                    if (packet.getItem().equals(item)) {
-                        inner.add(new JLabel("• " + parent.getName()));
+            if (parent.getComposedOf() != null && !parent.getComposedOf().isEmpty()) {
+                for (Item component : parent.getComposedOf().keySet()) {
+                    if (component.equals(item)) {
 
                         ImageIcon icon = parent.getIcon(48);
                         if (parent.getImagePath().equals(Constants.NOT_FOUND_PNG)) {
@@ -189,7 +189,9 @@ public class ItemInfoWindow extends SubWindow {
 
                         JLabel label = new JLabel("• " + parent.getName(), icon, JLabel.LEFT);
                         label.setIconTextGap(10);
-                        break;
+                        inner.add(label);
+
+                        break; // matching parent found
                     }
                 }
             }

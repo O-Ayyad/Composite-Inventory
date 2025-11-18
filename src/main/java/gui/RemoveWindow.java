@@ -449,7 +449,7 @@ public class RemoveWindow extends SubWindow {
         disclaimer.setEditable(false);
 
 
-        Map<ItemPacket, JTextField> componentFields = new HashMap<>();
+        Map<Map.Entry<Item,Integer>, JTextField> componentFields = new HashMap<>();
 
         //Add components to reclaim
         itemDropdown.addActionListener(e -> {
@@ -471,7 +471,7 @@ public class RemoveWindow extends SubWindow {
             }
 
             int row = 0;
-            for (ItemPacket ip : target.getComposedOf()) {
+            for (Map.Entry<Item,Integer> ip : target.getComposedOf().entrySet()) {
                 GridBagConstraints cgbc = new GridBagConstraints();
                 cgbc.insets = new Insets(4, 4, 4, 4);
                 cgbc.anchor = GridBagConstraints.WEST;
@@ -479,8 +479,8 @@ public class RemoveWindow extends SubWindow {
                 //component
                 cgbc.gridx = 0;
                 cgbc.gridy = row;
-                JLabel lbl = new JLabel(ip.getItem().getName() +
-                        " (Max: " + ip.getQuantity() + ")");
+                JLabel lbl = new JLabel(ip.getKey().getName() +
+                        " (Max: " + ip.getValue() + ")");
                 componentPanel.add(lbl, cgbc);
 
                 //Input fields
@@ -523,9 +523,10 @@ public class RemoveWindow extends SubWindow {
             }
 
             //Validate reclaim amount
-            ArrayList<ItemPacket> usedComponents = new ArrayList<>();
-            for (Map.Entry<ItemPacket, JTextField> entry : componentFields.entrySet()) {
-                ItemPacket ip = entry.getKey();
+            Map<Item,Integer> usedComponents = new HashMap<>();
+            for (Map.Entry<Map.Entry<Item,Integer>, JTextField> entry : componentFields.entrySet()) {
+                Item i = entry.getKey().getKey();
+                int amount = entry.getKey().getValue();
                 JTextField tf = entry.getValue();
 
                 try {
@@ -538,21 +539,21 @@ public class RemoveWindow extends SubWindow {
                         return;
                     }
 
-                    if (val > ip.getQuantity()) {
+                    if (val > amount) {
                         JOptionPane.showMessageDialog(this,
                                 "You cannot use " + val +
-                                        " of " + ip.getItem().getName() +
-                                        ". Maximum is " + ip.getQuantity(),
+                                        " of " + i.getName() +
+                                        ". Maximum is " + amount,
                                 "Too Many", JOptionPane.ERROR_MESSAGE);
                         return;
                     }
                     if (val > 0) {
-                        usedComponents.add(new ItemPacket(ip.getItem(), val));
+                        usedComponents.put(i, val);
                     }
 
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(this,
-                            "Invalid number for " + ip.getItem().getName(),
+                            "Invalid number for " + i.getName(),
                             "Invalid Input", JOptionPane.ERROR_MESSAGE);
                     return;
                 }

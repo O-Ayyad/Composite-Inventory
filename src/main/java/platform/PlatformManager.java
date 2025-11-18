@@ -3,8 +3,10 @@ package platform;
 import core.*;
 import gui.MainWindow;
 import javax.swing.*;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 public class PlatformManager {
@@ -19,64 +21,24 @@ public class PlatformManager {
     //Order ID lookup
     //A map where the key is the platform and the value is the hashmap of ID to order lookup
     private final Map<PlatformType, Map<String, BaseSeller.Order>> currentPlatformOrders =
-            new EnumMap<>(PlatformType.class);
+            new ConcurrentHashMap<>();
 
     // Map structure: Item -> Map of (OrderID -> Quantity Reserved)
-    private final Map<Item, Map<String, Integer>> orderReservations = new HashMap<>();
+    private final Map<Item, Map<String, Integer>> orderReservations =
+            new ConcurrentHashMap<>();
 
     public PlatformManager(Inventory inv, LogManager lm) {
         inventory = inv;
         logManager = lm;
 
         for (PlatformType type : PlatformType.values()) {
-            currentPlatformOrders.put(type, new HashMap<>());
+            currentPlatformOrders.put(type, new ConcurrentHashMap<>());
         }
 
         pullOrdersFromFile();
 
     }
-    //Returns amountInStock - amountReserved
-    public int getAvailableQuantity(Item item) {
-        int actual = inventory.getQuantity(item);
-        int reserved = getTotalReservedForItem(item);
-        return actual - reserved;
-    }
 
-    private int getTotalReservedForItem(Item item) {
-        Map<String, Integer> reservationsForItem = orderReservations.get(item);
-        if (reservationsForItem == null) {
-            return 0;
-        }
-        return reservationsForItem.values().stream().mapToInt(Integer::intValue).sum();
-    }
-
-    private void reserveItemsForOrder(PlatformType platform, BaseSeller.Order order) {
-        String orderId = order.getOrderId();
-        for (BaseSeller.OrderPacket op : order.getItems()) {
-            Item item = getItemByPlatformAndSKU(platform, op.sku());
-            if (item != null) {
-                orderReservations
-                        .computeIfAbsent(item, k -> new HashMap<>())
-                        .put(orderId, op.quantity());
-            }
-        }
-    }
-
-    private void releaseReservationForOrder(PlatformType platform, BaseSeller.Order order) {
-        String orderId = order.getOrderId();
-        for (BaseSeller.OrderPacket op : order.getItems()) {
-            Item item = getItemByPlatformAndSKU(platform, op.sku());
-            if (item != null) {
-                Map<String, Integer> reservationsForItem = orderReservations.get(item);
-                if (reservationsForItem != null) {
-                    reservationsForItem.remove(orderId);
-                    if (reservationsForItem.isEmpty()) {
-                        orderReservations.remove(item);
-                    }
-                }
-            }
-        }
-    }
 
     public void fetchAllRecentOrders() {
 
@@ -111,12 +73,15 @@ public class PlatformManager {
                                     ? new ArrayList<>(oldList)
                                     : new ArrayList<>());
 
+                    final PlatformType currentPlatform = platform;
+                    final BaseSeller currentSeller = seller;
+
                     CompletableFuture.runAsync(() -> {
 
-                        System.out.println("[Async] Fetching orders for " + platform);
+                        System.out.println("[Async] Fetching orders for " + currentPlatform);
 
                         try {
-                            seller.fetchOrders();
+                            currentSeller.fetchOrders();
                         } catch (Exception e) {
                             fetchExceptions.add(e);
                             logManager.createLog(Log.LogType.SystemError, 0,
@@ -223,8 +188,37 @@ public class PlatformManager {
                 handleOrderStatusChange(platform, oldOrder, newOrder);
             }
         }
-    }
 
+        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(7);
+
+        for (Map.Entry<String, BaseSeller.Order> entry : oldOrders.entrySet()) {
+            String id = entry.getKey();
+            BaseSeller.Order oldOrder = entry.getValue();
+
+            if (!newOrders.containsKey(id)) {
+
+                if (oldOrder.getLastUpdated().isAfter(cutoffTime)) {
+                    handleUnexpectedOrderRemoval(platform, oldOrder);
+                } else {
+                    System.out.println("Order " + id + " aged out of 7-day window");
+                }
+            }
+        }
+    }
+    private void handleUnexpectedOrderRemoval(PlatformType platform, BaseSeller.Order order) {
+        System.out.println("UNEXPECTED: Order " + order.getOrderId() +
+                " disappeared from " + platform.getDisplayName() +
+                " within tracking window");
+        inventory.releaseReservationForOrder(platform, order);
+
+        logManager.createLog(Log.LogType.SystemError, 0,
+                "Order " + order.getOrderId() + " on " + platform.getDisplayName() +
+                        " disappeared from API results.\n" +
+                        "Last status: " + order.getStatus() + "\n" +
+                        "Last updated: " + order.getLastUpdated() + "\n" +
+                        "Likely cancelled by customer. Reservations released.\n" +
+                        "PLEASE VERIFY MANUALLY.", "");
+    }
     private void handleNewOrder(PlatformType platform, BaseSeller.Order newOrder) {
         if(newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED){
             return;
@@ -251,20 +245,20 @@ public class PlatformManager {
             for (BaseSeller.OrderPacket op : soldItems) {
                 String sku = op.sku();
                 int quantitySold = op.quantity();
-                Item itemSold = getItemByPlatformAndSKU(platform, sku);
+                Item itemSold = inventory.getItemByPlatformAndSKU(platform, sku);
 
                 if (itemSold == null) {
                     registered = false;
                     orderSummary.append(quantitySold).append("x ").append(sku).append(" (NOT REGISTERED), \n");
                 } else {
-                    if (getAvailableQuantity(itemSold) >= quantitySold) {
+                    if (inventory.getAvailableQuantity(itemSold) >= quantitySold) {
                         orderSummary.append(quantitySold).append("x ").append(itemSold.getName()).append(", \n");
                     } else {
                         //Try via composition
-                        int currentQuantity = getAvailableQuantity(itemSold);
+                        int currentQuantity = inventory.getAvailableQuantity(itemSold);
                         int quantityNeeded = quantitySold - currentQuantity;
 
-                        if (isItemInStockRecursive(itemSold, quantityNeeded)) {
+                        if (inventory.isItemInStockRecursive(itemSold, quantityNeeded)) {
                             anyViaComposition = true;
                             orderSummary.append(quantitySold).append("x ").append(itemSold.getName())
                                     .append(" (via composition), \n");
@@ -282,7 +276,7 @@ public class PlatformManager {
             }
 
             if (allInStock || anyViaComposition) {
-                reserveItemsForOrder(platform, newOrder);
+                inventory.reserveItemsForOrder(platform, newOrder);
             }
 
             Log.LogType type;
@@ -303,7 +297,7 @@ public class PlatformManager {
     }
     private void handleOrderStatusChange(PlatformType platform, BaseSeller.Order oldOrder, BaseSeller.Order newOrder) {
         if (newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED) {
-            releaseReservationForOrder(platform, newOrder);
+            inventory.releaseReservationForOrder(platform, newOrder);
             logManager.createLog(Log.LogType.OrderCancelled,
                     newOrder.getItems().size(),
                     "Order " + newOrder.getOrderId() + " cancelled. Reservations released.", "");
@@ -317,7 +311,7 @@ public class PlatformManager {
             boolean allItemsRegistered = true;
             for (BaseSeller.OrderPacket op : soldItems) {
                 String sku = op.sku();
-                Item itemSold = getItemByPlatformAndSKU(platform, sku);
+                Item itemSold = inventory.getItemByPlatformAndSKU(platform, sku);
                 if (itemSold == null) {
                     allItemsRegistered = false;
                 }
@@ -337,23 +331,23 @@ public class PlatformManager {
             for (BaseSeller.OrderPacket op : soldItems) {
                 String sku = op.sku();
                 int quantitySold = op.quantity();
-                Item itemSold = getItemByPlatformAndSKU(platform, sku);
+                Item itemSold = inventory.getItemByPlatformAndSKU(platform, sku);
 
-                if (inventory.getQuantity(itemSold) >= quantitySold) {
+                if (inventory.getAvailableQuantity(itemSold) >= quantitySold) {
                     //Sell directly
                     inventory.decreaseItemAmount(itemSold, quantitySold);
                     orderSummary.append(quantitySold).append("x ").append(itemSold.getName()).append("\n");
                 } else {
                     //Try to ship via composition
-                    int currentQuantity = inventory.getQuantity(itemSold);
+                    int currentQuantity = inventory.getAvailableQuantity(itemSold);
                     int quantityNeeded = quantitySold - currentQuantity;
 
-                    if (isItemInStockRecursive(itemSold, quantityNeeded)) {
-                        List<ItemPacket> partsNeeded = getAmountToReduceStockRecursive(itemSold, quantityNeeded);
+                    if (inventory.isItemInStockRecursive(itemSold, quantityNeeded)) {
+                        Map<Item,Integer> partsNeeded = inventory.getAmountToReduceStockRecursive(itemSold, quantityNeeded);
                         StringBuilder packetResult = new StringBuilder();
                         packetResult.append(itemSold.getName()).append("x ").append(currentQuantity).append("\n---------------------------------\n");
-                        for (ItemPacket p : partsNeeded) {
-                            packetResult.append(p.getQuantity()).append("x ").append(p.getItem().getName()).append("\n");
+                        for (Map.Entry<Item,Integer> p : partsNeeded.entrySet()) {
+                            packetResult.append(p.getValue()).append("x ").append(p.getKey().getName()).append("\n");
                         }
                         anyViaComposition = true;
                         orderSummary.append(quantitySold).append("x ").append(itemSold.getName())
@@ -366,7 +360,7 @@ public class PlatformManager {
                 }
             }
 
-            releaseReservationForOrder(platform, newOrder);
+            inventory.releaseReservationForOrder(platform, newOrder);
 
             Log.LogType type;
             if (!allFulfilled) {
@@ -418,57 +412,6 @@ public class PlatformManager {
     public void pullOrdersFromFile(){
 
     }
-    // Recursively checks stock availability for an item and its subcomponents.
-    private List<ItemPacket> getAmountToReduceStockRecursive(Item item, int qty) {
-        if(!isItemInStockRecursive(item, qty)){
-            System.out.println("ERROR : getAmountToReduceStockRecursive called when item is not in stock recursively");
-            return new ArrayList<>(); //Return empty, but this should not happen
-        }
-        List<ItemPacket> itemsToShip = new ArrayList<>();
-
-        int availableDirectly = inventory.getQuantity(item);
-        int amountToReduceDirectly = Math.min(qty, availableDirectly);
-
-        // Try to reduce stock directly if available
-        if (amountToReduceDirectly > 0) {
-            inventory.decreaseItemAmount(item, amountToReduceDirectly);
-            itemsToShip.add(new ItemPacket(item, amountToReduceDirectly));
-        }
-        int remainingQtyToBuild = qty - amountToReduceDirectly;
-        if (remainingQtyToBuild > 0) {
-            // Try to fulfill using subcomponents
-            for (ItemPacket p : item.getComposedOf()) {
-                Item componentItem = p.getItem();
-                int neededQty = remainingQtyToBuild * p.getQuantity();
-                List<ItemPacket> partsUsed = getAmountToReduceStockRecursive(componentItem, neededQty);
-
-                itemsToShip.addAll(partsUsed);
-            }
-        }
-
-        return itemsToShip;
-    }
-    // Recursively checks stock availability for an item and its subcomponents.
-    private boolean isItemInStockRecursive(Item item, int amountNeeded) {
-        int inStock = inventory.getQuantity(item);
-        if (!item.isComposite()) {
-            return inStock >= amountNeeded;
-        }
-        if (inStock >= amountNeeded) {
-            return true;
-        }
-        int shortage = amountNeeded - inStock;
-
-        for (ItemPacket p : item.getComposedOf()) {
-            Item component = p.getItem();
-            int componentNeeded = p.getQuantity() * shortage;
-
-            if (!isItemInStockRecursive(component, componentNeeded)) {
-                return false;
-            }
-        }
-        return true;
-    }
     public BaseSeller.Order getOrder(PlatformType platform, String id){
         Map<String, BaseSeller.Order> orders = currentPlatformOrders.get(platform);
         return orders == null ? null : orders.get(id);
@@ -501,13 +444,6 @@ public class PlatformManager {
             case WALMART -> walmartSeller;
         };
     }
-    public Item getItemByPlatformAndSKU(PlatformType p, String SKU){
-        return switch (p){
-                case EBAY -> inventory.getItemByEbaySKU(SKU);
-                case AMAZON -> inventory.getItemByAmazonSKU(SKU);
-                case WALMART -> inventory.getItemByWalmartSKU(SKU);
-        };
-    }
     public void setMainWindow(MainWindow minWin){
         mainWindow = minWin;
     }
@@ -524,7 +460,6 @@ public class PlatformManager {
     }
     //Only for new orders that have already been shipped
     private BaseSeller.Order createOrderWithStatus(BaseSeller.Order order, BaseSeller.OrderStatus status) {
-        order.setStatus(status);
-        return order;
+        return new BaseSeller.Order(order.getOrderId(), status, order.getLastUpdated());
     }
 }

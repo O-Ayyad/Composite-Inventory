@@ -1,6 +1,8 @@
 package core;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.ImageIcon;
 
 import com.google.gson.Gson;
@@ -24,7 +26,8 @@ public class Item {
     private String ebaySellerSKU;
 
     @Expose
-    private ArrayList<ItemPacket> composedOf = new ArrayList<>();
+    private Map<String, Integer> composedOfSerialized = new HashMap<>(); //Used for saving and loading
+    private Map<Item,Integer> composedOf = new HashMap<>();
     private ArrayList<Item> composesInto = new ArrayList<>();
 
     @Expose
@@ -47,8 +50,10 @@ public class Item {
     public String getEbaySellerSKU() {return ebaySellerSKU;}
     public void setEbaySellerSKU(String ebaySellerSKU) {this.ebaySellerSKU = ebaySellerSKU;}
 
-    public ArrayList<ItemPacket> getComposedOf() { return composedOf; }
+    public Map<Item, Integer> getComposedOf() { return composedOf; }
     public ArrayList<Item> getComposesInto() { return composesInto; }
+
+    public Map<String,Integer> getComposedOfSerialized() { return composedOfSerialized; }
 
     public String getImagePath() {
         return iconPath;
@@ -81,39 +86,39 @@ public class Item {
 
     //-------------------------------<Edit Composition>-------------------------------
     //Can add sole item or multiple at once
-    public void replaceComposedOf(ArrayList<ItemPacket> newList) {
+    public void replaceComposedOf(Map<Item,Integer> newList) {
         if (newList == null) return;
 
-        ArrayList<ItemPacket> valid = new ArrayList<>();
-        for (ItemPacket ip : newList) {
-            if (ip == null) {
-                System.out.println("Skipping null ItemPacket.");
-                continue;
-            }
-            Item item = ip.getItem();
-            if (item == null) {
+        Map<Item,Integer> valid = new HashMap<>();
+        for (Map.Entry<Item,Integer> entry : newList.entrySet()) {
+
+            if (entry == null) continue;
+
+            Item component = entry.getKey();
+            Integer qty = entry.getValue();
+
+            if (component  == null) {
                 System.out.println("ItemPacket has a null item. Skipping.");
                 continue;
             }
-            if (item.equals(this)) {
-                System.out.println("Cannot compose with itself: " + item.getName() + " (Serial: " + item.getSerialNum() + ")");
+            if (component .equals(this)) {
+                System.out.println("Cannot compose with itself: " + component .getName() + " (Serial: " + component .getSerialNum() + ")");
                 continue;
             }
-            valid.add(ip);
+            valid.merge(component ,qty, Integer::sum);
         }
 
-        composedOf.clear();
-        composedOf.addAll(valid);
+        composedOf = valid;
+        for(Map.Entry<Item, Integer> e : composedOf.entrySet()){
+            composedOfSerialized.put(
+                    e.getKey().serialNum,
+                    e.getValue());
+        }
         syncCompositionDependencies();
     }
     public boolean isComposite(){ return !composedOf.isEmpty();}
     public Boolean isComposedOf(Item item){
-        for(ItemPacket ip : composedOf){
-            if(ip.getItem().equals(item)) {
-                return true;
-            }
-        }
-        return false;
+        return composedOf.get(item) != null;
     }
     //-------------------------------</Edit Composition>-------------------------------
 
@@ -123,7 +128,7 @@ public class Item {
 
     //Duplicate item check is checked before creation
     public Item(String name, String serialNum, Integer lowStockTrigger,
-                ArrayList<ItemPacket> composedOf,
+                Map<Item, Integer> composedOf,
                 String iconPath,
                 ItemManager itemManager,
                 String amazonSellerSKU,
@@ -132,7 +137,14 @@ public class Item {
         this.name = name;
         this.serialNum = serialNum;
         this.lowStockTrigger = lowStockTrigger;
-        this.composedOf = composedOf != null ? composedOf : new ArrayList<>();
+        this.composedOf = composedOf != null ? composedOf : new HashMap<>();
+
+        composedOfSerialized = new HashMap<>();
+        for(Map.Entry<Item, Integer> e : composedOf.entrySet()){
+            composedOfSerialized.put(
+                    e.getKey().serialNum,
+                    e.getValue());
+        }
         this.iconPath = iconPath;
 
         this.amazonSellerSKU = amazonSellerSKU != null ? amazonSellerSKU : "";
@@ -145,22 +157,12 @@ public class Item {
         syncCompositionDependencies();
     }
     //If item A holds item B composedOf then item B should hold Item A in composed into
-    //This should be called on the item that is composed of other items. The kit/combo
+    //This should be called on the composite item. The kit/combo
     public void syncCompositionDependencies(){
         if (itemManager == null) throw new IllegalStateException("Item Manager is null for item: "+ getName());
         //Make sure all components of this item know what they compose into
-        for (ItemPacket IP : this.composedOf) {
-            Item component = IP.getItem();
-            if (component == null || component.equals(this)) continue;
-            boolean exists = false;
-            for (Item ci : component.getComposesInto()) {
-                if (ci.equals(this)) {
-                    exists = true;
-                    break;
-                }
-            }
-
-            if (!exists) {
+        for (Item component : composedOf.keySet()) {
+            if (component != null && component != this) {
                 component.getComposesInto().add(this);
             }
         }

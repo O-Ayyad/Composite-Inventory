@@ -2,6 +2,8 @@ package platform;
 
 import storage.APIFileManager;
 
+import java.time.LocalDateTime;
+
 public class WalmartSeller extends BaseSeller<WalmartSeller.WalmartOrder> {
     public WalmartSeller(PlatformManager manager, APIFileManager api) {
         super(PlatformType.AMAZON, manager,api);
@@ -17,8 +19,8 @@ public class WalmartSeller extends BaseSeller<WalmartSeller.WalmartOrder> {
         return;
     }
     public static class WalmartOrder extends BaseSeller.Order {
-        public WalmartOrder(String orderId, BaseSeller.OrderStatus status) {
-            super(orderId,status);
+        public WalmartOrder(String orderId, BaseSeller.OrderStatus status, LocalDateTime dateTime) {
+            super(orderId,status,dateTime);
         }
     }
 }
