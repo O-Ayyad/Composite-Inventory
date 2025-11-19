@@ -6,7 +6,6 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -87,7 +86,7 @@ public class RemoveWindow extends SubWindow {
         panel.add(itemDropdown, gbc);
 
         if (selected != null) {
-            String serial = selected.getSerialNum();
+            String serial = selected.getSerial();
             for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
                 if (entry.getValue().equals(serial)) {
                     itemDropdown.setSelectedItem(entry.getKey());
@@ -298,7 +297,7 @@ public class RemoveWindow extends SubWindow {
         panel.add(itemDropdown, gbc);
 
         if (selected != null) {
-            String serial = selected.getSerialNum();
+            String serial = selected.getSerial();
             for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
                 if (entry.getValue().equals(serial)) {
                     itemDropdown.setSelectedItem(entry.getKey());
@@ -414,7 +413,7 @@ public class RemoveWindow extends SubWindow {
         //Remove null and non-composite items
         if (selected != null) {
             if(selected.isComposite()){
-                String serial = selected.getSerialNum();
+                String serial = selected.getSerial();
                 for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
                     if (entry.getValue().equals(serial)) {
                         itemDropdown.setSelectedItem(entry.getKey());

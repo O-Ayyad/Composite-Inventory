@@ -2,16 +2,20 @@ package platform;
 
 import core.*;
 import gui.MainWindow;
+import storage.APIFileManager;
+import storage.OrderFileManager;
+
 import javax.swing.*;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 
-public class PlatformManager {
+public class    PlatformManager {
     private final Inventory inventory;
     private final LogManager logManager;
+    private OrderFileManager orderFileManager;
+
     public AmazonSeller amazonSeller;
     public EbaySeller ebaySeller;
     public WalmartSeller walmartSeller;
@@ -20,37 +24,36 @@ public class PlatformManager {
 
     //Order ID lookup
     //A map where the key is the platform and the value is the hashmap of ID to order lookup
-    private final Map<PlatformType, Map<String, BaseSeller.Order>> currentPlatformOrders =
+    public Map<PlatformType, Map<String, BaseSeller.Order>> allOrders =
             new ConcurrentHashMap<>();
 
-    // Map structure: Item -> Map of (OrderID -> Quantity Reserved)
-    private final Map<Item, Map<String, Integer>> orderReservations =
-            new ConcurrentHashMap<>();
-
-    public PlatformManager(Inventory inv, LogManager lm) {
+    final Object fetchLock = new Object();
+    public PlatformManager(Inventory inv, LogManager lm, APIFileManager apiFileManager) {
         inventory = inv;
         logManager = lm;
-
         for (PlatformType type : PlatformType.values()) {
-            currentPlatformOrders.put(type, new ConcurrentHashMap<>());
+            allOrders.put(type, new ConcurrentHashMap<>());
         }
 
-        pullOrdersFromFile();
+        // Initialize sellers BEFORE loading orders
+        amazonSeller = new AmazonSeller(this, apiFileManager);
+        ebaySeller = new EbaySeller(this, apiFileManager);
+        walmartSeller = new WalmartSeller(this, apiFileManager);
 
     }
 
-
+    public void  setOrderFileManager(OrderFileManager ofm){
+        this.orderFileManager = ofm;
+        pullOrdersFromFile();
+    }
     public void fetchAllRecentOrders() {
 
-        System.out.println("Starting fetchAllRecentOrders()…");
+        System.out.println("Starting fetchAllRecentOrders()...");
 
         SwingWorker<Map<PlatformType, Map<String, BaseSeller.Order>>, Void> sellerWatcher
                 = new SwingWorker<>() {
 
-            Map<PlatformType, Map<String, BaseSeller.Order>> allOrders =
-                    new EnumMap<>(PlatformType.class);
-
-            private final EnumMap<PlatformType, List<? extends BaseSeller.Order>> oldOrders =
+            final Map<PlatformType, Map<String, BaseSeller.Order>> allOrders =
                     new EnumMap<>(PlatformType.class);
 
             private final EnumMap<PlatformType, List<? extends BaseSeller.Order>> newOrders =
@@ -64,17 +67,12 @@ public class PlatformManager {
 
                 for (PlatformType platform : PlatformType.values()) {
 
-                    BaseSeller seller = getSeller(platform);
-                    List<BaseSeller.Order> oldList = seller.lastFetchedOrders;
+                    BaseSeller<?> seller = getSeller(platform);
                     System.out.println("[Worker] Preparing fetch for " + platform);
 
-                    oldOrders.put(platform,
-                            oldList != null
-                                    ? new ArrayList<>(oldList)
-                                    : new ArrayList<>());
 
                     final PlatformType currentPlatform = platform;
-                    final BaseSeller currentSeller = seller;
+                    final BaseSeller<?> currentSeller = seller;
 
                     CompletableFuture.runAsync(() -> {
 
@@ -93,15 +91,15 @@ public class PlatformManager {
                 }
                 //wait until all sellers are done
                 Thread.sleep(1000);
-                int counter = 0;
-                while (anySellersFetching()) {
-                    //So we dont flood the console
-                    counter++;
-                    if(counter > 30){
+
+                synchronized(fetchLock) {
+                    while (anySellersFetching()) {
+                        fetchLock.wait(5000); // Wake up periodically to log
                         System.out.println("[Worker] Still fetching...");
-                        counter = 0;
                     }
-                    Thread.sleep(200);
+                }
+                synchronized(fetchLock) {
+                    fetchLock.notifyAll(); // Wake up waiting thread
                 }
                 System.out.println("[Worker] All async fetches completed!");
 
@@ -110,10 +108,10 @@ public class PlatformManager {
                             fetchExceptions.size() + " platform(s) failed to fetch orders",
                             "");
                 }
-                System.out.println("[Worker] Processing fetched results…");
+                System.out.println("[Worker] Processing fetched results...");
                 for (PlatformType platform : PlatformType.values()) {
-                    BaseSeller seller = getSeller(platform);
-                    List<BaseSeller.Order> list = seller.lastFetchedOrders;
+                    BaseSeller<?> seller = getSeller(platform);
+                    List<? extends BaseSeller.Order> list = seller.lastFetchedOrders;
 
                     newOrders.put(platform,
                             list != null
@@ -151,35 +149,30 @@ public class PlatformManager {
                 }
             }
         };
-        System.out.println("Executing SwingWorker…");
+        System.out.println("Executing SwingWorker...");
         sellerWatcher.execute();
     }
 
-    private void handleFetchedOrders(Map<PlatformType, Map<String, BaseSeller.Order>> allOrders) {
+    private void handleFetchedOrders(Map<PlatformType, Map<String, BaseSeller.Order>> allFetchedOrders) {
         System.out.println("Handling all fetched orders.");
         for (PlatformType platform : PlatformType.values()) {
             System.out.println("Handling "+platform.getDisplayName() + " orders");
-            Map<String, BaseSeller.Order> newPlatformOrders = allOrders.get(platform);
-            Map<String, BaseSeller.Order> currentOrders = currentPlatformOrders.get(platform);
+            Map<String, BaseSeller.Order> newPlatformOrders = allFetchedOrders.get(platform);
 
-            if (!currentOrders.equals(newPlatformOrders)) {
-                processOrderMaps(platform, newPlatformOrders, currentOrders);
-                currentOrders.clear();
-                currentOrders.putAll(newPlatformOrders);
-            }
+            processOrderMaps(platform, newPlatformOrders, allOrders.get(platform));
         }
     }
 
     private void processOrderMaps(
             PlatformType platform,
-            Map<String, BaseSeller.Order> newOrders,
-            Map<String, BaseSeller.Order> oldOrders) {
+            final Map<String, BaseSeller.Order> newOrders,
+            final Map<String, BaseSeller.Order> allOrders) {
 
         for (Map.Entry<String, BaseSeller.Order> entry : newOrders.entrySet()) {
 
             String id = entry.getKey();
             BaseSeller.Order newOrder = entry.getValue();
-            BaseSeller.Order oldOrder = oldOrders.get(id);
+            BaseSeller.Order oldOrder = allOrders.get(id);
             System.out.println("Processing " +platform.getDisplayName() + " order ID : " + id);
 
             if (oldOrder == null) { //Neworder has a brand-new order
@@ -188,36 +181,7 @@ public class PlatformManager {
                 handleOrderStatusChange(platform, oldOrder, newOrder);
             }
         }
-
-        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(7);
-
-        for (Map.Entry<String, BaseSeller.Order> entry : oldOrders.entrySet()) {
-            String id = entry.getKey();
-            BaseSeller.Order oldOrder = entry.getValue();
-
-            if (!newOrders.containsKey(id)) {
-
-                if (oldOrder.getLastUpdated().isAfter(cutoffTime)) {
-                    handleUnexpectedOrderRemoval(platform, oldOrder);
-                } else {
-                    System.out.println("Order " + id + " aged out of 7-day window");
-                }
-            }
-        }
-    }
-    private void handleUnexpectedOrderRemoval(PlatformType platform, BaseSeller.Order order) {
-        System.out.println("UNEXPECTED: Order " + order.getOrderId() +
-                " disappeared from " + platform.getDisplayName() +
-                " within tracking window");
-        inventory.releaseReservationForOrder(platform, order);
-
-        logManager.createLog(Log.LogType.SystemError, 0,
-                "Order " + order.getOrderId() + " on " + platform.getDisplayName() +
-                        " disappeared from API results.\n" +
-                        "Last status: " + order.getStatus() + "\n" +
-                        "Last updated: " + order.getLastUpdated() + "\n" +
-                        "Likely cancelled by customer. Reservations released.\n" +
-                        "PLEASE VERIFY MANUALLY.", "");
+        allOrders.putAll(newOrders);
     }
     private void handleNewOrder(PlatformType platform, BaseSeller.Order newOrder) {
         if(newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED){
@@ -227,7 +191,7 @@ public class PlatformManager {
             if(getOrder(platform,newOrder.getOrderId()) != null){ //We already processed this order
                 return;
             }else{
-                BaseSeller.Order dummyOldOrder = createOrderWithStatus(newOrder, BaseSeller.OrderStatus.CONFIRMED);
+                BaseSeller.Order dummyOldOrder = createDummyConfirmedOrder(newOrder);
                 handleOrderStatusChange(platform, dummyOldOrder, newOrder);
             }
         }
@@ -270,7 +234,7 @@ public class PlatformManager {
                             List<Map<Item, Integer>> breakdowns = inventory.possibleBreakDownsForItem(itemSold, quantityNeeded);
 
                             if (!breakdowns.isEmpty()) {
-                                if (breakdownSuggestions.isEmpty()) {
+                                if (!breakdownSuggestions.isEmpty()) {
                                     breakdownSuggestions.append("\n\nThis can be solved by breaking down the following items:\n");
                                 }
                                 breakdownSuggestions.append("For ").append(quantityNeeded).append("x ").append(itemSold.getName()).append(":\n");
@@ -286,7 +250,7 @@ public class PlatformManager {
                                     breakdownSuggestions.append("\n");
                                 }
                             }else{
-                                breakdownSuggestions.append("\n\nNo viable combination of breakdowns could be found to fulfill this order)");
+                                breakdownSuggestions.append("\n\nNo viable combination of breakdowns could be found to fulfill this order");
                             }
                         }
                     }
@@ -296,7 +260,7 @@ public class PlatformManager {
             if (orderSummary.length() >= 2 && orderSummary.substring(orderSummary.length() - 2).equals(", ")) {
                 orderSummary.setLength(orderSummary.length() - 2);
             }
-
+            orderSummary.append(breakdownSuggestions);
             if (allInStock || anyViaComposition) {
                 inventory.reserveItemsForOrder(platform, newOrder);
             }
@@ -383,7 +347,7 @@ public class PlatformManager {
 
 
                         if (!breakdowns.isEmpty()) {
-                            if (breakdownSuggestions.length() == 0) {
+                            if (!breakdownSuggestions.isEmpty()) {
                                 breakdownSuggestions.append("\n\nThis can be solved by breaking down the following items:\n");
                             }
                             breakdownSuggestions.append("For ").append(quantityNeeded).append("x ").append(itemSold.getName()).append(":\n");
@@ -404,7 +368,10 @@ public class PlatformManager {
                     }
                 }
             }
-
+            if (orderSummary.length() >= 2 && orderSummary.substring(orderSummary.length() - 2).equals(", ")) {
+                orderSummary.setLength(orderSummary.length() - 2);
+            }
+            orderSummary.append(breakdownSuggestions);
             inventory.releaseReservationForOrder(platform, newOrder);
 
             Log.LogType type;
@@ -455,34 +422,16 @@ public class PlatformManager {
         }
     }
     public void pullOrdersFromFile(){
-
+        orderFileManager.loadOrders();
+    }
+    public void saveOrdersToFile(){
+        orderFileManager.saveOrders();
     }
     public BaseSeller.Order getOrder(PlatformType platform, String id){
-        Map<String, BaseSeller.Order> orders = currentPlatformOrders.get(platform);
+        Map<String, BaseSeller.Order> orders = allOrders.get(platform);
         return orders == null ? null : orders.get(id);
     }
-    public List<BaseSeller.Order> getAllOrdersFromPlatform(PlatformType platform) {
-        Map<String, BaseSeller.Order> orders = currentPlatformOrders.get(platform);
-        if (orders == null) {
-            return Collections.emptyList();
-        }
-        return new ArrayList<>(orders.values());
-    }
-    public void putOrder(PlatformType platform, BaseSeller.Order order) {
-        currentPlatformOrders.get(platform).put(order.getOrderId(), order);
-    }
-    public void putOrderList(PlatformType platform, List<BaseSeller.Order> orderList) {
-        if (orderList == null) return;
-        Map<String, BaseSeller.Order> idToOrderMap =
-                currentPlatformOrders.computeIfAbsent(platform, p -> new HashMap<>());
-        idToOrderMap.clear();
-        for (BaseSeller.Order order : orderList) {
-            if (order != null) {
-                idToOrderMap.put(order.getOrderId(), order);
-            }
-        }
-    }
-    public BaseSeller getSeller(PlatformType p){
+    public BaseSeller<?> getSeller(PlatformType p){
         return switch (p){
             case EBAY -> ebaySeller;
             case AMAZON -> amazonSeller;
@@ -495,7 +444,7 @@ public class PlatformManager {
     public MainWindow getMainWindow(){
         return mainWindow;
     }
-    private boolean anySellersFetching(){
+    public boolean anySellersFetching(){
         for(PlatformType p : PlatformType.values()){
             if(getSeller(p).fetchingOrders){
                 return true;
@@ -504,7 +453,7 @@ public class PlatformManager {
         return false;
     }
     //Only for new orders that have already been shipped
-    private BaseSeller.Order createOrderWithStatus(BaseSeller.Order order, BaseSeller.OrderStatus status) {
-        return new BaseSeller.Order(order.getOrderId(), status, order.getLastUpdated());
+    private BaseSeller.Order createDummyConfirmedOrder(BaseSeller.Order order) {
+        return new BaseSeller.Order(order.getOrderId(), BaseSeller.OrderStatus.CONFIRMED, order.getLastUpdated());
     }
 }

@@ -2,7 +2,6 @@ package gui;
 
 import core.Inventory;
 import core.Item;
-import constants.*;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -199,7 +198,7 @@ public abstract class SubWindow extends JFrame {
             if (confirm != JOptionPane.YES_OPTION) return;
         }
         //Confirmation
-        String serial = target.getSerialNum();
+        String serial = target.getSerial();
 
         String inSerial = JOptionPane.showInputDialog(
                 this,

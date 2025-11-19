@@ -167,7 +167,7 @@ public class LinkWindow extends SubWindow {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(450, 280));
 
-        JEditorPane info = new JEditorPane("text/html",
+        JEditorPane info = createInfoPane(
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Amazon Seller Account:</b><br><br>
@@ -245,7 +245,7 @@ public class LinkWindow extends SubWindow {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(420, 230));
 
-        JEditorPane info = new JEditorPane("text/html",
+        JEditorPane info = createInfoPane(
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Walmart Seller Account:</b><br><br>
@@ -322,7 +322,7 @@ public class LinkWindow extends SubWindow {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setPreferredSize(new Dimension(450, 260));
 
-        JEditorPane info = new JEditorPane("text/html",
+        JEditorPane info = createInfoPane(
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your eBay Seller Account:</b><br><br>
@@ -456,5 +456,9 @@ public class LinkWindow extends SubWindow {
                 title,
                 messageType
         );
+    }
+    private JEditorPane createInfoPane(String str) {
+        return new JEditorPane("text/html",
+                str);
     }
 }

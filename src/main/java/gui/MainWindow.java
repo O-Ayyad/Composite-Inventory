@@ -53,16 +53,18 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         ItemManager itemManager = new ItemManager(inventory);
         inventory.setItemManager(itemManager);
 
-        InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory);
-        LogFileManager logFileManager = new LogFileManager(logManager);
-
-        PlatformManager platformManager = new PlatformManager(inventory, logManager);
-        platformManager.setMainWindow(this);
         APIFileManager apiFileManager = new APIFileManager();
 
-        AmazonSeller amazon = new AmazonSeller(platformManager, apiFileManager);
-        EbaySeller ebay = new EbaySeller(platformManager, apiFileManager);
-        WalmartSeller walmart = new WalmartSeller(platformManager, apiFileManager);
+        PlatformManager platformManager = new PlatformManager(inventory, logManager, apiFileManager);
+        platformManager.setMainWindow(this);
+
+        InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory);
+        LogFileManager logFileManager = new LogFileManager(logManager);
+        OrderFileManager orderFileManager = new OrderFileManager(platformManager);
+
+        platformManager.setOrderFileManager(orderFileManager);
+
+
 
         // Autosave
         Timer autoSaveTimer = new Timer(true);
@@ -236,6 +238,8 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
             leftTools.add(Box.createRigidArea(new Dimension(0, 20)));
         }
         toolButtons[0].addActionListener(e->platformManager.fetchAllRecentOrders());
+        toolButtons[1].addActionListener(e->orderFileManager.saveOrders());
+        toolButtons[2].addActionListener(e->orderFileManager.loadOrders());
 
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // horizontal layout
         filterPanel.setOpaque(false);
@@ -255,7 +259,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         //Log display
         JPanel logsPanel = new JPanel(new BorderLayout());
         logsPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(15, 30, 100, 40),
+                BorderFactory.createEmptyBorder(15, 30, 0, 40),
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM, 2),
                         "Logs",
@@ -349,7 +353,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                     JPanel square = platformSquares.get(p);
                     JLabel text = platformLabels.get(p);
                     if (apiFileManager.hasToken(p)) {
-                        BaseSeller seller = platformManager.getSeller(p);
+                        BaseSeller<?> seller = platformManager.getSeller(p);
                         if(seller.fetchingOrders){
                             square.setBackground(UIUtils.FETCHING_ORDERS);
                             text.setText(p.getDisplayName() + " (Fetching orders...)");
