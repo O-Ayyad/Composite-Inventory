@@ -44,7 +44,7 @@ public class ItemInfoWindow extends SubWindow {
         JLabel imageLabel = new JLabel(icon);
         headerPanel.add(imageLabel, BorderLayout.WEST);
 
-        JTextArea titleArea = new JTextArea(item.getName() + "\n\nSerial: " + item.getSerialNum());
+        JTextArea titleArea = new JTextArea(item.getName() + "\n\nSerial: " + item.getSerial());
         titleArea.setEditable(false);
         titleArea.setFont(UIUtils.FONT_UI_TITLE);
         titleArea.setOpaque(false);
@@ -234,9 +234,7 @@ public class ItemInfoWindow extends SubWindow {
         logTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         logTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        LogTableModel.attachOpenListener(logTable, log -> {
-            new LogWindow(mainWindow, inventory, log, logManager);
-        });
+        LogTableModel.attachOpenListener(logTable, log -> new LogWindow(mainWindow, inventory, log, logManager));
 
         LogTableModel.styleTable(logTable);
 

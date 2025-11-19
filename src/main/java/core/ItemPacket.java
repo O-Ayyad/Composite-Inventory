@@ -6,10 +6,7 @@ import com.google.gson.annotations.JsonAdapter;
 @JsonAdapter(ItemPacket.ItemPacketAdapter.class)
 public class ItemPacket{
 
-    private transient  Item item;
-
-    @Expose
-    private String serialNum; // For JSON serialization
+    private transient final Item item;
 
     @Expose
     private int quantity;
@@ -31,14 +28,9 @@ public class ItemPacket{
                                                      com.google.gson.JsonSerializationContext context) {
 
             com.google.gson.JsonObject obj = new com.google.gson.JsonObject();
-            obj.addProperty("serialNum", src.getItem().getSerialNum());
+            obj.addProperty("serialNum", src.getItem().getSerial());
             obj.addProperty("quantity", src.getQuantity());
             return obj;
-        }
-    }
-    public void reconstructItemReference(Inventory inventory) {
-        if (serialNum != null && item == null) {
-            item = inventory.SerialToItemMap.get(serialNum);
         }
     }
 }

@@ -166,8 +166,8 @@ public class Inventory {
         if(MainInventory.get(item) != null){ //Duplicate item
             return;
         }
-        if (SerialToItemMap.containsKey(item.getSerialNum())) {
-            Item i = SerialToItemMap.get(item.getSerialNum());
+        if (SerialToItemMap.containsKey(item.getSerial())) {
+            Item i = SerialToItemMap.get(item.getSerial());
             addItemAmount(i,amount);
             return;
         }
@@ -193,7 +193,7 @@ public class Inventory {
         //Create new item
         Item newItem = new Item(
                 item.getName(),
-                item.getSerialNum(),
+                item.getSerial(),
                 item.getLowStockTrigger(),
                 newComposedOf,
                 item.getImagePath(),
@@ -214,9 +214,9 @@ public class Inventory {
         logManager.createLog(Log.LogType.AddedItem,
                 amount,
                 "Added " + amount + " units of item '" + item.getName() +
-                        "' (Serial: " + item.getSerialNum() + "). " +
+                        "' (Serial: " + item.getSerial() + "). " +
                         "New quantity: " + MainInventory.get(item),
-                item.getSerialNum()
+                item.getSerial()
         );
     }
     //Does the same without logs
@@ -242,9 +242,9 @@ public class Inventory {
         logManager.createLog(Log.LogType.ReducedStock,
                 amount,
                 "Removed " + amount + " units of item '" + item.getName() +
-                        "' (Serial: " + item.getSerialNum() + "). " +
+                        "' (Serial: " + item.getSerial() + "). " +
                         "New quantity: " + MainInventory.get(item),
-                item.getSerialNum()
+                item.getSerial()
         );
     }
 
@@ -279,11 +279,7 @@ public class Inventory {
             decreaseItemAmountSilent(ip.getItem(), IPQuant);
         }
     }
-    public void processItemPacketList(ArrayList<ItemPacket> list){
-        for(ItemPacket ip : list){
-            processItemPacket(ip);
-        }
-    }
+
     public Item getItemBySerial(String serial) {
         return SerialToItemMap.get(serial);
     }
@@ -293,12 +289,9 @@ public class Inventory {
     }
 
     //Check if an item exists in inventory
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean hasItem(Item item){
         return MainInventory.containsKey(item);
-    }
-    public boolean hasItem(String serial) {
-        Item item = getItemBySerial(serial);
-        return (item != null) && hasItem(item);
     }
     //Only for duplicate checks since this is o(n) no 0(1)
     public Item getItemByName(String name) {
@@ -339,7 +332,7 @@ public class Inventory {
                     .append(amount)
                     .append(" of ")
                     .append(item.getName())
-                    .append("' (Serial: ").append(item.getSerialNum()).append(") using: \n");
+                    .append("' (Serial: ").append(item.getSerial()).append(") using: \n");
 
             for (Map.Entry<Item,Integer> ip : item.getComposedOf().entrySet()) {
                 sb.append("[").append(ip.getKey().getName())
@@ -350,7 +343,7 @@ public class Inventory {
                     Log.LogType.ComposedItem,
                     1,
                     sb.toString(),
-                    item.getSerialNum()
+                    item.getSerial()
             );
         }
     }
@@ -402,7 +395,7 @@ public class Inventory {
 
                         "\n  Inventory: " + result.before() + " → " + result.after();
 
-        logManager.createLog(Log.LogType.BrokenDownItem,1, logMessage,item.getSerialNum());
+        logManager.createLog(Log.LogType.BrokenDownItem,1, logMessage,item.getSerial());
     }
     //Rarely used to delete an item completely from inventory
     public void removeItem(Item item){
@@ -412,8 +405,8 @@ public class Inventory {
                 Log.LogType.DeletedItem,
                 0,
                 "Deleted item '" + item.getName() +
-                        "' (Serial: " + item.getSerialNum() + ") from inventory and all associated logs.",
-                item.getSerialNum()
+                        "' (Serial: " + item.getSerial() + ") from inventory and all associated logs.",
+                item.getSerial()
         );
     }
 
@@ -423,7 +416,7 @@ public class Inventory {
 
         for (Map.Entry<Item,Integer> packet : item.getComposedOf().entrySet()) {
             Item component = packet.getKey();
-            if (component.getSerialNum().equals(searchSerial)) {
+            if (component.getSerial().equals(searchSerial)) {
                 return true;
             }
             if (containsItemRecursively(component, searchSerial)) {
@@ -479,8 +472,8 @@ public class Inventory {
 
         MainInventory.put(item, amount);
 
-        if (item.getSerialNum() != null && !item.getSerialNum().isEmpty())
-            SerialToItemMap.put(item.getSerialNum(), item);
+        if (item.getSerial() != null && !item.getSerial().isEmpty())
+            SerialToItemMap.put(item.getSerial(), item);
 
         if (item.getAmazonSellerSKU() != null && !item.getAmazonSellerSKU().isEmpty())
             AmazonSKUToItemMap.put(item.getAmazonSellerSKU(), item);
@@ -494,44 +487,14 @@ public class Inventory {
 
         MainInventory.remove(item);
 
-        if (item.getSerialNum() != null && !item.getSerialNum().isEmpty())
-            SerialToItemMap.remove(item.getSerialNum());
+        if (item.getSerial() != null && !item.getSerial().isEmpty())
+            SerialToItemMap.remove(item.getSerial());
         if (item.getAmazonSellerSKU() != null && !item.getAmazonSellerSKU().isEmpty())
             AmazonSKUToItemMap.remove(item.getAmazonSellerSKU());
         if (item.getEbaySellerSKU() != null && !item.getEbaySellerSKU().isEmpty())
             EbaySKUToItemMap.remove(item.getEbaySellerSKU());
         if (item.getWalmartSellerSKU() != null && !item.getWalmartSellerSKU().isEmpty())
             WalmartSKUToItemMap.remove(item.getWalmartSellerSKU());
-    }
-    //Amazon SKU
-    public boolean findAmazonSKU(Item item) {
-        if (item == null || item.getAmazonSellerSKU() == null) return false;
-        return AmazonSKUToItemMap.containsKey(item.getAmazonSellerSKU());
-    }
-
-    public boolean findAmazonSKU(String amazonSKU) {
-        if (amazonSKU == null || amazonSKU.isEmpty()) return false;
-        return AmazonSKUToItemMap.containsKey(amazonSKU);
-    }
-
-    // Ebay SKU
-    public boolean findEbaySKU(Item item) {
-        if (item == null || item.getEbaySellerSKU() == null) return false;
-        return EbaySKUToItemMap.containsKey(item.getEbaySellerSKU());
-    }
-    public boolean findEbaySKU(String ebaySKU) {
-        if (ebaySKU == null || ebaySKU.isEmpty()) return false;
-        return EbaySKUToItemMap.containsKey(ebaySKU);
-    }
-
-    //Walmart SKU
-    public boolean findWalmartSKU(Item item) {
-        if (item == null || item.getWalmartSellerSKU() == null) return false;
-        return WalmartSKUToItemMap.containsKey(item.getWalmartSellerSKU());
-    }
-    public boolean findWalmartSKU(String walmartSKU) {
-        if (walmartSKU == null || walmartSKU.isEmpty()) return false;
-        return WalmartSKUToItemMap.containsKey(walmartSKU);
     }
 
     //Sku lookups
@@ -578,12 +541,12 @@ public class Inventory {
                     logManager.createLog(
                             Log.LogType.ItemOutOfStock,
                             0,
-                            i.getName() + " (" + i.getSerialNum() + ") out of stock!" + lowStockReminder,
-                            i.getSerialNum()
+                            i.getName() + " (" + i.getSerial() + ") out of stock!" + lowStockReminder,
+                            i.getSerial()
                     );
                 } else {
                     outOfStockLog.setMessage(
-                            i.getName() + " (" + i.getSerialNum() + ") out of stock!" + lowStockReminder
+                            i.getName() + " (" + i.getSerial() + ") out of stock!" + lowStockReminder
                     );
                 }
             }
@@ -593,12 +556,12 @@ public class Inventory {
                     logManager.createLog(
                             Log.LogType.LowStock,
                             currentQuantity,
-                            i.getName() + " (" + i.getSerialNum() + ") is low on stock!" + lowStockReminder,
-                            i.getSerialNum()
+                            i.getName() + " (" + i.getSerial() + ") is low on stock!" + lowStockReminder,
+                            i.getSerial()
                     );
                 } else {
                     lowStockLog.setMessage(
-                            i.getName() + " (" + i.getSerialNum() + ") is still low on stock!" + lowStockReminder
+                            i.getName() + " (" + i.getSerial() + ") is still low on stock!" + lowStockReminder
                     );
                 }
                 if (outOfStockLog != null) logManager.removeLog(outOfStockLog);
@@ -742,7 +705,7 @@ public class Inventory {
     //Returns the composition of items in from elementary parts
     //A is composed of 2C and 1 B and each B is composed of 3 D and each. So getBaseComposition of A is 2 C, 3 D.
     // So getBaseComposition of (1A) = 2C, 3D
-    private transient Map<Item, Map<Item, Integer>> baseCompositionCache = new HashMap<>(); //Cache items we already broke down into parts, but only for 1
+    private transient final Map<Item, Map<Item, Integer>> baseCompositionCache = new HashMap<>(); //Cache items we already broke down into parts, but only for 1
     public Map<Item, Integer> getBaseComposition(Item item, int amount) {
         Map<Item, Integer> baseUnit = baseCompositionCache.get(item);
         if (baseUnit == null) {

@@ -53,7 +53,7 @@ public class EditWindow extends SubWindow {
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Item Serial:"), gbc);
         gbc.gridx = 1;
-        JTextField serialField = new JTextField(selectedItem.getSerialNum(), 20);
+        JTextField serialField = new JTextField(selectedItem.getSerial(), 20);
         serialField.setEditable(false);
         serialField.setBackground(UIUtils.BACKGROUND_MAIN);
         panel.add(serialField, gbc);
@@ -155,8 +155,8 @@ public class EditWindow extends SubWindow {
 
             Item component = inventory.getItemBySerial(serial);
             if (component == null) continue;
-            if (serial.equals(selectedItem.getSerialNum())) continue;
-            if (inventory.containsItemRecursively(component, selectedItem.getSerialNum())) continue;
+            if (serial.equals(selectedItem.getSerial())) continue;
+            if (inventory.containsItemRecursively(component, selectedItem.getSerial())) continue;
 
             filteredSerialMap.put(displayName, serial);
             searchField.addItem(displayName);
@@ -168,7 +168,7 @@ public class EditWindow extends SubWindow {
             for (Map.Entry<Item,Integer> packet : selectedItem.getComposedOf().entrySet()) {
                 Item i = packet.getKey();
                 int amount = packet.getValue();
-                String serial = i.getSerialNum();
+                String serial = i.getSerial();
                 componentsBySerial.put(serial, amount);
                 selectedTags.add(serial);
                 System.out.println("Called populate : " + i.getName());
@@ -239,12 +239,12 @@ public class EditWindow extends SubWindow {
 
                 String confirmation = JOptionPane.showInputDialog(
                         this,
-                        "To confirm edits, please type the item's serial number:\n\n(" + selectedItem.getSerialNum() + ")",
+                        "To confirm edits, please type the item's serial number:\n\n(" + selectedItem.getSerial() + ")",
                         "Confirm Serial",
                         JOptionPane.WARNING_MESSAGE
                 );
                 if (confirmation == null) return; // user cancelled
-                if (!confirmation.trim().equalsIgnoreCase(selectedItem.getSerialNum())) {
+                if (!confirmation.trim().equalsIgnoreCase(selectedItem.getSerial())) {
                     JOptionPane.showMessageDialog(this, "Serial number does not match. Edit canceled.", "Confirmation Failed", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
@@ -315,7 +315,7 @@ public class EditWindow extends SubWindow {
                 }
 
                 StringBuilder logMessage = new StringBuilder();
-                logMessage.append("Updated item '").append(selectedItem.getName()).append("' (Serial: ").append(selectedItem.getSerialNum()).append("). \n");
+                logMessage.append("Updated item '").append(selectedItem.getName()).append("' (Serial: ").append(selectedItem.getSerial()).append("). \n");
 
                 StringBuilder changes = new StringBuilder();
 
@@ -367,7 +367,7 @@ public class EditWindow extends SubWindow {
                 logManager.createLog(Log.LogType.UpdatedItem,
                         0,
                         logMessage.toString(),
-                        selectedItem.getSerialNum()
+                        selectedItem.getSerial()
                 );
 
                 JOptionPane.showMessageDialog(

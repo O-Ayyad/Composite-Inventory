@@ -382,7 +382,7 @@ public class ViewWindow extends SubWindow {
                     icon,
                     inventory.getQuantity(i),
                     i.getName(),
-                    i.getSerialNum(),
+                    i.getSerial(),
                     i.getLowStockTrigger(),
                     i.isComposite() ? "Yes" : "No",
                     nullToNA(i.getAmazonSellerSKU()),

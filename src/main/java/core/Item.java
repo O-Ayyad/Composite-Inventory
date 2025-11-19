@@ -12,7 +12,7 @@ public class Item {
     @Expose
     private String name;
     @Expose
-    private final String serialNum; //Unique for every item. No two items can have the same serial number
+    private final String serial; //Unique for every item. No two items can have the same serial number
     @Expose
     private Integer lowStockTrigger; // Creates a log when the quantity of the item is equal or lower than this
 
@@ -24,10 +24,10 @@ public class Item {
     private String ebaySellerSKU;
 
     @Expose
-    private Map<String, Integer> composedOfSerialized = new HashMap<>(); //Used for saving and loading
+    private final Map<String, Integer> composedOfSerialized; //Used for saving and loading
 
-    private transient  Map<Item,Integer> composedOf = new HashMap<>();
-    private transient Set<Item> composesInto = new HashSet<>();
+    private transient Map<Item,Integer> composedOf;
+    private final transient Set<Item> composesInto = new HashSet<>();
 
     @Expose
     private String iconPath;   //path to image file
@@ -38,7 +38,7 @@ public class Item {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public String getSerialNum() { return serialNum; }
+    public String getSerial() { return serial; }
 
     public String getWalmartSellerSKU() {return walmartSellerSKU;}
     public void setWalmartSellerSKU(String walmartSellerSKU) {this.walmartSellerSKU = walmartSellerSKU;}
@@ -101,7 +101,7 @@ public class Item {
                 continue;
             }
             if (component .equals(this)) {
-                System.out.println("Cannot compose with itself: " + component .getName() + " (Serial: " + component .getSerialNum() + ")");
+                System.out.println("Cannot compose with itself: " + component .getName() + " (Serial: " + component .getSerial() + ")");
                 continue;
             }
             valid.merge(component ,qty, Integer::sum);
@@ -110,15 +110,12 @@ public class Item {
         composedOf = valid;
         for(Map.Entry<Item, Integer> e : composedOf.entrySet()){
             composedOfSerialized.put(
-                    e.getKey().serialNum,
+                    e.getKey().serial,
                     e.getValue());
         }
         syncCompositionDependencies();
     }
     public boolean isComposite(){ return !composedOf.isEmpty();}
-    public Boolean isComposedOf(Item item){
-        return composedOf.get(item) != null;
-    }
     //-------------------------------</Edit Composition>-------------------------------
 
 
@@ -134,15 +131,17 @@ public class Item {
                 String ebaySellerSKU,
                 String walmartSellerSKU) {
         this.name = name;
-        this.serialNum = serialNum;
+        this.serial = serialNum;
         this.lowStockTrigger = lowStockTrigger;
         this.composedOf = composedOf != null ? composedOf : new HashMap<>();
 
         composedOfSerialized = new HashMap<>();
-        for(Map.Entry<Item, Integer> e : composedOf.entrySet()){
-            composedOfSerialized.put(
-                    e.getKey().serialNum,
-                    e.getValue());
+        if(composedOf != null){
+            for(Map.Entry<Item, Integer> e : composedOf.entrySet()){
+                composedOfSerialized.put(
+                        e.getKey().serial,
+                        e.getValue());
+            }
         }
         this.iconPath = iconPath;
 
@@ -175,11 +174,11 @@ public class Item {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Item item = (Item) o;
-        return serialNum != null && serialNum.equals(item.serialNum);
+        return serial != null && serial.equals(item.serial);
     }
     @Override
     public int hashCode() {
-        return serialNum != null ? serialNum.hashCode() : 0;
+        return serial != null ? serial.hashCode() : 0;
     }
 
     @Override

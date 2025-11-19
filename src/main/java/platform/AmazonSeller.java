@@ -87,14 +87,18 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                         //Show error dialog
                         SwingUtilities.invokeLater(() -> {
                             String message = String.format(
-                                    "Failed to authenticate with Amazon after retry.\n\n" +
-                                            "HTTP Response Code: %d\n\n" +
-                                            "Possible causes:\n" +
-                                            "  1. Invalid client credentials\n" +
-                                            "  2. Expired or revoked refresh token\n" +
-                                            "  3. Network connectivity issues\n" +
-                                            "  4. Amazon API service outage\n\n" +
-                                            "Please check your credentials in the link window and try again.",
+                                    """
+                                            Failed to authenticate with Amazon after retry.
+                                            
+                                            HTTP Response Code: %d
+                                            
+                                            Possible causes:
+                                              1. Invalid client credentials
+                                              2. Expired or revoked refresh token
+                                              3. Network connectivity issues
+                                              4. Amazon API service outage
+                                            
+                                            Please check your credentials in the link window and try again.""",
                                     response2
                             );
                             JOptionPane.showMessageDialog(parent, message,
@@ -113,14 +117,18 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                     final int finalResponseCode = response;
                     SwingUtilities.invokeLater(() -> {
                         String message = String.format(
-                                "Failed to authenticate with Amazon.\n\n" +
-                                        "HTTP Response Code: %d\n\n" +
-                                        "Possible causes:\n" +
-                                        "  1. Invalid client credentials\n" +
-                                        "  2. Expired or revoked refresh token\n" +
-                                        "  3. Network connectivity issues\n" +
-                                        "  4. Amazon API service outage\n\n" +
-                                        "Please check your credentials in the link window and try again.",
+                                """
+                                        Failed to authenticate with Amazon.
+                                        
+                                        HTTP Response Code: %d
+                                        
+                                        Possible causes:
+                                          1. Invalid client credentials
+                                          2. Expired or revoked refresh token
+                                          3. Network connectivity issues
+                                          4. Amazon API service outage
+                                        
+                                        Please check your credentials in the link window and try again.""",
                                 finalResponseCode
                         );
                         JOptionPane.showMessageDialog(parent, message,
@@ -134,8 +142,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
             }
             //We have a valid non-expired token, so get recent orders and parse
             log(" Valid access token");
-            String createdAfter = lastGetOrderTime
-                    .minusDays(3)
+            String createdAfter = getLastGetOrderTimeForFetching()
                     .atZone(ZoneId.systemDefault())
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
@@ -157,14 +164,18 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
             if (ordersResponseCode < 200 || ordersResponseCode > 299) {
                 SwingUtilities.invokeLater(() -> {
                     String message = String.format(
-                            "Could not fetch orders from Amazon.\n\n" +
-                                    "HTTP Response Code: %d\n\n" +
-                                    "Possible causes:\n" +
-                                    "  • Invalid client credentials\n" +
-                                    "  • Expired or revoked refresh token\n" +
-                                    "  • Network connectivity issues\n" +
-                                    "  • Amazon API service outage\n\n" +
-                                    "Please check your credentials in the link window.",
+                            """
+                                    Could not fetch orders from Amazon.
+                                    
+                                    HTTP Response Code: %d
+                                    
+                                    Possible causes:
+                                      • Invalid client credentials
+                                      • Expired or revoked refresh token
+                                      • Network connectivity issues
+                                      • Amazon API service outage
+                                    
+                                    Please check your credentials in the link window.""",
                             ordersResponseCode
                     );
 
@@ -218,16 +229,12 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 String orderId = getString(orderObj, "AmazonOrderId");
                 String orderStatusString = getString(orderObj, "OrderStatus");
                 OrderStatus orderStatus = switch(orderStatusString.trim().toLowerCase()){
-                    case "pending availability",
-                         "pending",
-                         "unshipped",
-                         "partiallyshipped",
-                         "invoiceunconfirmed" -> OrderStatus.CONFIRMED;
 
                     case "shipped" -> OrderStatus.SHIPPED;
 
                     case "canceled", "unfulfillable" -> OrderStatus.CANCELLED;
 
+                    //Everything else is confirmed
                     default -> OrderStatus.CONFIRMED;
                 };
                 String updateDateString = getString(orderObj, "LastUpdateDate");
@@ -247,6 +254,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 orderIds.add(new IdAndStatus(orderId, orderStatus, updateDate));
             }
             try {
+                log("Calling async function with " + orderIds.size() + " orders");
                 fetchOrderItemsAsync(orderIds);
             } catch (Exception ex) {
                 log("Failed to start async order fetch: " + ex.getMessage());
@@ -254,10 +262,6 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
             }
         }catch (Exception e){
             log(e.getMessage());
-        } finally {
-            if (lastFetchedOrders == null || orderIds.isEmpty()) {
-                fetchingOrders = false;
-            }
         }
     }
     void fetchOrderItemsAsync(List<IdAndStatus> orderIds){

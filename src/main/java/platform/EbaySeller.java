@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 public class EbaySeller extends BaseSeller<EbaySeller.EbayOrder> {
     public EbaySeller(PlatformManager manager, APIFileManager api) {
-        super(PlatformType.AMAZON, manager,api);
+        super(PlatformType.EBAY, manager,api);
         manager.ebaySeller = this;
     }
     @Override

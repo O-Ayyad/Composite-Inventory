@@ -335,7 +335,7 @@ public class AddWindow extends SubWindow {
                         "Item with Serial \"" + serial + "\" already exists.\n\n" +
                                 "Existing Item Details:\n\n" +
                                 "Name: " + duplicateSerial.getName() + "\n" +
-                                "Serial: " + duplicateSerial.getSerialNum(),
+                                "Serial: " + duplicateSerial.getSerial(),
                         "Duplicate Serial",
                         JOptionPane.ERROR_MESSAGE
                 );
@@ -349,7 +349,7 @@ public class AddWindow extends SubWindow {
                         "Warning: Another item already uses the name \"" + name + "\".\n\n" +
                                 "Existing Item Details:\n\n" +
                                 "Name: " + duplicateNameItem.getName() + "\n" +
-                                "Serial: " + duplicateNameItem.getSerialNum() + "\n" +
+                                "Serial: " + duplicateNameItem.getSerial() + "\n" +
                                 "Amazon SKU: " + (duplicateNameItem.getAmazonSellerSKU() != null ? duplicateNameItem.getAmazonSellerSKU() : "N/A") + "\n" +
                                 "eBay SKU: " + (duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A") + "\n" +
                                 "Walmart SKU: " + (duplicateNameItem.getWalmartSellerSKU() != null ? duplicateNameItem.getWalmartSellerSKU() : "N/A") + "\n\n" +
@@ -368,7 +368,7 @@ public class AddWindow extends SubWindow {
                         "Item with Amazon SKU \"" + skuAmazonText + "\" already exists.\n\n" +
                                 "Existing Item Details:\n\n" +
                                 "Name: " + duplicateAmazon.getName() + "\n" +
-                                "Serial: " + duplicateAmazon.getSerialNum() + "\n" +
+                                "Serial: " + duplicateAmazon.getSerial() + "\n" +
                                 "Amazon SKU: " + duplicateAmazon.getAmazonSellerSKU(),
                         "Duplicate Amazon SKU",
                         JOptionPane.ERROR_MESSAGE
@@ -384,7 +384,7 @@ public class AddWindow extends SubWindow {
                         "Item with eBay SKU \"" + skuEbayText + "\" already exists.\n\n" +
                                 "Existing Item Details:\n\n" +
                                 "Name: " + duplicateEbay.getName() + "\n" +
-                                "Serial: " + duplicateEbay.getSerialNum() + "\n" +
+                                "Serial: " + duplicateEbay.getSerial() + "\n" +
                                 "eBay SKU: " + duplicateEbay.getEbaySellerSKU(),
                         "Duplicate eBay SKU",
                         JOptionPane.ERROR_MESSAGE
@@ -400,7 +400,7 @@ public class AddWindow extends SubWindow {
                         "Item with Walmart SKU \"" + skuWalmartText + "\" already exists.\n\n" +
                                 "Existing Item Details:\n\n" +
                                 "Name: " + duplicateWalmart.getName() + "\n" +
-                                "Serial: " + duplicateWalmart.getSerialNum() + "\n" +
+                                "Serial: " + duplicateWalmart.getSerial() + "\n" +
                                 "Walmart SKU: " + duplicateWalmart.getWalmartSellerSKU(),
                         "Duplicate Walmart SKU",
                         JOptionPane.ERROR_MESSAGE
@@ -516,7 +516,7 @@ public class AddWindow extends SubWindow {
         Map<String,String> displayToSerialMap = DDRObj.serialMap();
 
         if (selected != null) {
-            String serial = selected.getSerialNum();
+            String serial = selected.getSerial();
             for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
                 if (entry.getValue().equals(serial)) {
                     itemDropdown.setSelectedItem(entry.getKey());
@@ -739,7 +739,7 @@ public class AddWindow extends SubWindow {
         //Remove null and non-composite items
         if (selected != null) {
             if(selected.isComposite()){
-                String serial = selected.getSerialNum();
+                String serial = selected.getSerial();
                 for (Map.Entry<String, String> entry : displayToSerialMap.entrySet()) {
                     if (entry.getValue().equals(serial)) {
                         itemDropdown.setSelectedItem(entry.getKey());

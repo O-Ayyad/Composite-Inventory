@@ -68,8 +68,9 @@ public class LogFileManager {
         } catch (Exception e) {
             System.out.println("[LogFileManager]ERROR: Could not load logs");
             System.out.println(e.getMessage());
+        }finally {
+            loading = false;
         }
-        loading = false;
         logManager.notifyListeners();
         System.out.println("[LogFileManager] Loading Logs from: " + logPath.toString());
     }

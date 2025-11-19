@@ -10,6 +10,7 @@ import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.*;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -90,10 +91,10 @@ public class InventoryFileManager {
             System.out.println("INFO: Inventory files not found. Starting with empty inventory.");
         } catch (Exception e) {
             System.out.println("ERROR: Could not load inventory");
-            System.out.println(e.getMessage());
-            e.printStackTrace();
+            System.out.println(e.getMessage() + Arrays.toString(e.getStackTrace()));
+        }finally {
+            loading = false;
         }
-        loading = false;
         System.out.println("Loaded inventory from: " + itemsPath.toString());
     }
 
@@ -115,7 +116,7 @@ public class InventoryFileManager {
 
                 HashMap<String, Integer> serialToQuantity = new HashMap<>();
                 for (Map.Entry<Item, Integer> entry : inventory.MainInventory.entrySet()) {
-                    serialToQuantity.put(entry.getKey().getSerialNum(), entry.getValue());
+                    serialToQuantity.put(entry.getKey().getSerial(), entry.getValue());
                 }
 
                 gson.toJson(serialToQuantity, writer);
