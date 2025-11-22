@@ -15,6 +15,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.UUID;
 
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import platform.PlatformType;
@@ -235,7 +236,7 @@ public class APIFileManager {
                     }
 
                     System.out.println("-> Opening Walmart API connection...");
-                    URL url = new URL("https://marketplace.walmartapis.com/v3/items?limit=1");
+                    URL url = new URL("https://marketplace.walmartapis.com/v3/orders");
                     conn = (HttpURLConnection) url.openConnection();
 
                     System.out.println("-> Setting request method...");
@@ -243,12 +244,7 @@ public class APIFileManager {
 
                     System.out.println("-> Adding headers...");
 
-                    conn.setRequestProperty("WM_SEC.ACCESS_TOKEN", accessToken);
-                    conn.setRequestProperty("WM_CONSUMER.CHANNEL.TYPE", clientID);
-                    conn.setRequestProperty("WM_SVC.NAME", "Walmart Marketplace");
-                    conn.setRequestProperty("WM_QOS.CORRELATION_ID", UUID.randomUUID().toString());
-                    conn.setRequestProperty("Accept", "application/json");
-                    conn.setRequestProperty("Content-Type", "application/json");
+
 
                     System.out.println("-> Setting timeouts");
                 }
@@ -263,6 +259,7 @@ public class APIFileManager {
             String message = conn.getResponseMessage();
             System.out.println("-> Response code: " + response);
 
+            StringBuilder sb = new StringBuilder();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(
                     (response >= 200 && response < 300)
                             ? conn.getInputStream()
@@ -270,9 +267,21 @@ public class APIFileManager {
                     StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = br.readLine()) != null) {
-                    System.out.println("     " + line);
+                    sb.append(line);
                 }
-            } catch (Exception e){
+            }
+            String rawJson = sb.toString();
+
+            //pretty print
+            try {
+                String pretty = new GsonBuilder()
+                        .setPrettyPrinting()
+                        .create()
+                        .toJson(JsonParser.parseString(rawJson));
+
+                System.out.println(pretty);
+
+            }catch (Exception e){
                 System.out.println(e.getMessage());
             }
 
@@ -435,7 +444,7 @@ public class APIFileManager {
         }
     }
     //If we have the access token the just try the token
-    public int vaildateAmazonAccessToken(String accessToken){
+    public int validateAmazonAccessToken(String accessToken){
         System.out.println("[BEGIN VALIDATING ACCESS TOKEN]");
         try{
             HttpURLConnection conn;
@@ -482,6 +491,74 @@ public class APIFileManager {
             System.out.println(e.getMessage());
         }
         return -1;
+    }
+    public int validateWalmartAccessToken(String accessToken, String clientID){
+        System.out.println("[BEGIN VALIDATING ACCESS TOKEN]");
+        try{
+            HttpURLConnection conn;
+            System.out.println("-> Opening Walmart API connection...");
+            URL url = new URL("https://marketplace.walmartapis.com/v3/items");
+            conn = (HttpURLConnection) url.openConnection();
+
+            System.out.println("-> Setting request method...");
+            conn.setRequestMethod("GET");
+
+            System.out.println("-> Adding headers...");
+
+            addWalmartHeaders(conn,accessToken, clientID);
+
+            System.out.println("->Setting timeouts");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+
+            System.out.println("-> Attempting to get response code");
+            int response = conn.getResponseCode();
+            System.out.println("-> Response code: " + response);
+
+            StringBuilder sb = new StringBuilder();
+            System.out.println("-> Reading body");
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (response >= 200 && response < 300)
+                            ? conn.getInputStream()
+                            : conn.getErrorStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line);
+                }
+            }
+            String rawJson = sb.toString();
+            try {
+                String pretty = new GsonBuilder()
+                        .setPrettyPrinting()
+                        .create()
+                        .toJson(JsonParser.parseString(rawJson));
+
+                System.out.println(pretty);
+
+            }catch (Exception e){
+                System.out.println(e.getMessage());
+            }
+            conn.disconnect();
+            System.out.println("[VALIDATING ACCESS TOKEN END] Response code: " + response);
+
+            if(response >= 200 && response < 300) {
+                System.out.println("Success. Good HTTP response");
+            }else{
+                System.out.println("ERROR. Bad HTTP response");
+            }
+            return response;
+        }catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+        return -1;
+    }
+    public void addWalmartHeaders(HttpURLConnection conn, String accessToken, String clientID){
+        conn.setRequestProperty("WM_SEC.ACCESS_TOKEN", accessToken);
+        conn.setRequestProperty("WM_CONSUMER.CHANNEL.TYPE", clientID);
+        conn.setRequestProperty("WM_SVC.NAME", "Walmart Marketplace");
+        conn.setRequestProperty("WM_QOS.CORRELATION_ID", UUID.randomUUID().toString());
+        conn.setRequestProperty("Accept", "application/json");
+        conn.setRequestProperty("Content-Type", "application/json");
     }
     public static String getStorageDir(PlatformType platform) {
         return BASE_DIR + File.separator + platform.getDisplayName().toLowerCase();

@@ -74,7 +74,7 @@ public class OrderFileManager {
                     SellerData data = gson.fromJson(reader, SellerData.class);
 
                     if (data != null) {
-                        BaseSeller<?> seller = platformManager.getSeller(platform);
+                        BaseSeller seller = platformManager.getSeller(platform);
 
                         seller.lastGetOrderTime = data.lastGetOrderTime();
                         seller.firstGetOrderTime = data.firstGetOrderTime();
@@ -109,7 +109,7 @@ public class OrderFileManager {
         if (loading) return;
         if(platformManager.anySellersFetching()) return;
         for(PlatformType p : PlatformType.values()){
-            BaseSeller<?> seller = platformManager.getSeller(p);
+            BaseSeller seller = platformManager.getSeller(p);
             Path filePath = platformToFilePath(p);
 
             Map<String, BaseSeller.Order> platformOrders = platformManager.allOrders.get(p);

@@ -122,7 +122,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 15)); //
         rightPanel.setOpaque(false);
 
-        JLabel authorLabel = new JLabel("Authorship Text");
+        JLabel authorLabel = new JLabel("Made by O-Ayyad");
         authorLabel.setFont(UIUtils.FONT_ARIAL_REGULAR );
         rightPanel.add(authorLabel);
 
@@ -353,7 +353,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                     JPanel square = platformSquares.get(p);
                     JLabel text = platformLabels.get(p);
                     if (apiFileManager.hasToken(p)) {
-                        BaseSeller<?> seller = platformManager.getSeller(p);
+                        BaseSeller seller = platformManager.getSeller(p);
                         if(seller.fetchingOrders){
                             square.setBackground(UIUtils.FETCHING_ORDERS);
                             text.setText(p.getDisplayName() + " (Fetching orders...)");
@@ -530,6 +530,249 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
 
     public static void main(String[] args) {
+        // Create inventory and item manager instances
+        Inventory inventory = new Inventory();
+        ItemManager itemManager = new ItemManager(inventory);
+
+        System.out.println("=== CREATING INVENTORY ===\n");
+
+        // Create base items (simple components)
+        inventory.createItem(
+                "Screw",           // name
+                "SCREW-001",       // serialNum
+                10,                // lowStockTrigger
+                null,              // composedOf (null = not composite)
+                null,              // iconPath
+                itemManager,       // itemManager
+                "AMZ-SCREW",       // amazonSellerSKU
+                "EBAY-SCREW",      // ebaySellerSKU
+                "WM-SCREW",        // walmartSellerSKU
+                50                 // amount
+        );
+
+        inventory.createItem(
+                "Bolt",
+                "BOLT-001",
+                10,
+                null,
+                null,
+                itemManager,
+                "AMZ-BOLT",
+                "EBAY-BOLT",
+                "WM-BOLT",
+                30
+        );
+
+        inventory.createItem(
+                "Plate",
+                "PLATE-001",
+                5,
+                null,
+                null,
+                itemManager,
+                "AMZ-PLATE",
+                "EBAY-PLATE",
+                "WM-PLATE",
+                20
+        );
+
+        inventory.createItem(
+                "Wire",
+                "WIRE-001",
+                15,
+                null,
+                null,
+                itemManager,
+                "AMZ-WIRE",
+                "EBAY-WIRE",
+                "WM-WIRE",
+                40
+        );
+
+        inventory.createItem(
+                "Chip",
+                "CHIP-001",
+                5,
+                null,
+                null,
+                itemManager,
+                "AMZ-CHIP",
+                "EBAY-CHIP",
+                "WM-CHIP",
+                10
+        );
+
+        // Get references to base items for creating composite items
+        Item screw = inventory.getItemBySerial("SCREW-001");
+        Item bolt = inventory.getItemBySerial("BOLT-001");
+        Item plate = inventory.getItemBySerial("PLATE-001");
+        Item wire = inventory.getItemBySerial("WIRE-001");
+        Item chip = inventory.getItemBySerial("CHIP-001");
+
+        // Create composite items (kits)
+        // Kit A: 3 screws + 2 bolts
+        Map<Item, Integer> kitAComposition = new HashMap<>();
+        kitAComposition.put(screw, 3);
+        kitAComposition.put(bolt, 2);
+
+        inventory.createItem(
+                "Kit A",
+                "KIT-A-001",
+                2,
+                kitAComposition,
+                null,
+                itemManager,
+                "AMZ-KIT-A",
+                "EBAY-KIT-A",
+                "WM-KIT-A",
+                5
+        );
+
+        // Kit B: 4 screws + 1 plate
+        Map<Item, Integer> kitBComposition = new HashMap<>();
+        kitBComposition.put(screw, 4);
+        kitBComposition.put(plate, 1);
+
+        inventory.createItem(
+                "Kit B",
+                "KIT-B-001",
+                2,
+                kitBComposition,
+                null,
+                itemManager,
+                "AMZ-KIT-B",
+                "EBAY-KIT-B",
+                "WM-KIT-B",
+                3
+        );
+
+        // Kit C: 2 bolts + 2 plates
+        Map<Item, Integer> kitCComposition = new HashMap<>();
+        kitCComposition.put(bolt, 2);
+        kitCComposition.put(plate, 2);
+
+        inventory.createItem(
+                "Kit C",
+                "KIT-C-001",
+                2,
+                kitCComposition,
+                null,
+                itemManager,
+                "AMZ-KIT-C",
+                "EBAY-KIT-C",
+                "WM-KIT-C",
+                4
+        );
+
+        // Kit D: 5 screws + 3 bolts + 1 wire
+        Map<Item, Integer> kitDComposition = new HashMap<>();
+        kitDComposition.put(screw, 5);
+        kitDComposition.put(bolt, 3);
+        kitDComposition.put(wire, 1);
+
+        inventory.createItem(
+                "Kit D",
+                "KIT-D-001",
+                1,
+                kitDComposition,
+                null,
+                itemManager,
+                "AMZ-KIT-D",
+                "EBAY-KIT-D",
+                "WM-KIT-D",
+                2
+        );
+
+        // Kit E: 1 chip + 3 wires
+        Map<Item, Integer> kitEComposition = new HashMap<>();
+        kitEComposition.put(chip, 1);
+        kitEComposition.put(wire, 3);
+
+        inventory.createItem(
+                "Kit E",
+                "KIT-E-001",
+                2,
+                kitEComposition,
+                null,
+                itemManager,
+                "AMZ-KIT-E",
+                "EBAY-KIT-E",
+                "WM-KIT-E",
+                6
+        );
+
+        // Super Kit: 10 screws + 5 bolts + 2 plates + 2 chips
+        Map<Item, Integer> superKitComposition = new HashMap<>();
+        superKitComposition.put(screw, 10);
+        superKitComposition.put(bolt, 5);
+        superKitComposition.put(plate, 2);
+        superKitComposition.put(chip, 2);
+
+        inventory.createItem(
+                "Super Kit",
+                "SUPER-KIT-001",
+                1,
+                superKitComposition,
+                null,
+                itemManager,
+                "AMZ-SUPER",
+                "EBAY-SUPER",
+                "WM-SUPER",
+                1
+        );
+
+        System.out.println("\n=== INVENTORY SUMMARY ===");
+        System.out.println("Base Items:");
+        System.out.println("  Screw: " + inventory.getAvailableQuantity(screw));
+        System.out.println("  Bolt: " + inventory.getAvailableQuantity(bolt));
+        System.out.println("  Plate: " + inventory.getAvailableQuantity(plate));
+        System.out.println("  Wire: " + inventory.getAvailableQuantity(wire));
+        System.out.println("  Chip: " + inventory.getAvailableQuantity(chip));
+
+        Item kitA = inventory.getItemBySerial("KIT-A-001");
+        Item kitB = inventory.getItemBySerial("KIT-B-001");
+        Item kitC = inventory.getItemBySerial("KIT-C-001");
+        Item kitD = inventory.getItemBySerial("KIT-D-001");
+        Item kitE = inventory.getItemBySerial("KIT-E-001");
+        Item superKit = inventory.getItemBySerial("SUPER-KIT-001");
+
+        System.out.println("\nComposite Items:");
+        System.out.println("  Kit A (3 screws + 2 bolts): " + inventory.getAvailableQuantity(kitA));
+        System.out.println("  Kit B (4 screws + 1 plate): " + inventory.getAvailableQuantity(kitB));
+        System.out.println("  Kit C (2 bolts + 2 plates): " + inventory.getAvailableQuantity(kitC));
+        System.out.println("  Kit D (5 screws + 3 bolts + 1 wire): " + inventory.getAvailableQuantity(kitD));
+        System.out.println("  Kit E (1 chip + 3 wires): " + inventory.getAvailableQuantity(kitE));
+        System.out.println("  Super Kit (10 screws + 5 bolts + 2 plates + 2 chips): " + inventory.getAvailableQuantity(superKit));
+
+        // Test possibleBreakDownsForItem
+        System.out.println("\n\n=== TEST 1: Need 100 Screws (only have 50) ===");
+        List<Map<Item, Integer>> solutions = inventory.possibleBreakDownsForItem(screw, 100);
+        printSolutions(solutions);
+
+        System.out.println("\n=== TEST 2: Need 50 Bolts (only have 30) ===");
+        solutions = inventory.possibleBreakDownsForItem(bolt, 50);
+        printSolutions(solutions);
+
+        System.out.println("\n=== TEST 3: Need 15 Chips (only have 10) ===");
+        solutions = inventory.possibleBreakDownsForItem(chip, 15);
+        printSolutions(solutions);
+
+        System.out.println("\n=== TEST 4: Need 10 Plates (already have 20, should return empty) ===");
+        solutions = inventory.possibleBreakDownsForItem(plate, 10);
+        if (solutions.isEmpty()) {
+            System.out.println("✓ Correctly returned empty list - item already in stock!");
+        } else {
+            System.out.println("✗ Error: Should have returned empty list");
+            printSolutions(solutions);
+        }
+
+        System.out.println("\n=== TEST 5: Need 60 Screws (shortage of 10) ===");
+        solutions = inventory.possibleBreakDownsForItem(screw, 60);
+        printSolutions(solutions);
+
+        // Launch GUI
+        System.out.println("\n\n=== LAUNCHING GUI ===");
+
         SwingUtilities.invokeLater(MainWindow::new);
     }
 

@@ -53,10 +53,10 @@ public class    PlatformManager {
         SwingWorker<Map<PlatformType, Map<String, BaseSeller.Order>>, Void> sellerWatcher
                 = new SwingWorker<>() {
 
-            final Map<PlatformType, Map<String, BaseSeller.Order>> allOrders =
+            final Map<PlatformType, Map<String, BaseSeller.Order>> allOrdersLocal =
                     new EnumMap<>(PlatformType.class);
 
-            private final EnumMap<PlatformType, List<? extends BaseSeller.Order>> newOrders =
+            private final EnumMap<PlatformType, List<BaseSeller.Order>> newOrders =
                     new EnumMap<>(PlatformType.class);
 
             @Override
@@ -67,12 +67,12 @@ public class    PlatformManager {
 
                 for (PlatformType platform : PlatformType.values()) {
 
-                    BaseSeller<?> seller = getSeller(platform);
+                    BaseSeller seller = getSeller(platform);
                     System.out.println("[Worker] Preparing fetch for " + platform);
 
 
                     final PlatformType currentPlatform = platform;
-                    final BaseSeller<?> currentSeller = seller;
+                    final BaseSeller currentSeller = seller;
 
                     CompletableFuture.runAsync(() -> {
 
@@ -109,9 +109,11 @@ public class    PlatformManager {
                             "");
                 }
                 System.out.println("[Worker] Processing fetched results...");
+
+                Map<PlatformType, Map<String, BaseSeller.Order>> allNewOrders;
                 for (PlatformType platform : PlatformType.values()) {
-                    BaseSeller<?> seller = getSeller(platform);
-                    List<? extends BaseSeller.Order> list = seller.lastFetchedOrders;
+                    BaseSeller seller = getSeller(platform);
+                    List<BaseSeller.Order> list = seller.lastFetchedOrders;
 
                     newOrders.put(platform,
                             list != null
@@ -123,18 +125,18 @@ public class    PlatformManager {
                             + newOrders.get(platform).size()
                             + " orders.");
 
-                    Map<String, BaseSeller.Order> map = new HashMap<>();
+                    Map<String, BaseSeller.Order> existingMap = new HashMap<>(allOrders.get(platform));
                     for (BaseSeller.Order order : newOrders.get(platform)) {
-                        map.put(order.getOrderId(), order);
+                        existingMap.put(order.getOrderId(), order);
                     }
-                    allOrders.put(platform, map);
+                    allOrdersLocal.put(platform, existingMap);
                 }
 
                 System.out.println("[Worker] Returning allOrders map with sizes: ");
                 for (PlatformType p : PlatformType.values()) {
-                    System.out.println("    " + p + ": " + allOrders.get(p).size() + " orders");
+                    System.out.println("    " + p + ": " + allOrdersLocal.get(p).size() + " orders");
                 }
-                return allOrders;
+                return allOrdersLocal;
             }
 
             protected void done() {
@@ -184,7 +186,7 @@ public class    PlatformManager {
         allOrders.putAll(newOrders);
     }
     private void handleNewOrder(PlatformType platform, BaseSeller.Order newOrder) {
-        if(newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED){
+        if(newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED){ //Dont care
             return;
         }
         if(newOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED){
@@ -193,6 +195,7 @@ public class    PlatformManager {
             }else{
                 BaseSeller.Order dummyOldOrder = createDummyConfirmedOrder(newOrder);
                 handleOrderStatusChange(platform, dummyOldOrder, newOrder);
+                return;
             }
         }
         System.out.println("New order " +platform.getDisplayName() + " order ID : " + newOrder.getOrderId());
@@ -205,7 +208,7 @@ public class    PlatformManager {
             boolean anyViaComposition = false;
             StringBuilder orderSummary = new StringBuilder();
             StringBuilder breakdownSuggestions = new StringBuilder();
-            orderSummary.append("Order ").append(newOrder.getOrderId()).append(" received: \n");
+            orderSummary.append(platform.getDisplayName()).append("Order ").append(newOrder.getOrderId()).append(" received: \n");
 
             for (BaseSeller.OrderPacket op : soldItems) {
                 String sku = op.sku();
@@ -305,14 +308,14 @@ public class    PlatformManager {
 
             if (!allItemsRegistered) {
                 logManager.createLog(Log.LogType.ItemShippedNotRegistered, soldItems.size(),
-                        "Order " + newOrder.getOrderId() + " REJECTED - Contains unregistered items. No inventory changes made.", "");
+                        platform.getDisplayName() + "Order " + newOrder.getOrderId() + " REJECTED - Contains unregistered items. No inventory changes made.", "");
                 return; //Inventory not effected. This must be fixed manually
             }
             boolean allFulfilled = true;
             boolean anyViaComposition = false;
             StringBuilder orderSummary = new StringBuilder();
             StringBuilder breakdownSuggestions = new StringBuilder();
-            orderSummary.append("Order ").append(newOrder.getOrderId()).append(" shipped:\n");
+            orderSummary.append(platform.getDisplayName()).append("Order ").append(newOrder.getOrderId()).append(" shipped:\n");
 
 
             for (BaseSeller.OrderPacket op : soldItems) {
@@ -392,7 +395,7 @@ public class    PlatformManager {
         } else if (oldOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED &&
                 newOrder.getStatus() != BaseSeller.OrderStatus.SHIPPED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " reverted from SHIPPED status.\n" +
+                    platform.getDisplayName() + "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " reverted from SHIPPED status.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus(), "");
         }
 
@@ -400,7 +403,7 @@ public class    PlatformManager {
         else if (oldOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED &&
                 newOrder.getStatus() != BaseSeller.OrderStatus.CANCELLED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " un-cancelled.\n" +
+                    platform.getDisplayName() +  "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " un-cancelled.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus(), "");
         }
 
@@ -408,7 +411,7 @@ public class    PlatformManager {
         else if (newOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED &&
                 oldOrder.getStatus() != BaseSeller.OrderStatus.CONFIRMED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " shipped without confirmation.\n" +
+                    platform.getDisplayName() +  "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " shipped without confirmation.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus() +
                             "\nExpected: CONFIRMED → SHIPPED", "");
         }
@@ -416,7 +419,7 @@ public class    PlatformManager {
         else if (newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED &&
                 oldOrder.getStatus() != BaseSeller.OrderStatus.CONFIRMED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " cancelled from unexpected status.\n" +
+                    platform.getDisplayName() +  "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " cancelled from unexpected status.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus() +
                             "\nExpected: CONFIRMED → CANCELLED", "");
         }
@@ -431,7 +434,7 @@ public class    PlatformManager {
         Map<String, BaseSeller.Order> orders = allOrders.get(platform);
         return orders == null ? null : orders.get(id);
     }
-    public BaseSeller<?> getSeller(PlatformType p){
+    public BaseSeller getSeller(PlatformType p){
         return switch (p){
             case EBAY -> ebaySeller;
             case AMAZON -> amazonSeller;

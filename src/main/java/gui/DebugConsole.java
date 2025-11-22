@@ -1,6 +1,4 @@
-package core;
-
-import gui.UIUtils;
+package gui;
 
 import javax.swing.*;
 import java.awt.*;

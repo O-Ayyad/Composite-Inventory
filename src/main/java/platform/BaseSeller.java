@@ -14,7 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class BaseSeller<T extends BaseSeller.Order> {
+public abstract class BaseSeller {
 
     protected final PlatformType platformType;
     protected final PlatformManager platformManager;
@@ -27,7 +27,7 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
 
     public int tokenExpirationTimeMinutes;
 
-    public volatile List<T> lastFetchedOrders = new ArrayList<>();
+    public volatile List<Order> lastFetchedOrders = new ArrayList<>();
 
     public boolean fetchingOrders = false;
 
@@ -141,5 +141,4 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
     protected void log(String msg) {
         System.out.println("[" + this.getClass().getName() + "] " + msg);
     }
-
 }
