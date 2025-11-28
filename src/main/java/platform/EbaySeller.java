@@ -4,7 +4,7 @@ import storage.APIFileManager;
 
 import java.time.LocalDateTime;
 
-public class EbaySeller extends BaseSeller<EbaySeller.EbayOrder> {
+public class EbaySeller extends BaseSeller {
     public EbaySeller(PlatformManager manager, APIFileManager api) {
         super(PlatformType.EBAY, manager,api);
         manager.ebaySeller = this;
@@ -17,10 +17,5 @@ public class EbaySeller extends BaseSeller<EbaySeller.EbayOrder> {
         //Parse the new orders get the order ID, SKU and quantity of each SKU
         //Create the ebay Order into a list and only let Platform Seller call this method
         return;
-    }
-    public static class EbayOrder extends BaseSeller.Order {
-        public EbayOrder(String orderId, BaseSeller.OrderStatus status, LocalDateTime dateTime) {
-            super(orderId, status, dateTime);
-        }
     }
 }

@@ -1,7 +1,6 @@
 package storage;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+
 import com.google.gson.reflect.TypeToken;
 import core.*;
 
@@ -13,37 +12,25 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class LogFileManager {
-    private final String dataDir = new File("data" +
-            File.separator + "logs").getAbsolutePath();
+public class LogFileManager extends AbstractFileManager{
 
-    private static final String LOG_FILENAME = "logs.json";
+    public static final String LOG_FILENAME = "logs.json";
 
-    private final String logFilePath = dataDir + File.separator + LOG_FILENAME;
+    public final String logFilePath = dataDir + File.separator + LOG_FILENAME;
 
-    LogManager logManager;
-
-    Gson gson;
+    private final LogManager logManager;
 
     private boolean loading = false;
 
-    public LogFileManager(LogManager logManager){
+    public LogFileManager(LogManager logManager, String dataDirName){
+        super(dataDirName);
         this.logManager = logManager;
-        gson = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
-                .setPrettyPrinting()
-                .create();
-        try {
-            Path newDir = Path.of(dataDir);
-            Files.createDirectories(newDir);
-        }catch (IOException e){
-            System.out.println(e.getMessage());
-        }
-        loadLogs();
     }
     public Path getLogFilePath() {
         return Path.of(logFilePath);
     }
-    public void loadLogs(){
+    @Override
+    public void load(){
         loading = true;
         Path logPath = getLogFilePath();
         //Get all logs
@@ -74,8 +61,10 @@ public class LogFileManager {
         logManager.notifyListeners();
         System.out.println("[LogFileManager] Loading Logs from: " + logPath.toString());
     }
-    public void saveLogs() {
+    @Override
+    public void save() {
         if (loading) return;
+
         Path filePath = getLogFilePath();
         try {
             String json = gson.toJson(logManager.logById);

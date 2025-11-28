@@ -2,12 +2,11 @@ package gui;
 
 import core.*;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.*;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
 import java.util.*;
 import java.util.List;
 
@@ -20,6 +19,16 @@ public class ViewWindow extends SubWindow {
     private JLabel summaryLabel;
     private final LogManager logManager;
 
+    private final Map<String, ImageIcon> iconCache = new HashMap<>();
+
+    final int imageSize = 64;
+    final int leftToolsWidth = 250;
+
+    private JTextField searchField;
+    private JCheckBox hasNoAmazonBox;
+    private JCheckBox hasNoEbayBox;
+    private JCheckBox hasNoWalmartBox;
+
     public ViewWindow(MainWindow mainWindow, Inventory inventory, LogManager logManager) {
         super(mainWindow, windowName, inventory);
 
@@ -27,7 +36,6 @@ public class ViewWindow extends SubWindow {
         logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refreshTable));
 
         setupUI();
-        setVisible(true);
     }
 
     public void setupUI() {
@@ -46,20 +54,25 @@ public class ViewWindow extends SubWindow {
         mainPanel.add(topPanel, BorderLayout.NORTH);
 
         // Left Tools
+
         JPanel leftTools = new JPanel();
         leftTools.setLayout(new BoxLayout(leftTools, BoxLayout.Y_AXIS));
         leftTools.setOpaque(true);
-        leftTools.setPreferredSize(new Dimension(200, 0));
+        leftTools.setPreferredSize(new Dimension(leftToolsWidth + 50, 0));
         leftTools.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
 
-        JLabel searchLabel = new JLabel("Search Inventory:");
-        searchLabel.setFont(UIUtils.FONT_UI_BOLD);
-        searchLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JTextField searchField = new JTextField();
-        searchField.setMaximumSize(new Dimension(180, 30));
+
+        JLabel searchLabel = new JLabel("Search Inventory:");
+        searchLabel.setMaximumSize(new Dimension(leftToolsWidth, 30));
+        searchLabel.setFont(UIUtils.FONT_UI_BOLD);
+        searchLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+
+
+        searchField = new JTextField();
+        searchField.setMaximumSize(new Dimension(leftToolsWidth, 30));
         searchField.setFont(UIUtils.FONT_UI_REGULAR);
-        searchField.setAlignmentX(Component.CENTER_ALIGNMENT);
+        searchField.setAlignmentX(Component.RIGHT_ALIGNMENT);
         searchField.setHorizontalAlignment(JTextField.CENTER);
         searchField.setBorder(BorderFactory.createLineBorder(UIUtils.BORDER_MEDIUM));
 
@@ -78,14 +91,30 @@ public class ViewWindow extends SubWindow {
         JButton deleteBtn = new JButton("Delete");
         JButton refreshBtn = new JButton("🔄 Refresh");
 
+        hasNoAmazonBox = new JCheckBox("Missing Amazon SKU only");
+        hasNoEbayBox   = new JCheckBox("Missing eBay SKU only");
+        hasNoWalmartBox= new JCheckBox("Missing Walmart SKU only");
+
         List<JButton> buttons = List.of(addBtn, composeBtn, reduceBtn, breakBtn, editBtn, deleteBtn, refreshBtn);
 
+        List<JCheckBox> checkBoxes = List.of(hasNoAmazonBox, hasNoEbayBox, hasNoWalmartBox);
+
         for (JButton btn : buttons) {
-            btn.setAlignmentX(Component.CENTER_ALIGNMENT);
-            btn.setMaximumSize(new Dimension(160, 36));
+            btn.setAlignmentX(Component.RIGHT_ALIGNMENT);
+            btn.setMaximumSize(new Dimension(leftToolsWidth, 36));
             UIUtils.styleButton(btn);
             leftTools.add(btn);
             leftTools.add(Box.createRigidArea(new Dimension(0, 18)));
+        }
+
+        for(JCheckBox check : checkBoxes){
+            check.setSelected(false);
+            check.setMaximumSize(new Dimension(leftToolsWidth, 30));
+            check.setAlignmentX(Component.RIGHT_ALIGNMENT);
+            leftTools.add(check);
+            leftTools.add(Box.createRigidArea(new Dimension(0, 18)));
+
+            check.addActionListener(e -> updateTableFilter());
         }
 
         addBtn.addActionListener(e -> {
@@ -94,8 +123,6 @@ public class ViewWindow extends SubWindow {
                 JOptionPane.showMessageDialog(this, "Please select an item to add.", "No item selected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-
-            mainWindow.destroyExistingInstance(AddWindow.class);
             new AddWindow(mainWindow,inventory,selected,false);
         });
         composeBtn.addActionListener(e -> {
@@ -104,7 +131,6 @@ public class ViewWindow extends SubWindow {
                 JOptionPane.showMessageDialog(this, "Please select an item to compose.", "No item selected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            mainWindow.destroyExistingInstance(AddWindow.class);
             new AddWindow(mainWindow, inventory, selected,true);
         });
         reduceBtn.addActionListener(e -> {
@@ -113,8 +139,6 @@ public class ViewWindow extends SubWindow {
                 JOptionPane.showMessageDialog(this, "Please select an item to reduce stock.", "No item selected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-
-            mainWindow.destroyExistingInstance(RemoveWindow.class);
             new RemoveWindow(mainWindow, inventory, selected,RemoveWindow.SendTo.Reduce);
         });
 
@@ -125,7 +149,6 @@ public class ViewWindow extends SubWindow {
                 return;
             }
 
-            mainWindow.destroyExistingInstance(RemoveWindow.class);
             new RemoveWindow(mainWindow, inventory, selected, RemoveWindow.SendTo.Break);
         });
 
@@ -136,7 +159,6 @@ public class ViewWindow extends SubWindow {
                 return;
             }
 
-            mainWindow.destroyExistingInstance(EditWindow.class);
             new EditWindow(mainWindow, inventory, selected, logManager);
         });
 
@@ -180,40 +202,22 @@ public class ViewWindow extends SubWindow {
         header.setForeground(Color.DARK_GRAY);
         header.setFont(UIUtils.FONT_UI_BOLD);
         header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, UIUtils.BORDER_MEDIUM));
-        header.setPreferredSize(new Dimension(header.getWidth(), 30)); // same height as logs
-        header.setReorderingAllowed(true);
+        header.setPreferredSize(new Dimension(header.getWidth(), 30));
+        header.setReorderingAllowed(false);
         ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
 
+
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(tableModel);
-        itemTable.setRowSorter(sorter);
+        sorter.setSortable(0, false);
 
         List<RowSorter.SortKey> sortKeys = new ArrayList<>();
         sortKeys.add(new RowSorter.SortKey(1, SortOrder.DESCENDING));
         sorter.setSortKeys(sortKeys);
-        sorter.sort();
-
+        itemTable.setRowSorter(sorter);
 
         searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             private void update() {
-                String text = searchField.getText().trim().toLowerCase();
-
-                sorter.setRowFilter(new RowFilter<TableModel, Integer>() {
-                    @Override
-                    public boolean include(Entry<? extends TableModel, ? extends Integer> entry) {
-                        if (text.isEmpty()) return true;
-                        String name    = entry.getStringValue(2).toLowerCase(); //Name
-                        String serial  = entry.getStringValue(3).toLowerCase(); //serial
-                        String amazon  = entry.getStringValue(6).toLowerCase(); //Amazon SKU
-                        String ebay    = entry.getStringValue(7).toLowerCase(); //eBay SKU
-                        String walmart = entry.getStringValue(8).toLowerCase(); //Walmart SKU
-
-                        return name.contains(text)
-                                || serial.contains(text)
-                                || amazon.contains(text)
-                                || ebay.contains(text)
-                                || walmart.contains(text);
-                    }
-                });
+                updateTableFilter();
             }
 
             @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
@@ -222,9 +226,7 @@ public class ViewWindow extends SubWindow {
         });
 
 
-        itemTable.setRowHeight(48);
         itemTable.setFillsViewportHeight(true);
-        itemTable.getTableHeader().setReorderingAllowed(true);
         itemTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
 
 
@@ -295,11 +297,9 @@ public class ViewWindow extends SubWindow {
                         if(selected == null) return;
                         if (e.isControlDown()) {
                             //ctrl double to edit
-                            mainWindow.destroyExistingInstance(EditWindow.class);
                             new EditWindow(mainWindow, inventory, selected,logManager);
                         } else {
                             //double click for info
-                            mainWindow.destroyExistingInstance(ItemInfoWindow.class);
                             new ItemInfoWindow(mainWindow, inventory, selected);
                         }
                     }
@@ -370,16 +370,23 @@ public class ViewWindow extends SubWindow {
 
     //Populate table
     private void refreshTable() {
+
+        List<RowSorter.SortKey> sortKeys = new ArrayList<>();
+        if (itemTable.getRowSorter() != null && itemTable.getRowSorter().getSortKeys() != null) {
+            sortKeys.addAll(itemTable.getRowSorter().getSortKeys());
+        }
+
         tableModel.setRowCount(0);
+
         List<Item> items = new ArrayList<>(inventory.MainInventory.keySet());
 
         for (Item i : items) {
 
             ImageIcon icon = new ImageIcon(i.getImagePath());
-            icon = getScaledIconTo(icon, 128f);
+            ImageIcon scaledIcon = iconCache.computeIfAbsent(i.getSerial(), k -> getScaledIconTo(icon, imageSize));
 
             tableModel.addRow(new Object[]{
-                    icon,
+                    scaledIcon,
                     inventory.getQuantity(i),
                     i.getName(),
                     i.getSerial(),
@@ -390,12 +397,14 @@ public class ViewWindow extends SubWindow {
                     nullToNA(i.getWalmartSellerSKU())
             });
         }
+        itemTable.setRowHeight(70);
+
         itemTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object icon, boolean isSelected, boolean hasFocus, int row, int column) {
                 JLabel label = new JLabel();
                 if (icon instanceof ImageIcon) {
-                    label.setIcon(getScaledIconTo((ImageIcon)icon,64));
+                    label.setIcon((ImageIcon) icon);
                     label.setHorizontalAlignment(JLabel.CENTER);
                 }
                 if (isSelected) {
@@ -409,7 +418,10 @@ public class ViewWindow extends SubWindow {
                 return label;
             }
         });
-        itemTable.setRowHeight(70);
+        if (!sortKeys.isEmpty() && itemTable.getRowSorter() != null) {
+            itemTable.getRowSorter().setSortKeys(sortKeys);
+        }
+
         updateSummary();
     }
 
@@ -458,17 +470,65 @@ public class ViewWindow extends SubWindow {
                 int width = scrollPane.getViewport().getWidth();
                 var cm = itemTable.getColumnModel();
 
-                cm.getColumn(0).setPreferredWidth((int)(width * 0.11)); //Icon
+                cm.getColumn(0).setPreferredWidth((int)(width * 0.10)); //Icon
                 cm.getColumn(1).setPreferredWidth((int)(width * 0.07)); //Quantity
                 cm.getColumn(2).setPreferredWidth((int)(width * 0.19)); //Name
                 cm.getColumn(3).setPreferredWidth((int)(width * 0.11)); //Serial
-                cm.getColumn(4).setPreferredWidth((int)(width * 0.07)); //Low Trigger
-                cm.getColumn(5).setPreferredWidth((int)(width * 0.06)); //Composite
-                cm.getColumn(6).setPreferredWidth((int)(width * 0.13)); //Amazon SKU
-                cm.getColumn(7).setPreferredWidth((int)(width * 0.13)); //eBay SKU
-                cm.getColumn(8).setPreferredWidth((int)(width * 0.13)); //Walmart SKU
+                cm.getColumn(4).setPreferredWidth((int)(width * 0.10)); //Low Trigger
+                cm.getColumn(5).setPreferredWidth((int)(width * 0.10)); //Composite
+                cm.getColumn(6).setPreferredWidth((int)(width * 0.11)); //Amazon SKU
+                cm.getColumn(7).setPreferredWidth((int)(width * 0.11)); //eBay SKU
+                cm.getColumn(8).setPreferredWidth((int)(width * 0.11)); //Walmart SKU
             }
         });
         return scrollPane;
+    }
+    private void updateTableFilter() {
+        TableRowSorter<DefaultTableModel> sorter =
+                (TableRowSorter<DefaultTableModel>) itemTable.getRowSorter();
+
+        if (sorter != null) {
+            String text = searchField.getText().trim().toLowerCase();
+            sorter.setRowFilter(createRowFilter(text));
+        }
+    }
+
+    private RowFilter<DefaultTableModel, Integer> createRowFilter(String searchText) {
+        return new RowFilter<DefaultTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+                String name    = entry.getStringValue(2).toLowerCase(); //Name
+                String serial  = entry.getStringValue(3).toLowerCase(); //Serial
+                String amazon  = entry.getStringValue(6).toLowerCase(); //Amazon SKU
+                String ebay    = entry.getStringValue(7).toLowerCase(); //eBay SKU
+                String walmart = entry.getStringValue(8).toLowerCase(); //Walmart SKU
+
+                Item i = entryToItem(entry);
+                if (i == null) return false;
+
+                // Apply checkbox filters
+                boolean hasNoAmazon = hasNoAmazonBox.isSelected();
+                boolean hasNoEbay = hasNoEbayBox.isSelected();
+                boolean hasNoWalmart = hasNoWalmartBox.isSelected();
+
+                if (hasNoAmazon && i.getAmazonSellerSKU() != null && !i.getAmazonSellerSKU().isBlank()) return false;
+                if (hasNoEbay && i.getEbaySellerSKU() != null && !i.getEbaySellerSKU().isBlank()) return false;
+                if (hasNoWalmart && i.getWalmartSellerSKU() != null && !i.getWalmartSellerSKU().isBlank()) return false;
+
+                // Apply search text filter
+                if (searchText.isEmpty()) return true;
+
+                return name.contains(searchText)
+                        || serial.contains(searchText)
+                        || amazon.contains(searchText)
+                        || ebay.contains(searchText)
+                        || walmart.contains(searchText);
+            }
+        };
+    }
+    Item entryToItem(RowFilter.Entry<? extends TableModel, ? extends Integer> entry){
+        if(entry.getStringValue(3) == null) return null;
+        String serial = entry.getStringValue(3);
+        return inventory.getItemBySerial(serial);
     }
 }

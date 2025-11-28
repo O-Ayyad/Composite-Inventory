@@ -5,15 +5,18 @@ import core.*;
 import storage.*;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.net.URL;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.List;
-import java.util.Timer;
+import javax.swing.Timer;
 
 
 public class MainWindow extends JFrame implements Inventory.ItemListener {
@@ -31,19 +34,22 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
     private boolean showNormal = true;
     private boolean showWarning = true;
     private boolean showCritical = true;
-    private boolean showSuppressed = true;
+    private boolean showSuppressed = false;
 
     private final TableRowSorter<LogTableModel> sorter;
 
-    private static final HashMap<Class<? extends SubWindow>, SubWindow> subWindowInstances = new HashMap<>();
+    private static final HashMap<Class<? extends SubWindow>, List<SubWindow>> subWindowInstances = new HashMap<>();
 
     private final Map<PlatformType, JPanel> platformSquares = new HashMap<>();
     private final Map<PlatformType, JLabel> platformLabels = new HashMap<>();
 
+    public UserConfigManager.UserConfig config;
+
     public MainWindow() {
 
-        DebugConsole.init();
+        DebugConsole debugConsole = DebugConsole.init();
 
+        //Create managers
         Inventory inventory = new Inventory();
         logManager = new LogManager();
 
@@ -58,23 +64,12 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         PlatformManager platformManager = new PlatformManager(inventory, logManager, apiFileManager);
         platformManager.setMainWindow(this);
 
-        InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory);
-        LogFileManager logFileManager = new LogFileManager(logManager);
-        OrderFileManager orderFileManager = new OrderFileManager(platformManager);
+        FileManager fileManager = new FileManager(inventory, logManager, platformManager,this);
 
-        platformManager.setOrderFileManager(orderFileManager);
+        config = fileManager.getUserConfig();
 
 
-
-        // Autosave
-        Timer autoSaveTimer = new Timer(true);
-        autoSaveTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                inventoryFileManager.saveInventory();
-                logFileManager.saveLogs();
-            }
-        }, 3000, 3000);
+        platformManager.setFileManager(fileManager);
 
 
         logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refresh));
@@ -82,59 +77,143 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         inventory.addChangeListener(this);
 
 
+
+        // Autosave
+        Timer autosave = new Timer(config.autoSaveTimer, e -> {
+            try {
+                if (platformManager.isFetching()) {
+                    System.out.println("Did not autosave since orders are being fetched.");
+                    return;
+                }
+                fileManager.saveAll();
+
+                System.out.println("Autosaved inventory and logs successfully");
+            } catch (Exception ex) {
+                System.out.println("Could not autosave. " + ex.getMessage());
+            }
+        });
+        autosave.setInitialDelay(config.autofetchTimer);
+        autosave.start();
+
+        // Auto fetch
+        platformManager.fetchAllRecentOrders();
+
+        Timer fetchTimer = new Timer(config.autofetchTimer, e -> {
+            if (platformManager.isFetching() || platformManager.onCooldown()) {
+                return;
+            }
+            platformManager.fetchAllRecentOrders();
+        });
+        fetchTimer.start();
+
+
+
+        //Create window
+        setTitle("Composite Inventory");
+        setSize(windowWidth, windowHeight);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+
+
+        //On close
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                for(Class<? extends SubWindow> subWin : subWindowInstances.keySet()){
-                    destroyExistingInstance(subWin);
+                fetchTimer.stop();
+                autosave.stop();
+                if (platformManager.isFetching()) {
+                    JOptionPane.showMessageDialog(
+                            null,
+                            "Fetching is still in progress. Please wait...",
+                            "Please wait",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+                } else {
+                    confirmCloseAllAndExit();
                 }
-                System.out.println("Saving before exit...");
-                inventoryFileManager.saveInventory();
-                logFileManager.saveLogs();
+            }
+
+            private void confirmCloseAllAndExit() {
+                int choice = JOptionPane.showConfirmDialog(null,
+                        "Are you sure you want to exit? \nMake sure to save all data manually before exiting.",
+                        "Exit Confirmation",
+                        JOptionPane.YES_NO_OPTION);
+                if(choice == 0){
+                    JDialog savingDialog = new JDialog((Frame) null, "Exiting", true);
+                    savingDialog.setLayout(new BoxLayout(savingDialog.getContentPane(), BoxLayout.Y_AXIS));
+
+                    JLabel label = new JLabel("Saving...");
+                    label.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    label.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+
+                    new Thread(() -> {
+                        try {
+                            for (Class<? extends SubWindow> subWin : subWindowInstances.keySet()) {
+                                destroyAllExistingInstance(subWin);
+                            }
+                            fileManager.saveAll();
+                        } finally {
+                            SwingUtilities.invokeLater(() -> {
+                                savingDialog.dispose();
+                                dispose();
+                                System.exit(0);
+                            });
+                        }
+                    }).start();
+
+                    savingDialog.setVisible(true);
+
+                }else{
+                    fetchTimer.restart();
+                    autosave.restart();
+                }
             }
         });
 
-        setTitle("Composite Inventory");
-        setSize(windowWidth, windowHeight);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null); // center
 
         setLayout(new BorderLayout());
 
         // ---------------- LOGO, BUTTONS, INFO BAR ----------------
 
-        JPanel topContainer = new JPanel();
-        topContainer.setLayout(new BorderLayout()); // Holds buttons and top bar
+        JPanel topContainer = new JPanel(new BorderLayout()); // Holds buttons and top bar
 
         // Logo Panel
-        JPanel logoPanel = new JPanel();
-        logoPanel.setLayout(new BorderLayout());
-        logoPanel.setPreferredSize(new Dimension(windowWidth, 50));
+        JPanel logoPanel = new JPanel(new BorderLayout());
+        logoPanel.setBorder(new EmptyBorder(10, 120, 10, 10));
+
         logoPanel.setBackground(UIUtils.BACKGROUND_MAIN);
 
-        // Logo
-        ImageIcon logo = new ImageIcon("icons/logo.png"); // make sure logo.png exists
-        Image scaledLogo = logo.getImage().getScaledInstance(300, 50, Image.SCALE_SMOOTH);
-        JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
-        logoPanel.add(logoLabel, BorderLayout.WEST);
+
+        URL logoURL = getClass().getClassLoader().getResource("icons/windowIcons/logo.png");
+        if (logoURL == null) {
+            System.err.println("Logo image not found!");
+        } else {
+            ImageIcon logo = new ImageIcon(logoURL);
+            Image scaledLogo = logo.getImage().getScaledInstance(400, 100, Image.SCALE_SMOOTH);
+            JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
+
+            JPanel leftWrapper = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            leftWrapper.setOpaque(false);
+            leftWrapper.add(logoLabel);
+
+            logoPanel.add(logoLabel, BorderLayout.WEST);
+        }
 
         // Links and Authorship
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 15)); //
         rightPanel.setOpaque(false);
 
-        JLabel authorLabel = new JLabel("Authorship Text");
-        authorLabel.setFont(UIUtils.FONT_ARIAL_REGULAR );
+        JLabel authorLabel = new JLabel("<html><div style=\"text-align: center;\">Made by O-Ayyad<br><br>oayyad1@proton.me<br><br>Contact for any bugs or questions</div></html>");
+        authorLabel.setFont(UIUtils.FONT_ARIAL_LARGE );
         rightPanel.add(authorLabel);
 
         //Links
-        JPanel linksPanel = new JPanel();
-        linksPanel.setLayout(new GridLayout(2, 1, 0, 0));
         JButton githubLink = UIUtils.createLinkButton("Github", "https://github.com/O-Ayyad", "icons/windowIcons/github.png");
-
-        //Temp
-        JButton docsLink = UIUtils.createLinkButton("Docs", "https://example.com/docs", "icons/temp");
         rightPanel.add(githubLink);
-        rightPanel.add(docsLink);
+
+        JPanel rightWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        rightWrapper.setOpaque(false);
+        rightWrapper.add(rightPanel);
 
         logoPanel.add(rightPanel, BorderLayout.EAST); //Add authorship and LinksF
 
@@ -197,7 +276,8 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         topContainer.add(logoPanel, BorderLayout.NORTH);
         topContainer.add(buttonPanel, BorderLayout.CENTER);
 
-        add(topContainer, BorderLayout.NORTH);
+
+        add(topContainer, BorderLayout.PAGE_START);
 
         // Left tool panel
 
@@ -226,20 +306,91 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
 
         //Left buttons
-        String[] buttonLabels = {"Btn1", "Btn2", "Btn3", "Btn4"};
-        JButton[] toolButtons = new JButton[buttonLabels.length];
-        for (int i = 0; i < buttonLabels.length; i++) {
-            JButton btn = new JButton(buttonLabels[i]);
-            toolButtons[i] = btn;
+        JButton fetchOrdersBtn = new JButton("Fetch Orders");
+        JButton saveInfoBtn = new JButton("Save information");
+        JButton settingsBtn = new JButton("Settings and Help");
+        JButton openDebugBtn = new JButton("<html><div style='text-align:center;'>Open Debug Console<br>(Shift + ~)</div></html>");
+
+        JButton[] toolButtons = {fetchOrdersBtn, saveInfoBtn, settingsBtn, openDebugBtn};
+        for (JButton btn : toolButtons) {
             btn.setAlignmentX(Component.CENTER_ALIGNMENT);
-            btn.setMaximumSize(new Dimension(180, 35));
+            btn.setMaximumSize(new Dimension(200, 45));
             UIUtils.styleButton(btn);
             leftTools.add(btn);
             leftTools.add(Box.createRigidArea(new Dimension(0, 20)));
         }
-        toolButtons[0].addActionListener(e->platformManager.fetchAllRecentOrders());
-        toolButtons[1].addActionListener(e->orderFileManager.saveOrders());
-        toolButtons[2].addActionListener(e->orderFileManager.loadOrders());
+        fetchOrdersBtn.addActionListener(e -> {
+            if(!fetchOrdersBtn.isEnabled()) return;
+            platformManager.fetchAllRecentOrders();
+        });
+
+
+        Timer fetchOrderButtonChecker = new Timer(500, e -> {
+                boolean fetching = platformManager.isFetching();
+                boolean onCooldown = platformManager.onCooldown();
+
+                String timeRemaining = "";
+                if(onCooldown) {
+                    long totalSeconds = java.time.Duration.between(
+                            LocalDateTime.now(),
+                            platformManager.getLastFetchTime().plusSeconds(platformManager.fetchTimeCooldownSeconds)
+                    ).getSeconds();
+
+                    long seconds = totalSeconds % 60;
+                    timeRemaining = seconds + " s";
+                }
+
+                final String finalTimeRemaining = timeRemaining;
+                final boolean finalFetching = fetching;
+                final boolean finalOnCooldown = onCooldown;
+
+                SwingUtilities.invokeLater(() -> {
+                    fetchOrdersBtn.setEnabled(!finalFetching && !finalOnCooldown);
+
+                    if(finalFetching) {
+                        fetchOrdersBtn.setText("<html>Fetch Orders<br>(fetching...)</html>");
+                    } else if(finalOnCooldown) {
+                        fetchOrdersBtn.
+                                setText("<html><div style='text-align: center;'>Fetch Orders<br>(" + finalTimeRemaining + ")</div></html>");
+                    } else {
+                        fetchOrdersBtn.setText("Fetch Orders");
+                    }
+                });
+        });
+
+        fetchOrderButtonChecker.start();
+
+        saveInfoBtn.addActionListener(e->{
+            try{
+                if(platformManager.isFetching()){
+                    JOptionPane.showMessageDialog(this,
+                            "Could not save information since orders are being fetched",
+                            "Cannot save",
+                            JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                fileManager.saveAll();
+
+                JOptionPane.showMessageDialog(this,
+                        "Successfully saved Inventory, Logs and Orders to disk",
+                        "Saving Success",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }catch (Exception ex){
+                JOptionPane.showMessageDialog(this,
+                        ex.getMessage(),
+                        "Saving Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+
+        });
+
+        openDebugBtn.addActionListener(e->{
+            if(debugConsole.isVisible()){
+                debugConsole.toFront();
+            }else {
+                debugConsole.toggle();
+            }
+        });
 
         JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5)); // horizontal layout
         filterPanel.setOpaque(false);
@@ -345,29 +496,27 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
             accountSummary.add(row);
             accountSummary.add(Box.createVerticalStrut(10));
         }
-        Timer accountSquares = new Timer(true);
-        accountSquares.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                for (PlatformType p : PlatformType.values()) {
-                    JPanel square = platformSquares.get(p);
-                    JLabel text = platformLabels.get(p);
-                    if (apiFileManager.hasToken(p)) {
-                        BaseSeller<?> seller = platformManager.getSeller(p);
-                        if(seller.fetchingOrders){
-                            square.setBackground(UIUtils.FETCHING_ORDERS);
-                            text.setText(p.getDisplayName() + " (Fetching orders...)");
-                        }else{
-                            square.setBackground(UIUtils.LINK_SUCCESS);
-                            text.setText(p.getDisplayName() + " (Connected)");
-                        }
-                    }else{
-                        square.setBackground(Color.GRAY);
-                        text.setText(p.getDisplayName() + " (Not Connected)");
+        new Timer(500, e -> {
+            for (PlatformType p : PlatformType.values()) {
+                JPanel square = platformSquares.get(p);
+                JLabel text = platformLabels.get(p);
+
+                if (apiFileManager.hasToken(p)) {
+                    BaseSeller seller = platformManager.getSeller(p);
+
+                    if (seller.fetchingOrders) {
+                        square.setBackground(UIUtils.FETCHING_ORDERS);
+                        text.setText(p.getDisplayName() + " (Fetching orders...)");
+                    } else {
+                        square.setBackground(UIUtils.LINK_SUCCESS);
+                        text.setText(p.getDisplayName() + " (Connected)");
                     }
+                } else {
+                    square.setBackground(Color.GRAY);
+                    text.setText(p.getDisplayName() + " (Not Connected)");
                 }
             }
-        }, 500, 500);
+        }).start();
 
         JPanel mainArea = new JPanel(new BorderLayout());
         mainArea.add(leftWrapper, BorderLayout.WEST);
@@ -380,6 +529,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
     // Window Buttons
     private JButton createIconButton(String text, String iconPath) {
+
         java.net.URL imgURL = getClass().getClassLoader().getResource(iconPath);
         ImageIcon icon;
         if (imgURL == null) {
@@ -390,7 +540,11 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         }
         int iconWidth = 60;
         int iconHeight = 60;
-        Image scaled = icon.getImage().getScaledInstance(60, 60, Image.SCALE_SMOOTH);
+        if(iconPath.equals("icons/windowIcons/link.png")){
+            iconHeight = 70;
+            iconWidth = 70;
+        }
+        Image scaled = icon.getImage().getScaledInstance(iconWidth, iconHeight, Image.SCALE_SMOOTH);
         JButton button = new JButton();
         button.setPreferredSize(new Dimension(windowWidth / 4, windowHeight / 10));
         button.setFocusPainted(false);
@@ -445,49 +599,70 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
     }
 
     public void addInstance(SubWindow subWindow) {
-        subWindowInstances.put(subWindow.getClass(), subWindow);
+        subWindowInstances
+                .computeIfAbsent(subWindow.getClass(), k -> new ArrayList<>())
+                .add(subWindow);
     }
-    public SubWindow getInstance(Class<? extends SubWindow> clazz) {
-        return subWindowInstances.get(clazz);
+    public List<SubWindow> getInstances(Class<? extends SubWindow> clazz) {
+        return subWindowInstances.getOrDefault(clazz, new ArrayList<>());
     }
     public boolean hasInstance(Class<? extends SubWindow> clazz) {
-        return subWindowInstances.containsKey(clazz);
+        List<SubWindow> instances = subWindowInstances.get(clazz);
+        if(instances == null){
+            return false;
+        }
+        return !instances.isEmpty();
     }
+
     public void removeInstance(SubWindow subWindow) {
         if (subWindow == null) return;
 
-        SubWindow curr = getInstance(subWindow.getClass());
-        if (curr == subWindow) {
-            subWindowInstances.remove(subWindow.getClass());
+        List<SubWindow> instances = subWindowInstances.get(subWindow.getClass());
+        if (instances != null) {
+            instances.remove(subWindow);
+
+            if (instances.isEmpty()) {
+                subWindowInstances.remove(subWindow.getClass());
+            }
         }
     }
     //Destroys the current window of type param
-    public void destroyExistingInstance(Class<? extends SubWindow> clazz){
-        SubWindow curr = getInstance(clazz);
-        if(curr == null) return; // nothing to destroy
-        removeInstance(curr);
-        curr.dispose();
+    public void destroyExistingInstance(SubWindow subWindow) {
+        if (subWindow == null) return;
+        removeInstance(subWindow);
+        subWindow.dispose();
+    }
+    public void destroyAllExistingInstance(Class<? extends SubWindow> clazz) {
+        List<SubWindow> instances = new ArrayList<>(getInstances(clazz));
+
+        for (SubWindow window : instances) {
+            removeInstance(window);
+            window.dispose();
+        }
     }
     //Used to remove windows about an item when an item is deleted
     public void checkAndDestroy(Item i) {
-        System.out.println("Called on item :" + i.getName());
+
         ArrayList<SubWindow> toDestroy = new ArrayList<>();
-        for (SubWindow curr : subWindowInstances.values()) {
-            if (curr instanceof EditWindow e && e.selectedItem == i) {
-                toDestroy.add(curr);
-            }
-            else if (curr instanceof ItemInfoWindow e && e.item == i) {
-                toDestroy.add(curr);
-            }
-            else if (curr instanceof AddWindow e && e.selected == i) {
-                toDestroy.add(curr);
-            }
-            else if (curr instanceof RemoveWindow e && e.selected == i) {
-                toDestroy.add(curr);
+
+        for (List<SubWindow> instances : new ArrayList<>(subWindowInstances.values())) {
+            for (SubWindow curr : new ArrayList<>(instances)) {
+                if (curr instanceof EditWindow e && e.selectedItem == i) {
+                    toDestroy.add(curr);
+                }
+                else if (curr instanceof ItemInfoWindow e && e.item == i) {
+                    toDestroy.add(curr);
+                }
+                else if (curr instanceof AddWindow e && e.selected == i) {
+                    toDestroy.add(curr);
+                }
+                else if (curr instanceof RemoveWindow e && e.selected == i) {
+                    toDestroy.add(curr);
+                }
             }
         }
         for (SubWindow window : toDestroy) {
-            destroyExistingInstance(window.getClass());
+            destroyExistingInstance(window);
         }
     }
 
@@ -532,28 +707,11 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(MainWindow::new);
     }
-
-    private static void printSolutions(List<Map<Item, Integer>> solutions) {
-        if (solutions.isEmpty()) {
-            System.out.println("No solutions found!");
-        } else {
-            System.out.println("Found " + solutions.size() + " solution(s):");
-            for (int i = 0; i < solutions.size(); i++) {
-                System.out.print("  Solution " + (i + 1) + ": Break down ");
-                Map<Item, Integer> solution = solutions.get(i);
-                boolean first = true;
-                int totalItems = 0;
-                for (Map.Entry<Item, Integer> entry : solution.entrySet()) {
-                    if (!first) System.out.print(", ");
-                    System.out.print(entry.getValue() + "x " + entry.getKey().getName());
-                    totalItems += entry.getValue();
-                    first = false;
-                }
-                System.out.println(" (Total: " + totalItems + " items)");
-            }
-        }
-    }
     public void onChange(Item item) {
         checkAndDestroy(item);
+    }
+
+    public void addToStartupWindows(){
+
     }
 }

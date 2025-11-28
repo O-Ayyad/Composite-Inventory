@@ -1,6 +1,4 @@
-package core;
-
-import gui.UIUtils;
+package gui;
 
 import javax.swing.*;
 import java.awt.*;
@@ -12,10 +10,9 @@ import java.time.LocalDateTime;
 
 // All System.out/err prints here for debugging
 public class DebugConsole extends JFrame {
-    private static DebugConsole instance;
     private final JTextArea area = new JTextArea();
 
-    private DebugConsole() {
+    public DebugConsole() {
         setTitle("Debug Console");
         setSize(800, 400);
         setLocationRelativeTo(null);
@@ -66,25 +63,25 @@ public class DebugConsole extends JFrame {
         });
     }
 
-    public static void init() {
-        if (instance == null) instance = new DebugConsole();
+    public static DebugConsole init() {
+        DebugConsole dc = new DebugConsole();
 
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
                 .addKeyEventDispatcher(e -> {
                     if (e.getID() == KeyEvent.KEY_PRESSED &&
                             e.getKeyCode() == KeyEvent.VK_BACK_QUOTE &&
                             e.isShiftDown()) {
-                        if (instance.isVisible()) {
-                            instance.setVisible(false);
-                        } else {
-                            instance.setVisible(true);
-                            instance.toFront();
-                        }
+                        dc.toggle();
                         return true;
                     }
                     return false;
                 });
 
         System.out.println("[DebugConsole] Initialized. Press Shift + ~ to toggle.");
+        return dc;
+    }
+    public void toggle(){
+        this.setVisible(!this.isVisible());
+        if(this.isVisible()) this.toFront();
     }
 }

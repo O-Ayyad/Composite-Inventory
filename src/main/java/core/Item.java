@@ -97,7 +97,7 @@ public class Item {
             Integer qty = entry.getValue();
 
             if (component  == null) {
-                System.out.println("ItemPacket has a null item. Skipping.");
+                System.out.println("newList in replaceComposedOf() has a null item. Skipping.");
                 continue;
             }
             if (component .equals(this)) {
@@ -108,6 +108,8 @@ public class Item {
         }
 
         composedOf = valid;
+
+        composedOfSerialized.clear();
         for(Map.Entry<Item, Integer> e : composedOf.entrySet()){
             composedOfSerialized.put(
                     e.getKey().serial,
@@ -156,7 +158,7 @@ public class Item {
     }
     //If item A holds item B composedOf then item B should hold Item A in composed into
     //This should be called on the composite item. The kit/combo
-    public void syncCompositionDependencies(){
+    private void syncCompositionDependencies(){
         if (itemManager == null) throw new IllegalStateException("Item Manager is null for item: "+ getName());
         //Make sure all components of this item know what they compose into
         for (Item component : composedOf.keySet()) {

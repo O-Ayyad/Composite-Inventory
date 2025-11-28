@@ -29,12 +29,11 @@ public class RemoveWindow extends SubWindow {
                     "Inventory Empty",
                     JOptionPane.WARNING_MESSAGE);
             dispose();
-            mainWindow.destroyExistingInstance(this.getClass());
+            mainWindow.destroyAllExistingInstance(this.getClass());
             return;
         }
 
         setupUI(selected,send);
-        setVisible(true);
     }
 
     @Override
@@ -103,7 +102,6 @@ public class RemoveWindow extends SubWindow {
             if (newItem == null) return;
 
             selected = newItem;
-            System.out.println("Got itme  "+selected.getName());
         });
 
         //Reduce text
@@ -218,6 +216,16 @@ public class RemoveWindow extends SubWindow {
                                 amount, currentStock, currentStock),
                         "Insufficient Stock",
                         JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int response = JOptionPane.showConfirmDialog(this,
+                    String.format("Are you sure you want to reduce stock of '%s' by %d units?", target.getName(), amount),
+                    "Confirm Stock Reduction",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE);
+
+            if(response != JOptionPane.YES_OPTION){
                 return;
             }
 
@@ -521,9 +529,28 @@ public class RemoveWindow extends SubWindow {
                 return;
             }
 
+            if (inventory.getQuantity(target) <= 0) {
+                JOptionPane.showMessageDialog(this,
+                        target.getName() + " is out of stock.",
+                        "Invalid Selection", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+
+            int confirm = JOptionPane.showConfirmDialog(
+                    null,
+                    "Are you sure you want to break down " + target.getName() + "?",
+                    "Confirm Breakdown",
+                    JOptionPane.YES_NO_OPTION
+            );
+            if(confirm != JOptionPane.YES_OPTION){
+                return;
+            }
             //Validate reclaim amount
             Map<Item,Integer> usedComponents = new HashMap<>();
+
             for (Map.Entry<Map.Entry<Item,Integer>, JTextField> entry : componentFields.entrySet()) {
+
                 Item i = entry.getKey().getKey();
                 int amount = entry.getKey().getValue();
                 JTextField tf = entry.getValue();

@@ -12,26 +12,29 @@ import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import platform.PlatformType;
+import platform.*;
 
 
 //Securely read,writes and stores tokens in encrypted folders
 //File : ~resources/data/encrypted_tokens/(amazon/ebay/walmart)/token.enc
 public class APIFileManager {
-    private final String passphrase;
-    private final SecureRandom secureRandom;
+    public final String passphrase;
+    public final SecureRandom secureRandom;
 
 
-    private static final String BASE_DIR =
-            new File("data" + File.separator + "encrypted_tokens").getAbsolutePath();
+    public static final String BASE_DIR =
+            new File("encrypted_tokens").getAbsolutePath();
 
-    private static final int GCM_IV_LENGTH = 12;
-    private static final int GCM_TAG_LENGTH = 128;
+    public static final int GCM_IV_LENGTH = 12;
+    public static final int GCM_TAG_LENGTH = 128;
 
     public APIFileManager() {
         try {
@@ -144,13 +147,7 @@ public class APIFileManager {
         }
     }
     public synchronized boolean hasToken(PlatformType platform) {
-        try {
-            Path file = Path.of(getTokenFilePath(platform));
-            return Files.exists(file);
-        }catch (Exception e) {
-            System.out.println("ERROR: Could not find token for "+ platform.name());
-            return false;
-        }
+        return Files.exists(Path.of(getTokenFilePath(platform)));
     }
     public synchronized void removeToken(PlatformType platform) {
         try {
@@ -194,7 +191,7 @@ public class APIFileManager {
                     conn.setRequestProperty("x-amz-access-token", accessToken);
                     conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
 
-                    System.out.println("->Setting timeouts");
+                    System.out.println("-> Setting timeouts");
                 }
                 case EBAY -> {
                     //Same as amazon
@@ -229,26 +226,21 @@ public class APIFileManager {
                     System.out.println("-> Getting Walmart Token");
                     String accessToken = getWalmartAccessToken(clientID, clientSecret);
                     System.out.println("-> Returned accessToken=" + (accessToken == null ? "null" : "OK len=" + accessToken.length()));
+
                     if (accessToken == null) {
                         System.out.println("ERROR: Walmart access token is null or invalid.");
                         return -1;
                     }
 
                     System.out.println("-> Opening Walmart API connection...");
-                    URL url = new URL("https://marketplace.walmartapis.com/v3/items?limit=1");
+                    URL url = new URL("https://marketplace.walmartapis.com/v3/orders");
                     conn = (HttpURLConnection) url.openConnection();
 
                     System.out.println("-> Setting request method...");
                     conn.setRequestMethod("GET");
 
                     System.out.println("-> Adding headers...");
-
-                    conn.setRequestProperty("WM_SEC.ACCESS_TOKEN", accessToken);
-                    conn.setRequestProperty("WM_CONSUMER.CHANNEL.TYPE", clientID);
-                    conn.setRequestProperty("WM_SVC.NAME", "Walmart Marketplace");
-                    conn.setRequestProperty("WM_QOS.CORRELATION_ID", UUID.randomUUID().toString());
-                    conn.setRequestProperty("Accept", "application/json");
-                    conn.setRequestProperty("Content-Type", "application/json");
+                    addWalmartHeaders(conn, accessToken,clientID);
 
                     System.out.println("-> Setting timeouts");
                 }
@@ -260,20 +252,34 @@ public class APIFileManager {
 
             System.out.println("-> Attempting to get response code");
             int response = conn.getResponseCode();
-            String message = conn.getResponseMessage();
+            String message = "Good response";
             System.out.println("-> Response code: " + response);
-
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                    (response >= 200 && response < 300)
-                            ? conn.getInputStream()
-                            : conn.getErrorStream(),
-                    StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    System.out.println("     " + line);
+            boolean goodResponse = (response >= 200 && response < 300);
+            if(!goodResponse){
+                message = conn.getResponseMessage();
+                StringBuilder sb = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(
+                        conn.getErrorStream(),
+                        StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line);
+                    }
                 }
-            } catch (Exception e){
-                System.out.println(e.getMessage());
+                String rawJson = sb.toString();
+
+                //pretty print
+                try {
+                    String pretty = new GsonBuilder()
+                            .setPrettyPrinting()
+                            .create()
+                            .toJson(JsonParser.parseString(rawJson));
+
+                    System.out.println(pretty);
+
+                }catch (Exception e){
+                    System.out.println(e.getMessage());
+                }
             }
 
             conn.disconnect();
@@ -281,7 +287,7 @@ public class APIFileManager {
 
 
             // 200–299 = valid, anything else = invalid
-            if(response >= 200 && response < 300) {
+            if(goodResponse) {
                 System.out.println("Success. Good HTTP response");
             }else{
                 System.out.println("ERROR. Bad HTTP response");
@@ -289,6 +295,7 @@ public class APIFileManager {
             return response;
         } catch (IOException e) {
             System.out.println("ERROR: [VALIDATING TOKEN FAILED]");
+            System.out.println(Arrays.toString(e.getStackTrace()));
             return -1;
         }
     }
@@ -364,8 +371,8 @@ public class APIFileManager {
         HttpURLConnection conn = null;
         try {
             System.out.println("[Walmart] Requesting new access token...");
-
             URL url = new URL("https://marketplace.walmartapis.com/v3/token");
+
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Accept", "application/json");
@@ -378,17 +385,21 @@ public class APIFileManager {
             conn.setRequestProperty("Authorization", "Basic " + basicAuth);
             conn.setRequestProperty("WM_SVC.NAME", "Walmart Marketplace");
             conn.setRequestProperty("WM_QOS.CORRELATION_ID", UUID.randomUUID().toString());
+            conn.setRequestProperty("WM_SVC.VERSION", "1.0.0");
+
 
             conn.setDoOutput(true);
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
 
+
             try (OutputStream os = conn.getOutputStream()) {
                 os.write("grant_type=client_credentials".getBytes(StandardCharsets.UTF_8));
             }
-
             int code = conn.getResponseCode();
+
             System.out.println("[Walmart] HTTP " + code + " (" + conn.getResponseMessage() + ")");
+
 
             InputStream stream = (code >= 200 && code < 300)
                     ? conn.getInputStream()
@@ -398,10 +409,12 @@ public class APIFileManager {
                 System.out.println("[Walmart] No response body from server.");
                 return null;
             }
-
             String encoding = conn.getContentEncoding();
+
+
             if (encoding != null && encoding.toLowerCase().contains("gzip")) {
                 stream = new java.util.zip.GZIPInputStream(stream);
+
             }
 
             StringBuilder sb = new StringBuilder();
@@ -412,30 +425,35 @@ public class APIFileManager {
 
             String responseBody = sb.toString().trim();
 
+            if(responseBody.equals("Bad Request")){
+                return null;
+            }
+
             JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
 
             if (json.has("access_token")) {
                 System.out.println("[Walmart] Received token response.");
+
             } else {
                 System.out.println("[Walmart] ERROR: access_token not found in response.");
                 return null;
+
             }
-
-
             String token = json.get("access_token").getAsString();
             System.out.println("[Walmart] Access token retrieved successfully (len=" + token.length() + ")");
-
             return token;
 
         } catch (Exception e) {
             System.out.println("[Walmart] EXCEPTION while getting token: " + e);
+            System.out.println(Arrays.toString(e.getStackTrace()));
             return null;
+
         } finally {
             if (conn != null) conn.disconnect();
         }
     }
     //If we have the access token the just try the token
-    public int vaildateAmazonAccessToken(String accessToken){
+    public int validateAmazonAccessToken(String accessToken){
         System.out.println("[BEGIN VALIDATING ACCESS TOKEN]");
         try{
             HttpURLConnection conn;
@@ -450,23 +468,50 @@ public class APIFileManager {
             conn.setRequestProperty("x-amz-access-token", accessToken);
             conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
 
-            System.out.println("->Setting timeouts");
+            System.out.println("-> Setting timeouts");
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(10000);
 
             System.out.println("-> Attempting to get response code");
             int response = conn.getResponseCode();
+            String responseBody = conn.getResponseMessage();
             System.out.println("-> Response code: " + response);
+            System.out.println("-> Response body: " + responseBody);
 
-            System.out.println("-> Reading body");
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                    (response >= 200 && response < 300)
-                            ? conn.getInputStream()
-                            : conn.getErrorStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    System.out.println("     " + line);
+            StringBuilder sb = new StringBuilder();
+            if(!(response >= 200 && response < 300)){
+                System.out.println("-> Reading success response body");
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line);
+                    }
                 }
+                try {
+
+                    String rawJson = sb.toString();
+                    String pretty = new GsonBuilder()
+                            .setPrettyPrinting()
+                            .create()
+                            .toJson(JsonParser.parseString(rawJson));
+                    System.out.println("-> Success response:");
+                    System.out.println(pretty);
+
+                } catch (Exception e) {
+                    System.out.println("-> Error pretty printing JSON: " + e.getMessage());
+                    System.out.println("-> Raw response: " + sb.toString());
+                }
+            } else {
+                System.out.println("-> Reading error response body");
+                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(conn.getErrorStream()))) {
+                    String line;
+                    while ((line = errorReader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                }catch (Exception e) {
+                    System.out.println("-> Could not read error stream: " + e.getMessage());
+                }
+                System.out.println("-> Error response: " + sb);
             }
 
             conn.disconnect();
@@ -483,11 +528,117 @@ public class APIFileManager {
         }
         return -1;
     }
+    public int validateWalmartAccessToken(String accessToken, String clientID){
+        System.out.println("[BEGIN VALIDATING ACCESS TOKEN]");
+        try{
+
+            HttpURLConnection conn;
+            System.out.println("-> Opening Walmart API connection...");
+            URL url = new URL("https://marketplace.walmartapis.com/v3/items");
+            conn = (HttpURLConnection) url.openConnection();
+
+            System.out.println("-> Setting request method...");
+            conn.setRequestMethod("GET");
+
+            System.out.println("-> Adding headers...");
+
+            addWalmartHeaders(conn,accessToken, clientID);
+
+            System.out.println("->Setting timeouts");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+
+            System.out.println("-> Attempting to get response code");
+            int response = conn.getResponseCode();
+            String responseMessage = conn.getResponseMessage();
+            System.out.println("-> Response code: " + response);
+            System.out.println("-> Response message: " + responseMessage);
+
+
+            StringBuilder sb = new StringBuilder();
+            if(!(response >= 200 && response < 300)){
+                System.out.println("-> Reading success response body");
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line);
+                    }
+
+                    String rawJson = sb.toString();
+                    String pretty = new GsonBuilder()
+                            .setPrettyPrinting()
+                            .create()
+                            .toJson(JsonParser.parseString(rawJson));
+                    System.out.println("-> Success response:");
+                    System.out.println(pretty);
+
+                } catch (Exception e) {
+                    System.out.println("-> Error pretty printing JSON: " + e.getMessage());
+                    System.out.println("-> Raw response: " + sb);
+                }
+            } else {
+                System.out.println("-> Reading error response body");
+                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(conn.getErrorStream()))) {
+                    String line;
+                    while ((line = errorReader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                }catch (Exception e) {
+                    System.out.println("-> Could not read error stream: " + e.getMessage());
+                }
+                System.out.println("-> Error response: " + sb);
+            }
+
+            conn.disconnect();
+            System.out.println("[VALIDATING ACCESS TOKEN END] Response code: " + response);
+
+            if(response >= 200 && response < 300) {
+                System.out.println("Success. Good HTTP response");
+            }else{
+                System.out.println("ERROR. Bad HTTP response");
+            }
+            return response;
+        }catch (Exception e) {
+            System.out.println("Exception during access token validation: " + e.getMessage());
+            System.out.println(Arrays.toString(e.getStackTrace()));
+        }
+        return -1;
+    }
+    public void addWalmartHeaders(HttpURLConnection conn, String accessToken, String clientID){
+        conn.setRequestProperty("WM_SEC.ACCESS_TOKEN", accessToken);
+        conn.setRequestProperty("WM_CONSUMER.CHANNEL.TYPE", clientID);
+        conn.setRequestProperty("WM_SVC.NAME", "Walmart Marketplace");
+        conn.setRequestProperty("WM_QOS.CORRELATION_ID", UUID.randomUUID().toString());
+        conn.setRequestProperty("Accept", "application/json");
+        conn.setRequestProperty("Content-Type", "application/json");
+    }
     public static String getStorageDir(PlatformType platform) {
         return BASE_DIR + File.separator + platform.getDisplayName().toLowerCase();
     }
 
     public static String getTokenFilePath(PlatformType platform) {
         return getStorageDir(platform) + File.separator + "token.enc";
+    }
+
+    public void checkBadKeys(List<BaseSeller> sellers){
+        for(BaseSeller seller : sellers){
+            System.out.println(seller.keyFailCounter);
+            if (seller.isBadKey()){
+                removeToken(sellerToPlatform(seller));
+                seller.resetBadKeyCount();
+            }
+        }
+    }
+    public PlatformType sellerToPlatform(BaseSeller seller) {
+        if (seller instanceof AmazonSeller) {
+            return PlatformType.AMAZON;
+        } else if (seller instanceof EbaySeller) {
+            return PlatformType.EBAY;
+        } else if (seller instanceof WalmartSeller) {
+            return PlatformType.WALMART;
+        }else{
+            System.out.println("sellerToPlatform called on seller that has no platform");
+            return null;
+        }
     }
 }

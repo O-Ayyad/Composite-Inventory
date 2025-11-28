@@ -11,10 +11,6 @@ public class ItemManager {
         this.inventory = inventory;
     }
 
-    public void setInventory(Inventory inventory) {
-        this.inventory = inventory;
-    }
-
     //-------------------------------<Methods>-------------------------------
 
     //Clones an item's composed of then removes the item and adds composed of - removed items
@@ -65,7 +61,7 @@ public class ItemManager {
 
         int beforeQuantity = inventory.getQuantity(item);
 
-        inventory.processItemMap(removedItems);
+        inventory.processItemMap(remainderComponents);
 
         inventory.decreaseItemAmountSilent(item, 1);
 

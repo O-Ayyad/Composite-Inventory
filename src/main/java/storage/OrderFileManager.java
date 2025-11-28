@@ -1,9 +1,7 @@
 package storage;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+
 import com.google.gson.annotations.Expose;
-import constants.Constants;
 import platform.BaseSeller;
 import platform.PlatformManager;
 import platform.PlatformType;
@@ -16,50 +14,32 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 //Stores ebay, amazon, and walmart orders in 3 separate files
-public class OrderFileManager {
+public class OrderFileManager extends AbstractFileManager{
+    
 
-    private final String dataDir = new File("data" + File.separator +
-            "orders").getAbsolutePath();
+    public static final String EBAY_ORDERS_FILENAME = "ebay_orders.json";
+    public static final String AMAZON_ORDERS_FILENAME = "amazon_orders.json";
+    public static final String WALMART_ORDERS_FILENAME = "walmart_orders.json";
 
-    private static final String EBAY_ORDERS_FILENAME = "ebay_orders.json";
-    private static final String AMAZON_ORDERS_FILENAME = "amazon_orders.json";
-    private static final String WALMART_ORDERS_FILENAME = "walmart_orders.json";
+    public final String ebayOrdersFilePath = dataDir + File.separator + EBAY_ORDERS_FILENAME;
+    public final String amazonOrdersFilePath = dataDir + File.separator + AMAZON_ORDERS_FILENAME;
+    public final String walmartOrdersFilePath = dataDir + File.separator + WALMART_ORDERS_FILENAME;
 
-    private final String ebayOrdersFilePath = dataDir + File.separator + EBAY_ORDERS_FILENAME;
-    private final String amazonOrdersFilePath = dataDir + File.separator + AMAZON_ORDERS_FILENAME;
-    private final String walmartOrdersFilePath = dataDir + File.separator + WALMART_ORDERS_FILENAME;
+    public final PlatformManager platformManager;
+    
 
-    private final PlatformManager platformManager;
-
-    private boolean loading;
-
-    Gson gson;
-
-    public OrderFileManager(PlatformManager platformSellerManager) {
+    public OrderFileManager(PlatformManager platformSellerManager, String dataDirName) {
+        super(dataDirName);
         this.platformManager = platformSellerManager;
 
-        gson = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
-                .setPrettyPrinting()
-                .registerTypeAdapter(LocalDateTime.class, new Constants.LocalDateTimeAdapter())
-                .create();
 
-        try {
-            Path newDir = Path.of(dataDir);
-            Files.createDirectories(newDir);
-        } catch (IOException e) {
-            System.out.println("Error creating directory: " + e.getMessage());
-        }
-
-        loadOrders();
     }
-
-    public void loadOrders() {
+    @Override
+    public void load() {
         loading = true;
         for (PlatformType platform : PlatformType.values()) {
             Path filePath = platformToFilePath(platform);
@@ -74,7 +54,7 @@ public class OrderFileManager {
                     SellerData data = gson.fromJson(reader, SellerData.class);
 
                     if (data != null) {
-                        BaseSeller<?> seller = platformManager.getSeller(platform);
+                        BaseSeller seller = platformManager.getSeller(platform);
 
                         seller.lastGetOrderTime = data.lastGetOrderTime();
                         seller.firstGetOrderTime = data.firstGetOrderTime();
@@ -105,15 +85,15 @@ public class OrderFileManager {
 
         loading = false;
     }
-    public void saveOrders() {
+    @Override
+    public void save() {
         if (loading) return;
-        if(platformManager.anySellersFetching()) return;
+        if(platformManager.isFetching()) return;
         for(PlatformType p : PlatformType.values()){
-            BaseSeller<?> seller = platformManager.getSeller(p);
+            BaseSeller seller = platformManager.getSeller(p);
             Path filePath = platformToFilePath(p);
 
             Map<String, BaseSeller.Order> platformOrders = platformManager.allOrders.get(p);
-
 
             SellerData data = new SellerData(
                     seller.lastGetOrderTime,
@@ -126,12 +106,11 @@ public class OrderFileManager {
                 continue;
             }
 
-
             try {
                 String json = gson.toJson(data);
                 Files.writeString(filePath, json, StandardOpenOption.CREATE,
                         StandardOpenOption.TRUNCATE_EXISTING);
-                System.out.println("Saved orders to file.");
+                System.out.println("Saved orders for " +p.getDisplayName()+ " to file.");
             } catch (IOException e) {
                 System.out.println("[OrderFileManger] ERROR: Could not save logs for "+ p.getDisplayName());
             }
@@ -144,10 +123,7 @@ public class OrderFileManager {
             case EBAY -> Path.of(ebayOrdersFilePath);
         };
     }
-
-    public boolean isLoading() {
-        return loading;
-    }
+    
     public record SellerData(
             @Expose
             LocalDateTime lastGetOrderTime,

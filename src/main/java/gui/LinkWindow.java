@@ -15,7 +15,6 @@ public class LinkWindow extends SubWindow {
         super(mainWindow, windowName, inventory);
         this.apiFileManager = apiFileManager;
         setupUI();
-        setVisible(true);
     }
     @Override
     public void setupUI() {
@@ -165,17 +164,19 @@ public class LinkWindow extends SubWindow {
     }
     private void handleAmazonConnect(PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setPreferredSize(new Dimension(450, 280));
+        panel.setPreferredSize(new Dimension(450, 350));
 
         JEditorPane info = createInfoPane(
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Amazon Seller Account:</b><br><br>
                 1. Open <a href='https://solutionproviderportal.amazon.com/'>the amazon solution portal</a>.<br>
-                2. Sign into your amazon account.
-                4. When prompted verify with Amazon (This is usually automatic)
-                3. Select your app (or create one via Self-Authorization).<br>
-                4. Copy your <b>Client ID</b>, <b>Client Secret</b>, and <b>Refresh Token</b> below. Do not share these codes with anyone and do not save<br>
+                2. Sign into your amazon account.<br>
+                3. When prompted verify with Amazon (This is usually automatic)<br>
+                4. Select your app (or create one via Self-Authorization).<br>
+                6. Copy your <b>Client ID</b>, <b>Client Secret</b>, and <b>Refresh Token</b> below. <br>
+                Do not share these codes with anyone and <br>
+                do not save anywhere else<br>
                 </body></html>
                 """);
         info.setEditable(false);
@@ -243,7 +244,7 @@ public class LinkWindow extends SubWindow {
     }
     private void handleWalmartConnect(PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setPreferredSize(new Dimension(420, 230));
+        panel.setPreferredSize(new Dimension(420, 280));
 
         JEditorPane info = createInfoPane(
                 """

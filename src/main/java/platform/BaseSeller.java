@@ -1,20 +1,17 @@
 package platform;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+
 import com.google.gson.JsonObject;
-import com.google.gson.JsonSerializer;
 import com.google.gson.annotations.Expose;
-import constants.Constants;
 import storage.APIFileManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
-public abstract class BaseSeller<T extends BaseSeller.Order> {
+
+public abstract class BaseSeller {
 
     protected final PlatformType platformType;
     protected final PlatformManager platformManager;
@@ -27,11 +24,14 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
 
     public int tokenExpirationTimeMinutes;
 
-    public volatile List<T> lastFetchedOrders = new ArrayList<>();
+    public volatile List<Order> lastFetchedOrders = new ArrayList<>();
 
     public boolean fetchingOrders = false;
 
     public String accessToken;
+
+    public int keyFailCounter = 0;
+
 
     public BaseSeller(PlatformType platformType, PlatformManager platformManager, APIFileManager apiFileManager) {
         this.platformType = platformType;
@@ -51,16 +51,13 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
     // Every seller fetches its own orders with apis
     public abstract void fetchOrders();
 
-    //Called when loaded from file
-    public void setLastGetOrderTime(LocalDateTime time){
-        lastGetOrderTime = time;
-    }
-    public LocalDateTime getLastGetOrderTimeForFetching(){
+    public synchronized LocalDateTime getLastGetOrderTimeForFetching(){
 
         if (firstGetOrderTime == null) {
             firstGetOrderTime = LocalDateTime.now();
             return firstGetOrderTime;
         }
+
         LocalDateTime cutoffTime = LocalDateTime.now().minusDays(14);
 
         LocalDateTime effectiveCutoff = firstGetOrderTime.isAfter(cutoffTime) ? firstGetOrderTime : cutoffTime;
@@ -124,8 +121,6 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
             lastUpdated = time;
         }
 
-
-        public void addItem(String sku, int quantity) {items.add(new OrderPacket(sku, quantity));}
         protected void addItem(OrderPacket op) {items.add(op);}
     }
 
@@ -135,11 +130,16 @@ public abstract class BaseSeller<T extends BaseSeller.Order> {
                 String sku,
                 @Expose
                 int quantity
-        ) {
-    }
+        ) { }
 
     protected void log(String msg) {
         System.out.println("[" + this.getClass().getName() + "] " + msg);
     }
 
+    public boolean isBadKey() {
+        return keyFailCounter >= 2;
+    }
+    public void resetBadKeyCount() {
+        keyFailCounter = 0;
+    }
 }
