@@ -8,6 +8,7 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.*;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.imageio.ImageIO;
@@ -27,14 +28,11 @@ public abstract class SubWindow extends JFrame {
         this.inventory = inventory;
         setLocationRelativeTo(mainWindow);
 
-        if (mainWindow.hasInstance(getClass())) {
-            SubWindow existing = mainWindow.getInstance(getClass());
-            existing.toFront();
-            existing.requestFocus();
-            dispose();
-            throw new IllegalStateException(getClass().getSimpleName() + "is already open.");
-        }
         mainWindow.addInstance(this);
+
+        if(handleCloneSubwindow()){
+            return;
+        }
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -47,8 +45,36 @@ public abstract class SubWindow extends JFrame {
                 mainWindow.removeInstance(SubWindow.this);
             }
         });
+
+        setVisible(true);
     }
     public abstract void setupUI();
+
+    public boolean handleCloneSubwindow(){
+
+        Class<? extends SubWindow> clazz = getClass();
+
+        List<SubWindow> existingList = mainWindow.getInstances(getClass());
+        if(existingList.size() <= 1){
+            return false;
+        }
+        if (existingList.size() > 2) {//This shouldnt happen
+            mainWindow.destroyAllExistingInstance(getClass());
+            return true;
+        }
+
+        SubWindow existing = (existingList.get(0) == this)
+                ? existingList.get(1)
+                : existingList.get(0);
+
+        existing.toFront();
+        existing.requestFocus();
+
+        mainWindow.destroyExistingInstance(this);
+        System.out.println(clazz.getSimpleName() + " is already open.");
+
+        return true;
+    }
 
     //Creates a searchable dropdown menu of all items
     public DropdownResult getDropDownMenuAllItems() {

@@ -5,9 +5,11 @@ import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.function.Consumer;
 
 public class LogTableModel extends AbstractTableModel {
@@ -22,7 +24,16 @@ public class LogTableModel extends AbstractTableModel {
 
     LogTableModel(ArrayList<Log> logs) {
         this.logs = logs;
+
         sortLogs();
+    }
+
+    @Override
+    public Class<?> getColumnClass(int columnIndex) {
+        return switch(columnIndex) {
+            case 0 -> Integer.class;
+            default -> String.class;
+        };
     }
 
     public int getRowCount(){ return logs.size(); }
@@ -32,15 +43,15 @@ public class LogTableModel extends AbstractTableModel {
     public Object getValueAt(int r, int c){
         Log l = logs.get(r);
         return switch(c){
-            case 0 -> (switch(l.getSeverity()){
-                case Normal -> "✅ "; case Warning -> "⚠️ "; case Critical -> "❌ ";
-            })  + l.getLogID();
+            case 0 -> l.getLogID();
             case 1 -> l.getType();
             case 2 -> l.getMessage();
             case 3 -> l.getTime();
             default -> "";
         };
     }
+
+
     public void setLogs(ArrayList<Log> newLogs) {
         logs.clear();
         logs.addAll(newLogs);
@@ -92,8 +103,7 @@ public class LogTableModel extends AbstractTableModel {
         header.setPreferredSize(new Dimension(header.getWidth(), 30));
         header.setReorderingAllowed(false);
         ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(JLabel.CENTER);
-
-        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+        DefaultTableCellRenderer DTCR =  new DefaultTableCellRenderer() {
             private Color getAltered(Color c, boolean even) {
                 int delta = even ? 10 : 0;
                 return new Color(
@@ -107,6 +117,20 @@ public class LogTableModel extends AbstractTableModel {
             public Component getTableCellRendererComponent(
                     JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 
+                if (column == 0 && value instanceof Integer) {
+                    if (table.getModel() instanceof LogTableModel model) {
+                        int modelRow = table.convertRowIndexToModel(row);
+                        Log log = model.getLogAt(modelRow);
+                        String emoji = switch (log.getSeverity()) {
+                            case Normal -> "✅ ";
+                            case Warning -> "⚠️ ";
+                            case Critical -> "❌ ";
+                        };
+                        value = emoji + value;
+                    }
+                }
+
+
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
                 if (!(table.getModel() instanceof LogTableModel model)) return c;
@@ -114,8 +138,8 @@ public class LogTableModel extends AbstractTableModel {
                 Log log = model.getLogAt(modelRow);
                 boolean even = (row % 2 == 0);
 
-                Color normalColor   = UIUtils.NORMAL_COLOR;
-                Color warningColor  = UIUtils.WARNING_COLOR;
+                Color normalColor = UIUtils.NORMAL_COLOR;
+                Color warningColor = UIUtils.WARNING_COLOR;
                 Color criticalColor = UIUtils.CRITICAL_COLOR;
                 Color suppressedColor = UIUtils.SUPPRESSED_COLOR;
 
@@ -136,8 +160,13 @@ public class LogTableModel extends AbstractTableModel {
 
                 return c;
             }
-        });
+        };
+
+        table.setDefaultRenderer(Object.class, DTCR);
+        table.setDefaultRenderer(Integer.class, DTCR);
     }
+
+
     public static JScrollPane createScrollPane(JTable logTable) {
         JScrollPane scrollPane = new JScrollPane(
                 logTable,

@@ -4,6 +4,7 @@ import core.*;
 import javax.swing.*;
 import java.awt.*;
 import java.util.*;
+import java.util.List;
 
 public class EditWindow extends SubWindow {
     public static String windowName = "Edit Item";
@@ -16,7 +17,29 @@ public class EditWindow extends SubWindow {
         this.selectedItem = selected;
         this.logManager = logManager;
         setupUI();
-        setVisible(true);
+    }
+    @Override
+    public boolean handleCloneSubwindow(){
+
+        Class<? extends SubWindow> clazz = getClass();
+
+        boolean hasExisting = mainWindow.hasInstance(clazz);
+
+        if (hasExisting) {
+
+            List<SubWindow> existingList = mainWindow.getInstances(getClass());
+
+            for(SubWindow existing : existingList){
+                if(existing != this){
+                    mainWindow.destroyExistingInstance(existing);
+                }
+            }
+            this.requestFocus();
+
+            System.out.println("Old" + clazz.getSimpleName() + " closed for new window.");
+        }
+
+        return false;
     }
 
     @Override
@@ -234,6 +257,90 @@ public class EditWindow extends SubWindow {
                     Item i = inventory.getItemBySerial(serial);
 
                     newComposition.put(i,amount);
+                }
+
+                if(skuAmazon.getText().trim().equalsIgnoreCase("n/a")||
+                        skuEbay.getText().trim().equalsIgnoreCase("n/a")||
+                        skuWalmart.getText().trim().equalsIgnoreCase("n/a")){
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "SKU cannot be \"N/A\"",
+                            "InvalidSKU",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                List<Item> duplicateNameItemList = inventory.getItemByName(newName);
+                duplicateNameItemList.remove(selectedItem);
+                if (!duplicateNameItemList.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    String itemAmountText = duplicateNameItemList.size() == 1 ? "Another item":"Other items";
+                    sb.append("Warning: ").append(itemAmountText).append(" already uses the name \"").append(newName).append("\".\n\n");
+                    for(Item duplicateNameItem : duplicateNameItemList){
+                        sb.append("Existing Item Details:\n\n")
+                                .append("Name: ").append(duplicateNameItem.getName()).append("\n")
+                                .append("Serial: ").append(duplicateNameItem.getSerial()).append("\n")
+                                .append("Amazon SKU: ").append(duplicateNameItem.getAmazonSellerSKU() != null ? duplicateNameItem.getAmazonSellerSKU() : "N/A").append("\n")
+                                .append("eBay SKU: ").append(duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A").append("\n")
+                                .append("Walmart SKU: ").append(duplicateNameItem.getWalmartSellerSKU() != null ? duplicateNameItem.getWalmartSellerSKU() : "N/A").append("\n\n\n");
+                    }
+                    sb.append("You can still proceed, but it’s recommended to use a unique name for each item.");
+                    JOptionPane.showMessageDialog(
+                            this,
+                            sb.toString(),
+                            "Duplicate Name Warning",
+                            JOptionPane.WARNING_MESSAGE
+                    );
+                    //No return just warn user
+                }
+
+                // Amazon SKU
+                Item duplicateAmazon = inventory.getItemByAmazonSKU(newAmazonSKU);
+                if (duplicateAmazon != null && duplicateAmazon != selectedItem) {
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Item with Amazon SKU \"" + newAmazonSKU + "\" already exists.\n\n" +
+                                    "Existing Item Details:\n\n" +
+                                    "Name: " + duplicateAmazon.getName() + "\n" +
+                                    "Serial: " + duplicateAmazon.getSerial() + "\n" +
+                                    "Amazon SKU: " + duplicateAmazon.getAmazonSellerSKU(),
+                            "Duplicate Amazon SKU",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                // eBay SKU
+                Item duplicateEbay = inventory.getItemByEbaySKU(newEbaySKU);
+                if (duplicateEbay != null && duplicateEbay != selectedItem) {
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Item with eBay SKU \"" + newEbaySKU + "\" already exists.\n\n" +
+                                    "Existing Item Details:\n\n" +
+                                    "Name: " + duplicateEbay.getName() + "\n" +
+                                    "Serial: " + duplicateEbay.getSerial() + "\n" +
+                                    "eBay SKU: " + duplicateEbay.getEbaySellerSKU(),
+                            "Duplicate eBay SKU",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                // Walmart SKU
+                Item duplicateWalmart = inventory.getItemByWalmartSKU(newWalmartSKU);
+                if (duplicateWalmart != null && duplicateWalmart != selectedItem) {
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Item with Walmart SKU \"" + newWalmartSKU + "\" already exists.\n\n" +
+                                    "Existing Item Details:\n\n" +
+                                    "Name: " + duplicateWalmart.getName() + "\n" +
+                                    "Serial: " + duplicateWalmart.getSerial() + "\n" +
+                                    "Walmart SKU: " + duplicateWalmart.getWalmartSellerSKU(),
+                            "Duplicate Walmart SKU",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
                 }
 
 

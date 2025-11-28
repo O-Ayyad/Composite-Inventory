@@ -15,7 +15,7 @@ public class UIUtils {
     public static final Color BACKGROUND_PANEL      = new Color(220, 220, 240);
 
     //Text
-    public static final Color TEXT_PRIMARY          = Color.BLACK;
+    public static final Color TEXT_PRIMARY          = new Color(30, 30, 40);;
     public static final Color TEXT_SECONDARY        = new Color(80, 80, 90);
 
     //Log Colors
@@ -66,22 +66,28 @@ public class UIUtils {
 
     public static JButton styleButton(JButton button) {
 
-        Color normalColor = BUTTON_BG;
-        Color textColor = new Color(50, 50, 50);
 
-        button.setBackground(normalColor);
-        button.setForeground(textColor);
+        button.setBackground(BUTTON_BG);
+        button.setForeground(TEXT_PRIMARY);
+        button.setBorderPainted(true);
         button.setOpaque(true);
-        button.setBorderPainted(false);
-        button.setContentAreaFilled(true);
-
+        Color borderColor = new Color(BUTTON_HOVER.getRed(), BUTTON_HOVER.getGreen(), BUTTON_HOVER.getBlue(), 128);
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(2, 3, 3, 2)
+        ));
         button.addMouseListener(new java.awt.event.MouseAdapter() {
+
             public void mouseEntered(java.awt.event.MouseEvent evt) {
-                button.setBackground(BUTTON_HOVER);
+                if(button.isEnabled()){
+                    button.setBackground(BUTTON_HOVER);
+                }
             }
 
             public void mouseExited(java.awt.event.MouseEvent evt) {
-                button.setBackground(normalColor);
+                if(button.isEnabled()){
+                button.setBackground(BUTTON_BG);
+                }
             }
         });
 

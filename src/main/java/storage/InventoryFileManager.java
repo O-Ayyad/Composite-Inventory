@@ -1,7 +1,5 @@
 package storage;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import core.*;
 
@@ -17,36 +15,19 @@ import java.util.Map;
 ///Two files:
 /// items.json stores the serial number of the item and the item information
 /// quantities.json stores the serial and the quantity
-public class InventoryFileManager {
+public class InventoryFileManager extends AbstractFileManager{
 
-    private final String dataDir = new File("data" +
-            File.separator + "inventory").getAbsolutePath();
+    public static final String ITEMS_FILENAME = "items.json";
+    public static final String QUANTITIES_FILENAME = "quantities.json";
 
-    private static final String ITEMS_FILENAME = "items.json";
-    private static final String QUANTITIES_FILENAME = "quantities.json";
-
-    private final String itemDetailsFilePath = dataDir + File.separator + ITEMS_FILENAME;
-    private final String itemQuantitiesFilePath = dataDir + File.separator + QUANTITIES_FILENAME;
+    public final String itemDetailsFilePath = dataDir + File.separator + ITEMS_FILENAME;
+    public final String itemQuantitiesFilePath = dataDir + File.separator + QUANTITIES_FILENAME;
 
     Inventory inventory;
 
-    boolean loading;
-
-    Gson gson;
-
-    public InventoryFileManager(Inventory inventory){
+    public InventoryFileManager(Inventory inventory, String dataDirName){
+        super(dataDirName);
         this.inventory = inventory;
-        gson = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
-                .setPrettyPrinting()
-                .create();
-
-        try {
-            Path newDir = Path.of(dataDir);
-            Files.createDirectories(newDir);
-        }catch (IOException e){
-            System.out.println(e.getMessage());
-        }
-        loadInventory();
     }
     public Path getItemDetailsFilePath() {
         return Path.of(itemDetailsFilePath);
@@ -55,7 +36,9 @@ public class InventoryFileManager {
     public Path getItemQuantitiesFilePath() {
         return Path.of(itemQuantitiesFilePath);
     }
-    public void loadInventory() {
+
+    @Override
+    public void load() {
         loading = true;
         Path itemsPath = getItemDetailsFilePath();
         Path quantitiesPath = getItemQuantitiesFilePath();
@@ -100,7 +83,8 @@ public class InventoryFileManager {
 
 
     //Saves the whole inventory
-    public void saveInventory() {
+    @Override
+    public void save() {
         if(loading) return;
         Path itemDetailsFile = getItemDetailsFilePath();
         Path itemQuantitiesFile = getItemQuantitiesFilePath();

@@ -3,22 +3,30 @@ package platform;
 import core.*;
 import gui.MainWindow;
 import storage.APIFileManager;
-import storage.OrderFileManager;
-
+import storage.FileManager;
 import javax.swing.*;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 
-public class    PlatformManager {
+public class PlatformManager {
     private final Inventory inventory;
     private final LogManager logManager;
-    private OrderFileManager orderFileManager;
+
+    private FileManager fileManager;
 
     public AmazonSeller amazonSeller;
     public EbaySeller ebaySeller;
     public WalmartSeller walmartSeller;
+
+    private LocalDateTime lastFetchTime;
+    public final int fetchTimeCooldownSeconds= 30;
+
+    private final APIFileManager apiFileManager;
+
+    private boolean fetching;
 
     MainWindow mainWindow;
 
@@ -28,9 +36,10 @@ public class    PlatformManager {
             new ConcurrentHashMap<>();
 
     final Object fetchLock = new Object();
-    public PlatformManager(Inventory inv, LogManager lm, APIFileManager apiFileManager) {
+    public PlatformManager(Inventory inv, LogManager lm, APIFileManager api) {
         inventory = inv;
         logManager = lm;
+        apiFileManager = api;
         for (PlatformType type : PlatformType.values()) {
             allOrders.put(type, new ConcurrentHashMap<>());
         }
@@ -40,57 +49,86 @@ public class    PlatformManager {
         ebaySeller = new EbaySeller(this, apiFileManager);
         walmartSeller = new WalmartSeller(this, apiFileManager);
 
+        lastFetchTime = LocalDateTime.of(1990, 1, 1, 0, 0);
+
     }
 
-    public void  setOrderFileManager(OrderFileManager ofm){
-        this.orderFileManager = ofm;
-        pullOrdersFromFile();
+    public void setFileManager(FileManager fm){
+        this.fileManager = fm;
     }
     public void fetchAllRecentOrders() {
+        boolean anyConnected = false;
+        for(PlatformType p : PlatformType.values()){
+            try{
+                if(apiFileManager.hasToken(p)){
+                    anyConnected = true;
+                }
+            }catch (Exception e){
+                throw new AssertionError(e);
+            }
+        }
+        if(!anyConnected){
+            return; //Exit silently
+        }
+
+        apiFileManager.checkBadKeys(new ArrayList<>() {{
+            add(amazonSeller);
+            add(ebaySeller);
+            add(walmartSeller);
+        }});
+
+        if(LocalDateTime.now().minusSeconds(fetchTimeCooldownSeconds).isBefore(lastFetchTime)){
+            System.out.println("Fetching orders is on cooldown.");
+            return;
+        }
+
+        if(fetching || anySellersFetching()){
+            System.out.println("Already fetching orders, skipped fetchAllRecentOrders for now.");
+            return;
+        }
 
         System.out.println("Starting fetchAllRecentOrders()...");
 
         SwingWorker<Map<PlatformType, Map<String, BaseSeller.Order>>, Void> sellerWatcher
                 = new SwingWorker<>() {
 
-            final Map<PlatformType, Map<String, BaseSeller.Order>> allOrders =
+            final Map<PlatformType, Map<String, BaseSeller.Order>> allOrdersLocal =
                     new EnumMap<>(PlatformType.class);
 
-            private final EnumMap<PlatformType, List<? extends BaseSeller.Order>> newOrders =
+            private final EnumMap<PlatformType, List<BaseSeller.Order>> newOrders =
                     new EnumMap<>(PlatformType.class);
 
             @Override
             protected Map<PlatformType, Map<String, BaseSeller.Order>> doInBackground() throws Exception {
+                fetching = true;
+
                 System.out.println("[Worker] Starting doInBackground");
 
                 List<Exception> fetchExceptions = Collections.synchronizedList(new ArrayList<>());
 
                 for (PlatformType platform : PlatformType.values()) {
 
-                    BaseSeller<?> seller = getSeller(platform);
-                    System.out.println("[Worker] Preparing fetch for " + platform);
-
-
+                    final BaseSeller seller = getSeller(platform);
                     final PlatformType currentPlatform = platform;
-                    final BaseSeller<?> currentSeller = seller;
+
+                    System.out.println("[Worker] Preparing fetch for " + platform);
 
                     CompletableFuture.runAsync(() -> {
 
                         System.out.println("[Async] Fetching orders for " + currentPlatform);
 
                         try {
-                            currentSeller.fetchOrders();
+                            seller.fetchOrders();
                         } catch (Exception e) {
+                            seller.fetchingOrders = false;
+                            System.out.println("Error with seller " + platform.getDisplayName()+ " " + Arrays.toString(e.getStackTrace()));
                             fetchExceptions.add(e);
-                            logManager.createLog(Log.LogType.SystemError, 0,
-                                    "Error fetching orders from " + platform + ": " + e.getMessage(),
-                                    "");
-                            System.err.println("Error fetching " + platform + ": " + e.getMessage());
                         }
                     });
                 }
+
                 //wait until all sellers are done
-                Thread.sleep(1000);
+                Thread.sleep(3000);
 
                 synchronized(fetchLock) {
                     while (anySellersFetching()) {
@@ -102,6 +140,7 @@ public class    PlatformManager {
                     fetchLock.notifyAll(); // Wake up waiting thread
                 }
                 System.out.println("[Worker] All async fetches completed!");
+                fetching = false;
 
                 if (!fetchExceptions.isEmpty()) {
                     logManager.createLog(Log.LogType.SystemError, fetchExceptions.size(),
@@ -109,32 +148,35 @@ public class    PlatformManager {
                             "");
                 }
                 System.out.println("[Worker] Processing fetched results...");
-                for (PlatformType platform : PlatformType.values()) {
-                    BaseSeller<?> seller = getSeller(platform);
-                    List<? extends BaseSeller.Order> list = seller.lastFetchedOrders;
 
-                    newOrders.put(platform,
-                            list != null
-                                    ? new ArrayList<>(list)
-                                    : new ArrayList<>());
+                for (PlatformType platform : PlatformType.values()) {
+
+                    //Get orders from the seller
+                    BaseSeller seller = getSeller(platform);
+                    List<BaseSeller.Order> fetchedOrderlist =
+                            seller.lastFetchedOrders != null
+                                    ? seller.lastFetchedOrders :
+                                        new ArrayList<>();
 
                     System.out.println("[Worker] " + platform + " returned "
-
-                            + newOrders.get(platform).size()
+                            + fetchedOrderlist.size()
                             + " orders.");
 
-                    Map<String, BaseSeller.Order> map = new HashMap<>();
+                    newOrders.put(platform, fetchedOrderlist);
+
+                    Map<String, BaseSeller.Order> existingMap = new HashMap<>(allOrders.get(platform));
+
                     for (BaseSeller.Order order : newOrders.get(platform)) {
-                        map.put(order.getOrderId(), order);
+                        existingMap.put(order.getOrderId(), order);
                     }
-                    allOrders.put(platform, map);
+                    allOrdersLocal.put(platform, existingMap);
                 }
 
                 System.out.println("[Worker] Returning allOrders map with sizes: ");
                 for (PlatformType p : PlatformType.values()) {
-                    System.out.println("    " + p + ": " + allOrders.get(p).size() + " orders");
+                    System.out.println("    " + p + ": " + allOrdersLocal.get(p).size() + " orders");
                 }
-                return allOrders;
+                return allOrdersLocal;
             }
 
             protected void done() {
@@ -142,10 +184,19 @@ public class    PlatformManager {
                 try {
                     Map<PlatformType, Map<String, BaseSeller.Order>> result = get();
                     handleFetchedOrders(result);
+                    lastFetchTime = LocalDateTime.now();
+                    fetching = false;
+                    saveToFile();
                 } catch (Exception e) {
+
                     logManager.createLog(Log.LogType.SystemError, 0,
                             "Critical error in order fetch completion: " + e.getMessage(),
                             "");
+
+                    lastFetchTime = LocalDateTime.now();
+                    fetching = false;
+
+                    System.out.println(Arrays.toString(e.getStackTrace()));
                 }
             }
         };
@@ -184,16 +235,17 @@ public class    PlatformManager {
         allOrders.putAll(newOrders);
     }
     private void handleNewOrder(PlatformType platform, BaseSeller.Order newOrder) {
-        if(newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED){
+        if(newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED){ //Dont care
             return;
         }
         if(newOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED){
-            if(getOrder(platform,newOrder.getOrderId()) != null){ //We already processed this order
-                return;
-            }else{
+            if(getOrder(platform,newOrder.getOrderId()) == null){ //We have never processed this order
                 BaseSeller.Order dummyOldOrder = createDummyConfirmedOrder(newOrder);
                 handleOrderStatusChange(platform, dummyOldOrder, newOrder);
             }
+
+            //Order shipped and is saved
+            return;
         }
         System.out.println("New order " +platform.getDisplayName() + " order ID : " + newOrder.getOrderId());
 
@@ -205,7 +257,7 @@ public class    PlatformManager {
             boolean anyViaComposition = false;
             StringBuilder orderSummary = new StringBuilder();
             StringBuilder breakdownSuggestions = new StringBuilder();
-            orderSummary.append("Order ").append(newOrder.getOrderId()).append(" received: \n");
+            orderSummary.append(platform.getDisplayName()).append("Order ").append(newOrder.getOrderId()).append(" received: \n");
 
             for (BaseSeller.OrderPacket op : soldItems) {
                 String sku = op.sku();
@@ -290,7 +342,8 @@ public class    PlatformManager {
             return;
         }
         System.out.println("Existing order " + platform.getDisplayName() + " order ID : " + newOrder.getOrderId());
-        //Shipped out, success
+
+        //Shipped out normally
         if (newOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED && oldOrder.getStatus() == BaseSeller.OrderStatus.CONFIRMED) {
             List<BaseSeller.OrderPacket> soldItems = newOrder.getItems();
 
@@ -304,70 +357,123 @@ public class    PlatformManager {
             }
 
             if (!allItemsRegistered) {
+                StringBuilder sb = new StringBuilder();
+                sb.append(platform.getDisplayName()).append("Order ").append(newOrder.getOrderId()).append(" REJECTED - Contains unregistered items. No inventory changes made for all items.");
+                for (BaseSeller.OrderPacket op : soldItems) {
+                    String sku = op.sku();
+                    int amountSold = op.quantity();
+                    Item i = inventory.getItemByPlatformAndSKU(platform,sku);
+                    if(i == null){
+                        sb.append(amountSold).append("x ").append(sku).append(" (NOT REGISTERED), \n");
+                    }else{
+                        sb.append(amountSold).append("x ").append(sku).append("  (").append(i.getName()).append(")").append("  Amount in stock: ").append(inventory.getQuantity(i));
+                    }
+
+                }
                 logManager.createLog(Log.LogType.ItemShippedNotRegistered, soldItems.size(),
-                        "Order " + newOrder.getOrderId() + " REJECTED - Contains unregistered items. No inventory changes made.", "");
+                        sb.toString(), "");
                 return; //Inventory not effected. This must be fixed manually
             }
             boolean allFulfilled = true;
             boolean anyViaComposition = false;
             StringBuilder orderSummary = new StringBuilder();
             StringBuilder breakdownSuggestions = new StringBuilder();
-            orderSummary.append("Order ").append(newOrder.getOrderId()).append(" shipped:\n");
+            orderSummary.append(platform.getDisplayName()).append("Order ").append(newOrder.getOrderId()).append(" shipped:\n");
 
 
             for (BaseSeller.OrderPacket op : soldItems) {
+
                 String sku = op.sku();
                 int quantitySold = op.quantity();
                 Item itemSold = inventory.getItemByPlatformAndSKU(platform, sku);
 
-                if (inventory.getAvailableQuantity(itemSold) >= quantitySold) {
-                    //Sell directly
+                int available = inventory.getAvailableQuantity(itemSold);
+
+                //In stock
+                if (available >= quantitySold) {
                     inventory.decreaseItemAmount(itemSold, quantitySold);
                     orderSummary.append(quantitySold).append("x ").append(itemSold.getName()).append("\n");
-                } else {
-                    //Try to ship via composition
-                    int currentQuantity = inventory.getAvailableQuantity(itemSold);
-                    int quantityNeeded = quantitySold - currentQuantity;
-
-                    if (inventory.isItemInStockRecursive(itemSold, quantityNeeded)) {
-                        Map<Item,Integer> partsNeeded = inventory.getAmountToReduceStockRecursive(itemSold, quantityNeeded);
-                        StringBuilder packetResult = new StringBuilder();
-                        packetResult.append(itemSold.getName()).append("x ").append(currentQuantity).append("\n---------------------------------\n");
-                        for (Map.Entry<Item,Integer> p : partsNeeded.entrySet()) {
-                            packetResult.append(p.getValue()).append("x ").append(p.getKey().getName()).append("\n");
-                        }
-                        anyViaComposition = true;
-                        orderSummary.append(quantitySold).append("x ").append(itemSold.getName())
-                                .append(" (via composition):\n").append(packetResult).append("\n");
-                    } else {
-                        allFulfilled = false;
-                        orderSummary.append(quantitySold).append("x ").append(itemSold.getName())
-                                .append(" (OUT OF STOCK)\n");
-                        List<Map<Item, Integer>> breakdowns = inventory.possibleBreakDownsForItem(itemSold, quantityNeeded);
-
-
-                        if (!breakdowns.isEmpty()) {
-                            if (!breakdownSuggestions.isEmpty()) {
-                                breakdownSuggestions.append("\n\nThis can be solved by breaking down the following items:\n");
-                            }
-                            breakdownSuggestions.append("For ").append(quantityNeeded).append("x ").append(itemSold.getName()).append(":\n");
-                            for (int i = 0; i < Math.min(breakdowns.size(), 3); i++) {
-                                breakdownSuggestions.append("  Option ").append(i + 1).append(": ");
-                                Map<Item, Integer> breakdown = breakdowns.get(i);
-                                boolean first = true;
-                                for (Map.Entry<Item, Integer> entry : breakdown.entrySet()) {
-                                    if (!first) breakdownSuggestions.append(", ");
-                                    breakdownSuggestions.append(entry.getValue()).append("x ").append(entry.getKey().getName());
-                                    first = false;
-                                }
-                                breakdownSuggestions.append("\n");
-                            }
-                        }else{
-                            breakdownSuggestions.append("\n\nNo viable combination of breakdowns could be found to fulfill this order)");
-                        }
-                    }
+                    continue;
                 }
+
+                //Attempt composition
+                int quantityNeeded = quantitySold - available;
+
+                if (inventory.isItemInStockRecursive(itemSold, quantityNeeded)) {
+
+                    Map<Item, Integer> partsNeeded =
+                            inventory.getAmountToReduceStockRecursive(itemSold, quantityNeeded);
+
+                    anyViaComposition = true;
+
+                    StringBuilder packetResult = new StringBuilder();
+                    packetResult.append(itemSold.getName())
+                            .append("x ").append(available)
+                            .append("\n---------------------------------\n");
+
+                    for (Map.Entry<Item, Integer> p : partsNeeded.entrySet()) {
+                        packetResult.append(p.getValue())
+                                .append("x ")
+                                .append(p.getKey().getName())
+                                .append("\n");
+                    }
+
+                    orderSummary.append(quantitySold)
+                            .append("x ")
+                            .append(itemSold.getName())
+                            .append(" (via composition):\n")
+                            .append(packetResult)
+                            .append("\n");
+
+                    continue;
+                }
+
+                //Out of stock attempt breakdown suggestions
+                allFulfilled = false;
+
+                orderSummary.append(quantitySold)
+                        .append("x ")
+                        .append(itemSold.getName())
+                        .append(" (OUT OF STOCK)\n");
+
+                List<Map<Item, Integer>> breakdowns =
+                        inventory.possibleBreakDownsForItem(itemSold, quantityNeeded);
+
+                if (!breakdowns.isEmpty()) {
+
+                    breakdownSuggestions.append("\n\nThis can be solved by breaking down the following items:\n");
+
+                    breakdownSuggestions.append("For ")
+                            .append(quantityNeeded)
+                            .append("x ")
+                            .append(itemSold.getName())
+                            .append(":\n");
+
+                    for (int i = 0; i < Math.min(breakdowns.size(), 3); i++) {
+                        breakdownSuggestions.append("  Option ")
+                                .append(i + 1)
+                                .append(": ");
+
+                        Map<Item, Integer> breakdown = breakdowns.get(i);
+
+                        boolean first = true;
+                        for (Map.Entry<Item, Integer> entry : breakdown.entrySet()) {
+                            if (!first) breakdownSuggestions.append(", ");
+                            breakdownSuggestions.append(entry.getValue())
+                                    .append("x ")
+                                    .append(entry.getKey().getName());
+                            first = false;
+                        }
+                        breakdownSuggestions.append("\n");
+                    }
+                    continue;
+                }
+
+                //Out of stock + no compositions + no breakdowns
+                breakdownSuggestions.append("\n\nNo viable combination of breakdowns could be found to fulfill this order.");
             }
+
+            //Build log message
             if (orderSummary.length() >= 2 && orderSummary.substring(orderSummary.length() - 2).equals(", ")) {
                 orderSummary.setLength(orderSummary.length() - 2);
             }
@@ -385,14 +491,15 @@ public class    PlatformManager {
 
             logManager.createLog(type, soldItems.size(),
                     orderSummary.toString(), "");
+        }
 
-            //Edge cases
+        //Edge cases
 
-            //Shipped order reverting to non-Shipped status
-        } else if (oldOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED &&
+        //Shipped order reverting to non-Shipped status
+        else if (oldOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED &&
                 newOrder.getStatus() != BaseSeller.OrderStatus.SHIPPED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " reverted from SHIPPED status.\n" +
+                    platform.getDisplayName() + "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " reverted from SHIPPED status.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus(), "");
         }
 
@@ -400,7 +507,7 @@ public class    PlatformManager {
         else if (oldOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED &&
                 newOrder.getStatus() != BaseSeller.OrderStatus.CANCELLED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " un-cancelled.\n" +
+                    platform.getDisplayName() +  "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " un-cancelled.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus(), "");
         }
 
@@ -408,7 +515,7 @@ public class    PlatformManager {
         else if (newOrder.getStatus() == BaseSeller.OrderStatus.SHIPPED &&
                 oldOrder.getStatus() != BaseSeller.OrderStatus.CONFIRMED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " shipped without confirmation.\n" +
+                    platform.getDisplayName() +  "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " shipped without confirmation.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus() +
                             "\nExpected: CONFIRMED → SHIPPED", "");
         }
@@ -416,22 +523,19 @@ public class    PlatformManager {
         else if (newOrder.getStatus() == BaseSeller.OrderStatus.CANCELLED &&
                 oldOrder.getStatus() != BaseSeller.OrderStatus.CONFIRMED) {
             logManager.createLog(Log.LogType.SystemError, 0,
-                    "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " cancelled from unexpected status.\n" +
+                    platform.getDisplayName() +  "Order " + oldOrder.getOrderId() + " on " + platform.getDisplayName() + " cancelled from unexpected status.\n" +
                             "Old status: " + oldOrder.getStatus() + " → New status: " + newOrder.getStatus() +
                             "\nExpected: CONFIRMED → CANCELLED", "");
         }
     }
-    public void pullOrdersFromFile(){
-        orderFileManager.loadOrders();
-    }
-    public void saveOrdersToFile(){
-        orderFileManager.saveOrders();
+    public void saveToFile(){
+        fileManager.saveAll();
     }
     public BaseSeller.Order getOrder(PlatformType platform, String id){
         Map<String, BaseSeller.Order> orders = allOrders.get(platform);
         return orders == null ? null : orders.get(id);
     }
-    public BaseSeller<?> getSeller(PlatformType p){
+    public BaseSeller getSeller(PlatformType p){
         return switch (p){
             case EBAY -> ebaySeller;
             case AMAZON -> amazonSeller;
@@ -444,7 +548,7 @@ public class    PlatformManager {
     public MainWindow getMainWindow(){
         return mainWindow;
     }
-    public boolean anySellersFetching(){
+    boolean anySellersFetching(){
         for(PlatformType p : PlatformType.values()){
             if(getSeller(p).fetchingOrders){
                 return true;
@@ -455,5 +559,15 @@ public class    PlatformManager {
     //Only for new orders that have already been shipped
     private BaseSeller.Order createDummyConfirmedOrder(BaseSeller.Order order) {
         return new BaseSeller.Order(order.getOrderId(), BaseSeller.OrderStatus.CONFIRMED, order.getLastUpdated());
+    }
+    public LocalDateTime getLastFetchTime(){
+        return lastFetchTime;
+    }
+    public boolean isFetching(){
+        return fetching || anySellersFetching();
+    }
+    public boolean onCooldown(){
+        return LocalDateTime.now().minusSeconds(fetchTimeCooldownSeconds)
+                .isBefore(lastFetchTime);
     }
 }

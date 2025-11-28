@@ -18,9 +18,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
+public class AmazonSeller extends BaseSeller {
 
     private static final String API_BASE_URL = "https://sellingpartnerapi-na.amazon.com";
 
@@ -58,7 +59,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
             }
 
             //Validate current access token
-            int response = apiFileManager.vaildateAmazonAccessToken(accessToken);
+            int response = apiFileManager.validateAmazonAccessToken(accessToken);
 
             if (response < 200 || response > 299) {
                 log("Token validation failed with code: " + response);
@@ -72,7 +73,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                     lastAccessTokenGetTime = LocalDateTime.now();
 
                     //Validate the new token
-                    int response2 = apiFileManager.vaildateAmazonAccessToken(accessToken);
+                    int response2 = apiFileManager.validateAmazonAccessToken(accessToken);
 
                     if (response2 >= 200 && response2 <= 299) {
                         log("Token refresh successful!");
@@ -82,6 +83,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                         log("Token refresh failed with code: " + response2);
                         if (response2 != 429 && response2 < 500) {
                             accessToken = null;
+                            keyFailCounter++;
                         }
 
                         //Show error dialog
@@ -113,6 +115,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                     log("Fresh token failed validation. Not retrying.");
                     if (response != 429 && response < 500) {
                         accessToken = null;
+                        keyFailCounter++;
                     }
                     final int finalResponseCode = response;
                     SwingUtilities.invokeLater(() -> {
@@ -139,9 +142,10 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 }
             } else {
                 log("Valid access token (code: " + response + ")");
+                keyFailCounter = 0;
             }
             //We have a valid non-expired token, so get recent orders and parse
-            log(" Valid access token");
+            log("Valid access token");
             String createdAfter = getLastGetOrderTimeForFetching()
                     .atZone(ZoneId.systemDefault())
                     .withZoneSameInstant(ZoneOffset.UTC)
@@ -241,7 +245,7 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 LocalDateTime updateDate = LocalDateTime.parse(updateDateString,
                         DateTimeFormatter.ISO_DATE_TIME);
 
-                AmazonOrder existing = (AmazonOrder) platformManager.getOrder(PlatformType.AMAZON,orderId);
+                Order existing = platformManager.getOrder(PlatformType.AMAZON,orderId);
 
                 if(existing != null) {
                     //Order already exists and nothing changed, no need to parse again
@@ -261,52 +265,91 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
                 fetchingOrders = false;
             }
         }catch (Exception e){
-            log(e.getMessage());
+            fetchingOrders = false;
+            log(e.getMessage() + " Stack Trace: " + Arrays.toString(e.getStackTrace()));
+            throw new RuntimeException(e);
         }
     }
     void fetchOrderItemsAsync(List<IdAndStatus> orderIds){
-        SwingWorker<List<AmazonOrder>, String> worker = new SwingWorker<>() {
+        SwingWorker<List<Order>, String> worker = new SwingWorker<>() {
 
             @Override
-            protected List<AmazonOrder> doInBackground() {
-                List<AmazonOrder> allOrders = new ArrayList<>();
+            protected List<Order> doInBackground() {
+                List<Order> allOrders = new ArrayList<>();
                 int total = orderIds.size();
 
+                int httpWait = 2200;
+                int maxRetries = 12;
+
                 for (int i = 0; i < total; i++) {
+
                     IdAndStatus info = orderIds.get(i);
-                    try {
+                    log("Fetching order " + (i + 1) + "/" + total + " (" + info.orderId + ")");
 
-                        AmazonOrder order = new AmazonOrder(info.orderId, info.status, info.updateDate);
-                        log("Fetching order " + (i + 1) + "/" + total + " (" + info.orderId + ")");
+                    Order order = new Order(info.orderId, info.status, info.updateDate);
 
+                    int retry = 0;
 
-                        String url = API_BASE_URL + "/orders/v0/orders/" + info.orderId + "/orderItems";
-                        HttpURLConnection conn = openGetConnection(url);
+                    while (true) {
+                        HttpURLConnection conn = null;
 
-                        long start = System.currentTimeMillis();
-                        int response = conn.getResponseCode();
-                        long elapsed = System.currentTimeMillis() - start;
-                        log("[Order " + info.orderId + "] Response: " + response + " (" + elapsed + " ms)");
+                        try {
+                            String url = API_BASE_URL + "/orders/v0/orders/" + info.orderId + "/orderItems";
+                            conn = openGetConnection(url);
 
-                        String json = readResponse(conn);
-                        conn.disconnect();
+                            long start = System.currentTimeMillis();
+                            int response = conn.getResponseCode();
+                            long elapsed = System.currentTimeMillis() - start;
 
-                        JsonObject payload = JsonParser.parseString(json).getAsJsonObject().getAsJsonObject("payload");
-                        JsonArray items = payload.getAsJsonArray("OrderItems");
+                            if (response == 429) {
 
-                        for (JsonElement item : items) {
-                            JsonObject itemObj = item.getAsJsonObject();
-                            String sku = getString(itemObj, "SellerSKU");
-                            int qty = itemObj.has("QuantityOrdered") ? itemObj.get("QuantityOrdered").getAsInt() : 0;
-                            order.addItem(new OrderPacket(sku, qty));
+                                if (retry >= maxRetries) {
+                                    log("Max retries reached for " + info.orderId);
+                                    break;
+                                }
+
+                                long wait = (long) (1000 * Math.pow(2, retry));
+                                log("Throttled. Retry #" + retry + " after " + wait + " ms for order# " + info.orderId);
+
+                                retry++;
+                                Thread.sleep(wait);
+                                continue; //retry
+                            }
+
+                            retry = 0;
+                            log("[Order " + info.orderId + "] Response: " + response + " (" + elapsed + " ms)");
+
+                            String json = readResponse(conn);
+
+                            JsonObject payload = JsonParser.parseString(json)
+                                    .getAsJsonObject()
+                                    .getAsJsonObject("payload");
+
+                            JsonArray items = payload.getAsJsonArray("OrderItems");
+
+                            for (JsonElement itemEl : items) {
+                                JsonObject itemObj = itemEl.getAsJsonObject();
+                                String sku = getString(itemObj, "SellerSKU");
+                                int qty = itemObj.has("QuantityOrdered")
+                                        ? itemObj.get("QuantityOrdered").getAsInt()
+                                        : 0;
+                                order.addItem(new OrderPacket(sku, qty));
+                            }
+
+                            allOrders.add(order);
+
+                            Thread.sleep(httpWait);
+                            break;
+
+                        } catch (Exception e) {
+                            publish("Error fetching order " + info.orderId + ": " + e.getMessage());
+                            break;
+
+                        } finally {
+                            if (conn != null) {
+                                try { conn.disconnect(); } catch (Exception ignored) {}
+                            }
                         }
-
-                        allOrders.add(order);
-
-                        Thread.sleep(2200);
-
-                    } catch (Exception e) {
-                        publish("Error fetching order " + info.orderId + ": " + e.getMessage());
                     }
                 }
                 return allOrders;
@@ -346,10 +389,5 @@ public class AmazonSeller extends BaseSeller<AmazonSeller.AmazonOrder> {
         return sb.toString();
     }
 
-    public static class AmazonOrder extends BaseSeller.Order {
-        public AmazonOrder(String orderId, BaseSeller.OrderStatus status, LocalDateTime lastUpdated) {
-            super(orderId,status,lastUpdated);
-        }
-    }
     public record IdAndStatus(String orderId,OrderStatus status, LocalDateTime updateDate){}
 }

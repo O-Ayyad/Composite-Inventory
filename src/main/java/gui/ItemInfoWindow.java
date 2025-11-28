@@ -13,20 +13,35 @@ import java.util.Map;
 public class ItemInfoWindow extends SubWindow {
 
     public final Item item;
-    private final Inventory inventory;
     private final LogManager logManager;
 
     public ItemInfoWindow(MainWindow mainWindow, Inventory inventory, Item item) {
         super(mainWindow, item.getName() + " Information", inventory);
         this.item = item;
-        this.inventory = inventory;
         this.logManager = inventory.logManager;
         this.mainWindow = mainWindow;
-
+        handleCloneSubwindow();
         setLocationRelativeTo(mainWindow);
 
         setupUI();
-        setVisible(true);
+    }
+
+    @Override
+    public boolean handleCloneSubwindow() {
+        List<SubWindow> toDestroy = new ArrayList<>();
+        List<SubWindow> existingList = mainWindow.getInstances(getClass());
+
+        for (SubWindow curr : existingList) {
+            if (curr != this && curr instanceof ItemInfoWindow existing && existing.item == this.item) {
+                this.setLocation(existing.getLocation());
+                toDestroy.add(curr);
+            }
+        }
+
+        for (SubWindow window : toDestroy) {
+            mainWindow.destroyExistingInstance(window);
+        }
+        return false;
     }
 
     @Override

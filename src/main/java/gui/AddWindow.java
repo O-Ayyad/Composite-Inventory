@@ -8,6 +8,7 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.util.*;
+import java.util.List;
 
 
 public class AddWindow extends SubWindow {
@@ -21,7 +22,6 @@ public class AddWindow extends SubWindow {
     public AddWindow(MainWindow mainWindow, Inventory inventory,Item selected,boolean compose) {
         super(mainWindow, windowName,inventory);
         setupUI(selected,compose);
-        setVisible(true);
     }
     @Override
     public void setupUI() {
@@ -327,6 +327,18 @@ public class AddWindow extends SubWindow {
                 return;
             }
 
+            if(skuAmazon.getText().equalsIgnoreCase("n/a")||
+                skuEbay.getText().equalsIgnoreCase("n/a")||
+                skuWalmart.getText().equalsIgnoreCase("n/a")){
+                JOptionPane.showMessageDialog(
+                        this,
+                        "SKU cannot be \"N/A\"",
+                        "InvalidSKU",
+                        JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
             //Duplicate SKU, name, and serial check
             Item duplicateSerial = inventory.getItemBySerial(serial);
             if (duplicateSerial != null) {
@@ -342,18 +354,23 @@ public class AddWindow extends SubWindow {
                 return;
             }
 
-            Item duplicateNameItem = inventory.getItemByName(name);
-            if (duplicateNameItem != null) {
+            List<Item> duplicateNameItemList = inventory.getItemByName(name);
+            if (duplicateNameItemList != null && !duplicateNameItemList.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                String itemAmountText = duplicateNameItemList.size() == 1 ? "Another item":"Other items";
+                sb.append("Warning: ").append(itemAmountText).append(" already uses the name \"").append(name).append("\".\n\n");
+                for(Item duplicateNameItem : duplicateNameItemList){
+                    sb.append("Existing Item Details:\n\n")
+                            .append("Name: ").append(duplicateNameItem.getName()).append("\n")
+                            .append("Serial: ").append(duplicateNameItem.getSerial()).append("\n")
+                            .append("Amazon SKU: ").append(duplicateNameItem.getAmazonSellerSKU() != null ? duplicateNameItem.getAmazonSellerSKU() : "N/A").append("\n")
+                            .append("eBay SKU: ").append(duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A").append("\n")
+                            .append("Walmart SKU: ").append(duplicateNameItem.getWalmartSellerSKU() != null ? duplicateNameItem.getWalmartSellerSKU() : "N/A").append("\n\n\n");
+                }
+                sb.append("You can still proceed, but it’s recommended to use a unique name for each item.");
                 JOptionPane.showMessageDialog(
                         this,
-                        "Warning: Another item already uses the name \"" + name + "\".\n\n" +
-                                "Existing Item Details:\n\n" +
-                                "Name: " + duplicateNameItem.getName() + "\n" +
-                                "Serial: " + duplicateNameItem.getSerial() + "\n" +
-                                "Amazon SKU: " + (duplicateNameItem.getAmazonSellerSKU() != null ? duplicateNameItem.getAmazonSellerSKU() : "N/A") + "\n" +
-                                "eBay SKU: " + (duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A") + "\n" +
-                                "Walmart SKU: " + (duplicateNameItem.getWalmartSellerSKU() != null ? duplicateNameItem.getWalmartSellerSKU() : "N/A") + "\n\n" +
-                                "You can still proceed, but it’s recommended to use a unique name.",
+                        sb.toString(),
                         "Duplicate Name Warning",
                         JOptionPane.WARNING_MESSAGE
                 );

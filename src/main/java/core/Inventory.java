@@ -294,19 +294,19 @@ public class Inventory {
         return MainInventory.containsKey(item);
     }
     //Only for duplicate checks since this is o(n) no 0(1)
-    public Item getItemByName(String name) {
-        if (name == null || name.isEmpty()) return null;
-
+    public List<Item> getItemByName(String name) {
+        List<Item> returnList = new ArrayList<>();
+        if (name == null || name.isEmpty()) return returnList;
         for (Item item : MainInventory.keySet()) {
             if (item == null) {
                 System.err.println("Warning: null item key found in MainInventory!");
                 continue;
             }
             if (name.equalsIgnoreCase(item.getName())) {
-                return item;
+                returnList.add(item);
             }
         }
-        return null;
+        return returnList;
     }
 
     public void composeItem(Item item, int amount) {

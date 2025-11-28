@@ -4,6 +4,8 @@ import core.*;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class LogWindow extends SubWindow {
 
@@ -12,11 +14,12 @@ public class LogWindow extends SubWindow {
     private final Log log;
 
     public LogWindow(MainWindow mainWindow, Inventory inventory, Log selectedLog, LogManager logManager) {
-        super(mainWindow, windowName,inventory);
+        super(mainWindow, windowName, inventory);
 
-        this.inventory = inventory;
         this.logManager = logManager;
         this.log = selectedLog;
+
+        handleCloneSubwindow();
 
         if (selectedLog == null || logManager.logById.get(selectedLog.getLogID()) == null) {
             dispose();
@@ -24,7 +27,24 @@ public class LogWindow extends SubWindow {
         }
 
         setupUI(selectedLog);
-        setVisible(true);
+    }
+
+    //Allow multiple log windows but not 2 of the same type
+    @Override
+    public boolean handleCloneSubwindow() {
+        List<SubWindow> toDestroy = new ArrayList<>();
+        List<SubWindow> existingList = mainWindow.getInstances(getClass());
+
+        for (SubWindow curr : existingList) {
+            if (curr != this && curr instanceof LogWindow existing && existing.log == this.log) {
+                toDestroy.add(curr);
+            }
+        }
+
+        for (SubWindow window : toDestroy) {
+            mainWindow.destroyExistingInstance(window);
+        }
+        return false;
     }
 
     @Override
