@@ -7,7 +7,6 @@ import core.*;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.*;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,11 +37,10 @@ public class InventoryFileManager extends AbstractFileManager{
     }
 
     @Override
-    public void load() {
+    public LoadResult load(boolean firstOpen) {
         loading = true;
         Path itemsPath = getItemDetailsFilePath();
         Path quantitiesPath = getItemQuantitiesFilePath();
-
         try {
             //Get all items
             Map<String, Item> items;
@@ -53,32 +51,36 @@ public class InventoryFileManager extends AbstractFileManager{
             //Get their quantity and store with serial
             Map<String, Integer> quantities;
             try (FileReader quantitiesReader = new FileReader(quantitiesPath.toFile())) {
-                Type quantitiesType = new TypeToken<Map<String, Integer>>(){}.getType();
+                Type quantitiesType = new TypeToken<Map<String, Integer>>() {
+                }.getType();
                 quantities = gson.fromJson(quantitiesReader, quantitiesType);
-            }
 
-            if (items != null && quantities != null) {
-                //Get every item and store into inventory
-                for (Map.Entry<String, Item> entry : items.entrySet()) {
-                    Item item = entry.getValue();
-                    Integer quantity = quantities.getOrDefault(entry.getKey(), 0);
-                    if(item.getIcon(64) == null){
-                        item.setImagePath("src/resources/icons/itemIcons/imageNotFound.png");
+                if (items != null && quantities != null) {
+                    //Get every item and store into inventory
+                    for (Map.Entry<String, Item> entry : items.entrySet()) {
+                        Item item = entry.getValue();
+                        Integer quantity = quantities.getOrDefault(entry.getKey(), 0);
+                        if (item.getIcon(4) == null) {
+                            item.setImagePath("src/resources/icons/itemIcons/imageNotFound.png");
+                        }
+                        inventory.createItemFromSave(item, quantity);
                     }
-                    inventory.createItemFromSave(item,quantity);
+                    System.out.println("SUCCESS: Loaded " + items.size() + " items from storage");
                 }
-                System.out.println("SUCCESS: Loaded " + items.size() + " items from storage");
+                inventory.convertComposedSerialToItem();
             }
-
-        } catch (FileNotFoundException e) {
-            System.out.println("INFO: Inventory files not found. Starting with empty inventory.");
         } catch (Exception e) {
-            System.out.println("ERROR: Could not load inventory");
-            System.out.println(e.getMessage() + Arrays.toString(e.getStackTrace()));
+            if(firstOpen) {
+                System.out.println("ERROR: " + e.getMessage() + Arrays.toString(e.getStackTrace()));
+                showError("ERROR: Could not load inventory." + e.getMessage() + "\n " +
+                        "Load a working backup and contact support at O-Ayyad@proton.me", firstOpen);
+            }
+            return new LoadResult(false, e);
         }finally {
             loading = false;
         }
-        System.out.println("Loaded inventory from: " + itemsPath.toString());
+        System.out.println("Loaded inventory from: " + itemsPath);
+        return new LoadResult(true, null);
     }
 
 
@@ -106,9 +108,8 @@ public class InventoryFileManager extends AbstractFileManager{
                 gson.toJson(serialToQuantity, writer);
             }
 
-        } catch (IOException e) {
-            System.out.println("ERROR: Could not save inventory");
-            System.out.println(e.getMessage());
+        } catch (Exception e) {
+            showError("ERROR: Could not save inventory. "+ e.getMessage(),false);
         }
     }
 }

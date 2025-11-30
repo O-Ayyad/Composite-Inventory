@@ -244,7 +244,7 @@ public class LinkWindow extends SubWindow {
     }
     private void handleWalmartConnect(PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setPreferredSize(new Dimension(420, 280));
+        panel.setPreferredSize(new Dimension(420, 300));
 
         JEditorPane info = createInfoPane(
                 """
@@ -252,10 +252,10 @@ public class LinkWindow extends SubWindow {
                 <b>To connect your Walmart Seller Account:</b><br><br>
                 1. Go to your<a href='https://seller.walmart.com/'> Walmart Seller Center</a>.<br>
                 2. On the top left corner by "Seller Center," press the 9 dots
-                3. Open Developer Portal
-                4. On the top right press "My Account" and log in with Marketplace
-                4. Obtain your <i>Client ID</i> and <i>Client Secret</i>.<br>
-                5. Paste both below to link your account.<br>
+                3. Open Developer Portal<br>
+                4. On the top right press "My Account" and log in with Marketplace<br>
+                5. Obtain your <i>Client ID</i> and <i>Client Secret</i>.<br>
+                6. Paste both below to link your account.<br>
                 </body></html>
                 """);
         info.setEditable(false);

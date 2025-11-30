@@ -22,22 +22,28 @@ public class UserConfigManager extends AbstractFileManager {
 
     MainWindow mainWindow;
 
-    private UserConfig userConfig;
-
-    static int DEFAULT_AUTOSAVE_TIMER = 15000; //15 seconds
+    static int DEFAULT_AUTOSAVE_TIMER = 8000; //8 seconds
     static int DEFAULT_AUTOFETCH_TIMER = 180000; //3 minutes
 
     public static final UserConfig defaultConfig =
             new UserConfig(true, DEFAULT_AUTOSAVE_TIMER, DEFAULT_AUTOFETCH_TIMER);
+
+    private UserConfig userConfig;
+
+
+
     
 
     public UserConfigManager(MainWindow mainWindow, String dataDirName){
         super(dataDirName);
         this.mainWindow = mainWindow;
-        load();
+        load(false);
+
+        if(userConfig == null){
+            userConfig = defaultConfig;
+        }
 
         if(userConfig.firstOpen){
-            userConfig.firstOpen = false;
             String os = System.getProperty("os.name").toLowerCase();
             if(os.contains("win")){
                 int result = JOptionPane.showConfirmDialog(
@@ -63,7 +69,6 @@ public class UserConfigManager extends AbstractFileManager {
                         JOptionPane.INFORMATION_MESSAGE);
             }
         }
-        save();
     }
 
     public Path getConfigFilePath() {
@@ -71,28 +76,26 @@ public class UserConfigManager extends AbstractFileManager {
     }
     
     @Override
-    public void load(){
+    public LoadResult load(boolean firstOpen){
         loading = true;
         Path path = getConfigFilePath();
-        userConfig = null;
 
         try (FileReader reader = new FileReader(path.toFile())) {
             Type userConfigType = new TypeToken<UserConfig>() {}.getType();
             userConfig = gson.fromJson(reader, userConfigType);
         } catch (FileNotFoundException e) {
             System.out.println("[UserConfigManager]INFO: Config file not found.");
+            return new LoadResult(false, e);
         } catch (Exception e) {
             System.out.println("[UserConfigManager] ERROR: Could not load config");
-            System.out.println(e.getMessage());
+            System.out.println("ERROR: "+e.getMessage());
+            return new LoadResult(false, e);
         }finally {
             loading = false;
         }
         System.out.println("[UserConfigManager] Loading config from: " + configFilePath);
 
-
-        if(userConfig == null){
-            userConfig = defaultConfig;
-        }
+        return new LoadResult(true, null);
     }
     @Override
     public void save() {
@@ -125,5 +128,9 @@ public class UserConfigManager extends AbstractFileManager {
     }
     public UserConfigManager.UserConfig getUserConfig(){
         return userConfig != null ? userConfig : defaultConfig;
+    }
+    public void setFirstOpenToFalse(UserConfig uc){
+        uc.firstOpen = false;
+        save();
     }
 }

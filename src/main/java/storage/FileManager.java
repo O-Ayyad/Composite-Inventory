@@ -13,13 +13,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class FileManager {
-    private static final int MAX_BACKUPS = 300;
+    private static final int MAX_BACKUPS = 800;
     private static final String BACKUP_DIR = "data/backups";
     private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
     private final String[] DATA_DIRS = {"orders", "inventory", "logs", "config"};
 
+    private static int backUpCounter = 0; //Every 30 auto saves a backup is made unless it is on close on manual save
+    private final static int backUpCounterMax = 30;
     Set<AbstractFileManager> fileManagers = new HashSet<>();
 
+    boolean firstOpen;
 
     public FileManager(Inventory inventory, LogManager logManager, PlatformManager platformManager, MainWindow mainWindow) {
         createDirectory();
@@ -34,13 +37,16 @@ public class FileManager {
         fileManagers.add(orderFileManager);
         fileManagers.add(userConfigManager);
 
-        if (!loadAll()) {
+        UserConfigManager.UserConfig uc = userConfigManager.getUserConfig();
+        firstOpen = uc.firstOpen;
+
+        if (!loadAll(firstOpen)) {
             System.out.println("[FileManager] Load failed, attempting restore from backup...");
 
             //Try to restore from backups
             if (restoreFromBackup()) {
-                if (loadAll()) {
-                    showError("<html>WARNING: Data restored from backup!<br> Your files were corrupted and have been recovered.</html>");
+                if (loadAll(firstOpen)) {
+                    showError("<html>WARNING: Data restored from backup!<br> Your files were corrupted and have been recovered. Some data may be lost.</html>");
                 } else {
                     showError("[FileManager] CRITICAL: Could not load files even after restore!");
                 }
@@ -50,29 +56,31 @@ public class FileManager {
         } else {
             System.out.println("[FileManager] All files loaded successfully");
         }
+        userConfigManager.setFirstOpenToFalse(uc);
     }
 
 
-    private boolean loadAll() {
+    private boolean loadAll(boolean firstOpen) {
+        List<AbstractFileManager.LoadResult> loadResults = new ArrayList<>();
         boolean allSuccess = true;
-
         for(AbstractFileManager fileManager: fileManagers){
-            try{
-                fileManager.load();
-            }catch (Exception e){
-                String managerName = fileManager.getClass().getSimpleName();
-                showError("[" + managerName + "] Load failed : " + e.getMessage());
+            AbstractFileManager.LoadResult lr = fileManager.load(firstOpen);
+            if(!lr.success()){
+                loadResults.add(lr);
                 allSuccess = false;
             }
-
+        }
+        if(!firstOpen) {
+            for (AbstractFileManager.LoadResult lr : loadResults) {
+                showError("Error when loading file :" + lr.error().getMessage());
+                System.out.println(Arrays.toString(lr.error().getStackTrace()));
+            }
         }
         return allSuccess;
     }
 
 
-    public void saveAll() {
-        System.out.println("[FileManager] Saving all data...");
-
+    public void saveAll(boolean isAutoSave) {
         for(AbstractFileManager fileManager: fileManagers) {
             try {
                 fileManager.save();
@@ -81,7 +89,17 @@ public class FileManager {
                 showError("[" + managerName + "] Save failed : " + e.getMessage());
             }
         }
-        createBackup();
+
+        if (!isAutoSave) {
+            createBackup();
+            return;
+        }
+
+        backUpCounter++;
+        if (backUpCounter > backUpCounterMax) {
+            createBackup();
+            backUpCounter = 0;
+        }
     }
 
     public void createBackup() {
@@ -94,7 +112,6 @@ public class FileManager {
                 copyDirectory("data/" + dir, backupPath + "/" + dir);
             }
 
-            System.out.println("[FileManager] Backup created: " + backupPath);
             cleanupOldBackups();
         } catch (IOException e) {
             showError("[FileManager] Backup error: " + e.getMessage());
@@ -162,11 +179,8 @@ public class FileManager {
         List<Path> backups = getBackups();
 
         if (backups.size() > MAX_BACKUPS) {
-            System.out.println("[FileManager] Cleaning up old backups...");
-
             for (int i = MAX_BACKUPS; i < backups.size(); i++) {
                 deleteDirectory(backups.get(i));
-                System.out.println("[FileManager] Deleted old backup: " + backups.get(i).getFileName());
             }
         }
     }
@@ -209,7 +223,9 @@ public class FileManager {
     }
     public void showError(String message){
         System.out.println(message);
-        JOptionPane.showMessageDialog(null,message,"File Error", JOptionPane.ERROR_MESSAGE);
+        if(!firstOpen) {
+            JOptionPane.showMessageDialog(null, message, "File Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     public UserConfigManager.UserConfig getUserConfig() {

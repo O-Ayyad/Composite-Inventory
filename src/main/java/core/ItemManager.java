@@ -25,14 +25,14 @@ public class ItemManager {
             int userQty = entry.getValue();
 
             if (!originalMap.containsKey(component)) {
-                throw new IllegalArgumentException("Cannot remove " + component.getName() +
+                throw new IllegalArgumentException("ERROR: Cannot remove " + component.getName() +
                         ". It is not part of " + item.getName());
             }
             if (userQty < 0) {
-                throw new IllegalArgumentException("Quantity is negative in using broken down item.");
+                throw new IllegalArgumentException("ERROR: Quantity is negative in using broken down item.");
             }
             if (userQty > originalMap.get(component)) {
-                throw new IllegalArgumentException("Too many units of " + component.getName() +
+                throw new IllegalArgumentException("ERROR: Too many units of " + component.getName() +
                         " to remove. Max allowed: " + originalMap.get(component));
             }
         }
@@ -80,13 +80,13 @@ public class ItemManager {
     // Can only add items, cannot create a new item
     // If a new item needs to be created via composition, it must be created before then passed into this method
     public void composeItem(Item composedItem) {
-        if (composedItem == null || inventory == null) throw new IllegalStateException("composeItem called on null item or inventory is null");
+        if (composedItem == null || inventory == null) throw new IllegalStateException("ERROR: composeItem called on null item or inventory is null");
 
         //Verify all components exist in inventory
         for (Item component : composedItem.getComposedOf().keySet()) {
 
             if (!inventory.hasItem(component)) { //Does item part exist in inventory
-                throw new RuntimeException("Unable to find item " + component.getName() + " to compose item: "+ composedItem.getName());
+                throw new RuntimeException("ERROR: Unable to find item " + component.getName() + " to compose item: "+ composedItem.getName());
             }
 
             int amountNeeded = inventory.getQuantity(component);
@@ -95,7 +95,7 @@ public class ItemManager {
 
             if (amountNeeded < have) { //Do we have enough of the item to compose
                 throw new RuntimeException(
-                        "Insufficient quantity for '" + component.getName() +
+                        "ERROR: Insufficient quantity for '" + component.getName() +
                                 "' (have " + have + ", need " + amountNeeded + ") to compose item: " + composedItem.getName()
                 );
             }

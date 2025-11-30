@@ -9,6 +9,7 @@ import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.*;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -30,7 +31,7 @@ public class LogFileManager extends AbstractFileManager{
         return Path.of(logFilePath);
     }
     @Override
-    public void load(){
+    public LoadResult load(boolean firstOpen){
         loading = true;
         Path logPath = getLogFilePath();
         //Get all logs
@@ -51,15 +52,19 @@ public class LogFileManager extends AbstractFileManager{
                 }
             }
         } catch (FileNotFoundException e) {
-            System.out.println("[LogFileManager]INFO: Log file not found. Starting with no logs.");
+            System.out.println("[LogFileManager]ERROR:  Log file not found. Starting with no logs.");
+            return new LoadResult(false, e);
         } catch (Exception e) {
-            System.out.println("[LogFileManager]ERROR: Could not load logs");
-            System.out.println(e.getMessage());
+            System.out.println(Arrays.toString(e.getStackTrace()));
+            showError("[LogFileManager]ERROR: Could not load logs. " + e.getMessage() + "\n " +
+                    "Load a working backup and contact support at O-Ayyad@proton.me",firstOpen);
+            return new LoadResult(false, e);
         }finally {
             loading = false;
         }
         logManager.notifyListeners();
-        System.out.println("[LogFileManager] Loading Logs from: " + logPath.toString());
+        System.out.println("[LogFileManager] Loading Logs from: " + logPath);
+        return new LoadResult(true, null);
     }
     @Override
     public void save() {

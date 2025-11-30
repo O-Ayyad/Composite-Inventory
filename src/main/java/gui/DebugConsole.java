@@ -1,6 +1,10 @@
 package gui;
 
 import javax.swing.*;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Style;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.OutputStream;
@@ -10,7 +14,7 @@ import java.time.LocalDateTime;
 
 // All System.out/err prints here for debugging
 public class DebugConsole extends JFrame {
-    private final JTextArea area = new JTextArea();
+    private final JTextPane area = new JTextPane();
 
     public DebugConsole() {
         setTitle("Debug Console");
@@ -21,7 +25,6 @@ public class DebugConsole extends JFrame {
         area.setEditable(false);
         area.setFont(UIUtils.DEBUG_CONSOLE_FONT);
         area.setBackground(Color.BLACK);
-        area.setForeground(Color.GREEN);
 
         JScrollPane scroll = new JScrollPane(area);
         add(scroll);
@@ -48,18 +51,26 @@ public class DebugConsole extends JFrame {
             if (text == null || text.isBlank()) return;
             String msg = text.strip();
 
-            String time = "[" + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")) + "]";
+            LocalDateTime timeTemp = LocalDateTime.now();
+            if(timeTemp.getHour() > 12){
+                timeTemp = timeTemp.minusHours(12);
+            }
+            String time = "[" + timeTemp.format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")) + "]";
             String formattedMsg = time + msg + "\n";
 
-            if (msg.toLowerCase().contains("error") || msg.toLowerCase().contains("exception")) {
-                area.setForeground(Color.RED);
-                area.append(formattedMsg);
-                area.setForeground(Color.GREEN);
+            StyledDocument doc = area.getStyledDocument();
+            Style style = area.addStyle("Style", null);
+            if (msg.toLowerCase().contains("error") || msg.toLowerCase().contains("exception") || msg.startsWith("at")) {
+                StyleConstants.setForeground(style, Color.RED);
             } else {
-                area.append(formattedMsg);
+                StyleConstants.setForeground(style, Color.GREEN);
             }
 
-            area.setCaretPosition(area.getDocument().getLength());
+            try {
+                doc.insertString(doc.getLength(), formattedMsg, style);
+            } catch (BadLocationException e) {
+                System.out.println("ERROR: "+e.getMessage());
+            }
         });
     }
 

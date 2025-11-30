@@ -21,7 +21,6 @@ public class Log {
         OrderReceivedItemNotRegistered,              // Order received, item not in inventory system
 
         ItemShipped,                             // Item shipped, stock reduced
-        ItemShippedInStock,                      // Item shipped from direct stock
         ItemShippedOutOfStock,                   // Item shipped but was out of stock (How?)
         ItemShippedViaComposition,               // Shipped using component items
         ItemShippedNotRegistered,                // Item shipped but not in inventory system
@@ -69,7 +68,11 @@ public class Log {
 
     public Log(LogType type, Integer amount, String message, String serial, int logID) {
         this.logID = logID;
-        timestamp = LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss"));
+        LocalDateTime timeTemp = LocalDateTime.now();
+        if(timeTemp.getHour() > 12){
+            timeTemp = timeTemp.minusHours(12);
+        }
+        timestamp = timeTemp.format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss"));
         this.amount = amount;
         this.type = type;
         this.message = message;

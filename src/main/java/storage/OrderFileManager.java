@@ -13,13 +13,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 //Stores ebay, amazon, and walmart orders in 3 separate files
 public class OrderFileManager extends AbstractFileManager{
-    
+
 
     public static final String EBAY_ORDERS_FILENAME = "ebay_orders.json";
     public static final String AMAZON_ORDERS_FILENAME = "amazon_orders.json";
@@ -30,17 +31,20 @@ public class OrderFileManager extends AbstractFileManager{
     public final String walmartOrdersFilePath = dataDir + File.separator + WALMART_ORDERS_FILENAME;
 
     public final PlatformManager platformManager;
-    
 
-    public OrderFileManager(PlatformManager platformSellerManager, String dataDirName) {
+
+    public OrderFileManager(PlatformManager platformSellerManager, String dataDirName){
         super(dataDirName);
         this.platformManager = platformSellerManager;
 
-
+        this.gson = zonedGson;
     }
     @Override
-    public void load() {
+    public LoadResult load(boolean firstOpen) {
         loading = true;
+        boolean allSuccess = true;
+        Exception ex = null;
+
         for (PlatformType platform : PlatformType.values()) {
             Path filePath = platformToFilePath(platform);
 
@@ -59,6 +63,9 @@ public class OrderFileManager extends AbstractFileManager{
                         seller.lastGetOrderTime = data.lastGetOrderTime();
                         seller.firstGetOrderTime = data.firstGetOrderTime();
 
+                        System.out.println("Last get order time for" + platform.getDisplayName() + data.lastGetOrderTime.toString());
+                        System.out.println("First get order time for" + platform.getDisplayName() + data.firstGetOrderTime.toString());
+
                         if (data.allOrders() != null && !data.allOrders().isEmpty()) {
                             platformManager.allOrders.put(platform, new ConcurrentHashMap<>(data.allOrders()));
                             System.out.println("[SUCCESS] Loaded " + data.allOrders().size() +
@@ -67,23 +74,30 @@ public class OrderFileManager extends AbstractFileManager{
                             platformManager.allOrders.put(platform, new ConcurrentHashMap<>());
                         }
                     } else {
-                        System.out.println("[WARN] Failed to parse orders file for " + platform.getDisplayName());
+                        showError("ERROR: Failed to parse orders file for " + platform.getDisplayName(),firstOpen);
+                        allSuccess = false;
                         platformManager.allOrders.put(platform, new ConcurrentHashMap<>());
                     }
                     System.out.println("Loaded Orders from: " + platformToFilePath(platform));
                 }
             } catch (FileNotFoundException e) {
-                System.out.println("[INFO] Orders file not found for " + platform.getDisplayName() +
-                        ". Starting with empty orders.");
+                showError("ERROR:  Orders file not found for " + platform.getDisplayName() +" " + e.getMessage() + "\n " +
+                                "Load a working backup and contact support at O-Ayyad@proton.me.\n" +
+                                "Starting with empty orders.",firstOpen);
                 platformManager.allOrders.put(platform, new ConcurrentHashMap<>());
+                allSuccess = false;
+                ex = e;
             } catch (Exception e) {
-                System.out.println("[ERROR] Could not load orders for " + platform.getDisplayName());
-                System.out.println(e.getMessage());
+                showError("ERROR:  Could not load orders for " + platform.getDisplayName() +" " + e.getMessage() + "\n " +
+                        "Load a working backup and contact support at O-Ayyad@proton.me",firstOpen);
+                System.out.println(Arrays.toString(e.getStackTrace()));
                 platformManager.allOrders.put(platform, new ConcurrentHashMap<>());
+                allSuccess = false;
+                ex = e;
             }
         }
-
         loading = false;
+        return new LoadResult(allSuccess, ex);
     }
     @Override
     public void save() {
@@ -102,7 +116,6 @@ public class OrderFileManager extends AbstractFileManager{
             );
 
             if(data.firstGetOrderTime == null){
-                System.out.println("[DEBUG] Skipped platform "+ p.getDisplayName() + " since orders were never pulled.");
                 continue;
             }
 
@@ -110,9 +123,8 @@ public class OrderFileManager extends AbstractFileManager{
                 String json = gson.toJson(data);
                 Files.writeString(filePath, json, StandardOpenOption.CREATE,
                         StandardOpenOption.TRUNCATE_EXISTING);
-                System.out.println("Saved orders for " +p.getDisplayName()+ " to file.");
             } catch (IOException e) {
-                System.out.println("[OrderFileManger] ERROR: Could not save logs for "+ p.getDisplayName());
+                System.out.println("[OrderFileManger] ERROR: Could not save orders for "+ p.getDisplayName());
             }
         }
     }
@@ -126,9 +138,9 @@ public class OrderFileManager extends AbstractFileManager{
     
     public record SellerData(
             @Expose
-            LocalDateTime lastGetOrderTime,
+            ZonedDateTime lastGetOrderTime,
             @Expose
-            LocalDateTime firstGetOrderTime,
+            ZonedDateTime firstGetOrderTime,
             @Expose
             Map<String, BaseSeller.Order> allOrders
     ) {}

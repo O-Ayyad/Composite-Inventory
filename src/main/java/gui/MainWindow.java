@@ -85,9 +85,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                     System.out.println("Did not autosave since orders are being fetched.");
                     return;
                 }
-                fileManager.saveAll();
-
-                System.out.println("Autosaved inventory and logs successfully");
+                fileManager.saveAll(true);
             } catch (Exception ex) {
                 System.out.println("Could not autosave. " + ex.getMessage());
             }
@@ -150,7 +148,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                             for (Class<? extends SubWindow> subWin : subWindowInstances.keySet()) {
                                 destroyAllExistingInstance(subWin);
                             }
-                            fileManager.saveAll();
+                            fileManager.saveAll(false);
                         } finally {
                             SwingUtilities.invokeLater(() -> {
                                 savingDialog.dispose();
@@ -308,10 +306,10 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         //Left buttons
         JButton fetchOrdersBtn = new JButton("Fetch Orders");
         JButton saveInfoBtn = new JButton("Save information");
-        JButton settingsBtn = new JButton("Settings and Help");
+        JButton unlinkedItemsBtn = new JButton("<html><div style='text-align:center;'>Find unlinked items<br>on platforms</div></html>");
         JButton openDebugBtn = new JButton("<html><div style='text-align:center;'>Open Debug Console<br>(Shift + ~)</div></html>");
 
-        JButton[] toolButtons = {fetchOrdersBtn, saveInfoBtn, settingsBtn, openDebugBtn};
+        JButton[] toolButtons = {fetchOrdersBtn, saveInfoBtn, unlinkedItemsBtn, openDebugBtn};
         for (JButton btn : toolButtons) {
             btn.setAlignmentX(Component.CENTER_ALIGNMENT);
             btn.setMaximumSize(new Dimension(200, 45));
@@ -369,7 +367,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                             JOptionPane.WARNING_MESSAGE);
                     return;
                 }
-                fileManager.saveAll();
+                fileManager.saveAll(false);
 
                 JOptionPane.showMessageDialog(this,
                         "Successfully saved Inventory, Logs and Orders to disk",
@@ -381,6 +379,52 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                         "Saving Error",
                         JOptionPane.ERROR_MESSAGE);
             }
+
+        });
+
+        fetchOrderButtonChecker.start();
+
+        unlinkedItemsBtn.setEnabled(false);
+        Timer unlinkedItemsBtnChecker = new Timer(2000, e -> {
+            boolean anyConnected = false;
+            for (PlatformType p : PlatformType.values()) {
+                if (apiFileManager.hasToken(p)) {
+                    anyConnected = true;
+                    break;
+                }
+            }
+            unlinkedItemsBtn.setEnabled(anyConnected);
+        });
+        unlinkedItemsBtnChecker.start();
+
+
+        unlinkedItemsBtn.addActionListener(e->{
+            JFrame unlinkedFrame = new JFrame("Unlinked Items");
+            JTextArea textArea = new JTextArea();
+
+            textArea.setEditable(false);
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+            textArea.setFont(UIUtils.FONT_ARIAL_REGULAR);
+
+            ScrollPane scrollPane = new ScrollPane();
+            unlinkedFrame.add(scrollPane);
+            unlinkedFrame.setSize(800, 400);
+            unlinkedFrame.setLocationRelativeTo(null);
+
+            StringBuilder allItemsText = new StringBuilder();
+
+            List<String> message = platformManager.getAllUnlinkedItems();
+
+            for (String item : message) {
+                allItemsText.append(item).append("\n");
+            }
+
+            textArea.setText(allItemsText.toString());
+
+            unlinkedFrame.add(scrollPane);
+
+            unlinkedFrame.setVisible(true);
 
         });
 

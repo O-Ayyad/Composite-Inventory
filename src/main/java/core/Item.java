@@ -97,11 +97,11 @@ public class Item {
             Integer qty = entry.getValue();
 
             if (component  == null) {
-                System.out.println("newList in replaceComposedOf() has a null item. Skipping.");
+                System.out.println("ERROR: newList in replaceComposedOf() has a null item. Skipping.");
                 continue;
             }
             if (component .equals(this)) {
-                System.out.println("Cannot compose with itself: " + component .getName() + " (Serial: " + component .getSerial() + ")");
+                System.out.println("ERROR: Cannot compose with itself: " + component .getName() + " (Serial: " + component .getSerial() + ")");
                 continue;
             }
             valid.merge(component ,qty, Integer::sum);
@@ -156,10 +156,34 @@ public class Item {
         //Create dependencies of composed of and composes into
         syncCompositionDependencies();
     }
+    public Item(String name, String serialNum, Integer lowStockTrigger,
+                Map<String, Integer> serializedComposedOf,
+                String iconPath,
+                ItemManager itemManager,
+                String amazonSellerSKU,
+                String ebaySellerSKU,
+                String walmartSellerSKU,
+                boolean serialized) { //Serialized to prevent clashing
+        this.name = name;
+        this.serial = serialNum;
+        this.lowStockTrigger = lowStockTrigger;
+        this.composedOf = null; // Set to actual set in serialized to item conversion rather than staying null
+
+        composedOfSerialized = serializedComposedOf;
+
+        this.iconPath = iconPath;
+
+        this.amazonSellerSKU = amazonSellerSKU != null ? amazonSellerSKU : "";
+        this.ebaySellerSKU = ebaySellerSKU != null ? ebaySellerSKU : "";
+        this.walmartSellerSKU = walmartSellerSKU != null ? walmartSellerSKU : "";
+
+        this.itemManager = itemManager;
+
+    }
     //If item A holds item B composedOf then item B should hold Item A in composed into
     //This should be called on the composite item. The kit/combo
-    private void syncCompositionDependencies(){
-        if (itemManager == null) throw new IllegalStateException("Item Manager is null for item: "+ getName());
+    public void syncCompositionDependencies(){
+        if (itemManager == null) throw new IllegalStateException("ERROR: Item Manager is null for item: "+ getName());
         //Make sure all components of this item know what they compose into
         for (Item component : composedOf.keySet()) {
             if (component != null && component != this) {

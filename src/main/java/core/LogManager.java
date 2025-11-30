@@ -113,24 +113,24 @@ public class LogManager {
     }
     public void suppressLog(Log l){
         if (l == null) {
-            throw new RuntimeException("suppressLog() called with a null Log reference.");
+            throw new RuntimeException("ERROR: suppressLog() called with a null Log reference.");
         }
         if (l.getSeverity() == Log.Severity.Normal) {
-            throw new RuntimeException("suppressLog() called on a Normal-severity log (Log ID: "
+            throw new RuntimeException("ERROR: suppressLog() called on a Normal-severity log (Log ID: "
                     + l.getLogID() + "). Only Warning or Critical logs can be suppressed.");
         }
 
         if (l.getType() == Log.LogType.ItemShippedNotRegistered) {
-            throw new RuntimeException("unsuppressLog() called on ItemShippedNotRegistered log (Log ID: "
+            throw new RuntimeException("ERROR: unsuppressLog() called on ItemShippedNotRegistered log (Log ID: "
                     + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
         }
         if (l.getType() == Log.LogType.OrderReceivedItemNotRegistered) {
-            throw new RuntimeException("unsuppressLog() called on OrderReceivedItemNotRegistered log (Log ID: "
+            throw new RuntimeException("ERROR: unsuppressLog() called on OrderReceivedItemNotRegistered log (Log ID: "
                     + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
         }
 
         if (l.isSuppressed()) {
-            throw new RuntimeException("suppressLog() called, but log #" + l.getLogID()
+            throw new RuntimeException("ERROR: suppressLog() called, but log #" + l.getLogID()
                     + " is already suppressed.");
         }
 
@@ -140,35 +140,35 @@ public class LogManager {
 
     public void unsuppressLog(Log l) {
         if (l == null) {
-            throw new RuntimeException("unsuppressLog() called with a null Log reference.");
+            throw new RuntimeException("ERROR: unsuppressLog() called with a null Log reference.");
         }
         if (l.getSeverity() == Log.Severity.Normal) {
-            throw new RuntimeException("unsuppressLog() called on a Normal-severity log (Log ID: "
+            throw new RuntimeException("ERROR: unsuppressLog() called on a Normal-severity log (Log ID: "
                     + l.getLogID() + "). Only Warning or Critical logs can be suppressed.");
         }
 
         if (l.getType() == Log.LogType.ItemShippedNotRegistered) {
-            throw new RuntimeException("unsuppressLog() called on ItemShippedNotRegistered log (Log ID: "
+            throw new RuntimeException("ERROR: unsuppressLog() called on ItemShippedNotRegistered log (Log ID: "
                     + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
         }
         if (l.getType() == Log.LogType.OrderReceivedItemNotRegistered) {
-            throw new RuntimeException("unsuppressLog() called on OrderReceivedItemNotRegistered log (Log ID: "
+            throw new RuntimeException("ERROR: unsuppressLog() called on OrderReceivedItemNotRegistered log (Log ID: "
                     + l.getLogID() + "). These logs cannot be suppressed since they represent external platform mismatches.");
         }
         if (!l.isSuppressed()) {
-            throw new RuntimeException("unsuppressLog() called, but log #" + l.getLogID()
+            throw new RuntimeException("ERROR: unsuppressLog() called, but log #" + l.getLogID()
                     + " is not suppressed.");
         }
 
         //Remove the previously created log
         Item i = inventory.getItemBySerial(l.getSerial());
         if (i == null) {
-            throw new RuntimeException("Item is null in unsuppressLog()");
+            throw new RuntimeException("ERROR: Item is null in unsuppressLog()");
         }
 
         ArrayList<Log> itemLogs = itemToLogs.get(i);
         if (itemLogs == null || itemLogs.isEmpty()) {
-            throw new RuntimeException("Item has no logs to remove");
+            throw new RuntimeException("ERROR: Item has no logs to remove");
         }
 
         Log toRemove = null;
@@ -176,14 +176,12 @@ public class LogManager {
             if (suppressLog.getType() == Log.LogType.SuppressedLog &&
                     suppressLog.getMessage().contains("#" + l.getLogID())){ //Double check that the suppressed log is specifically for this log
                 toRemove = suppressLog;
-                System.out.println("found");
                 break;
             }
         }
         if (toRemove != null) {
             removeLog(toRemove);
             l.setSuppressed(false);
-            System.out.println("deleted");
         }
     }
 

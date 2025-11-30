@@ -58,7 +58,7 @@ public class APIFileManager {
             return Base64.getEncoder().encodeToString(hash);
 
         } catch (Exception e) {
-            throw new RuntimeException("Cannot generate machine key", e);
+            throw new RuntimeException("ERROR: Cannot generate machine key", e);
         }
     }
 
@@ -165,7 +165,7 @@ public class APIFileManager {
                     System.out.println("-> Token format check...");
                     String[] parts = token.split("\\|::\\|");
                     if (parts.length != 3) {
-                        System.out.println("Invalid token format (found " + parts.length + ") Expected : 3");
+                        System.out.println("ERROR: Invalid token format (found " + parts.length + ") Expected : 3");
                         return -1;
                     }
                     String clientId = parts[0];
@@ -216,7 +216,7 @@ public class APIFileManager {
                     System.out.println("-> Token format check...");
                     String[] parts = token.split("\\|::\\|");
                     if (parts.length != 2) {
-                        System.out.println("Invalid token format (found " + parts.length + ") Expected : 2");
+                        System.out.println("ERROR: Invalid token format (found " + parts.length + ") Expected : 2");
                         return -1;
                     }
 
@@ -278,7 +278,7 @@ public class APIFileManager {
                     System.out.println(pretty);
 
                 }catch (Exception e){
-                    System.out.println(e.getMessage());
+                    System.out.println("ERROR: "+ e.getMessage());
                 }
             }
 
@@ -478,30 +478,8 @@ public class APIFileManager {
             System.out.println("-> Response code: " + response);
             System.out.println("-> Response body: " + responseBody);
 
-            StringBuilder sb = new StringBuilder();
-            if(!(response >= 200 && response < 300)){
-                System.out.println("-> Reading success response body");
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        sb.append(line);
-                    }
-                }
-                try {
-
-                    String rawJson = sb.toString();
-                    String pretty = new GsonBuilder()
-                            .setPrettyPrinting()
-                            .create()
-                            .toJson(JsonParser.parseString(rawJson));
-                    System.out.println("-> Success response:");
-                    System.out.println(pretty);
-
-                } catch (Exception e) {
-                    System.out.println("-> Error pretty printing JSON: " + e.getMessage());
-                    System.out.println("-> Raw response: " + sb.toString());
-                }
-            } else {
+            if(!(response >= 200 && response < 300)){ //If bad response
+                StringBuilder sb = new StringBuilder();
                 System.out.println("-> Reading error response body");
                 try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(conn.getErrorStream()))) {
                     String line;
@@ -524,7 +502,7 @@ public class APIFileManager {
             }
             return response;
         }catch (Exception e) {
-            System.out.println(e.getMessage());
+            System.out.println("ERROR: "+e.getMessage());
         }
         return -1;
     }
@@ -555,28 +533,8 @@ public class APIFileManager {
             System.out.println("-> Response message: " + responseMessage);
 
 
-            StringBuilder sb = new StringBuilder();
             if(!(response >= 200 && response < 300)){
-                System.out.println("-> Reading success response body");
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        sb.append(line);
-                    }
-
-                    String rawJson = sb.toString();
-                    String pretty = new GsonBuilder()
-                            .setPrettyPrinting()
-                            .create()
-                            .toJson(JsonParser.parseString(rawJson));
-                    System.out.println("-> Success response:");
-                    System.out.println(pretty);
-
-                } catch (Exception e) {
-                    System.out.println("-> Error pretty printing JSON: " + e.getMessage());
-                    System.out.println("-> Raw response: " + sb);
-                }
-            } else {
+                StringBuilder sb = new StringBuilder();
                 System.out.println("-> Reading error response body");
                 try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(conn.getErrorStream()))) {
                     String line;

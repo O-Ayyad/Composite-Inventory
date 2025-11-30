@@ -12,10 +12,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,7 +44,7 @@ public class AmazonSeller extends BaseSeller {
             JFrame parent = platformManager.getMainWindow();
 
             //token age
-            long tokenAgeMinutes = Duration.between(lastAccessTokenGetTime, LocalDateTime.now()).toMinutes();
+            long tokenAgeMinutes = Duration.between(lastAccessTokenGetTime, ZonedDateTime.now(ZoneOffset.UTC)).toMinutes();
             boolean tokenIsOld = tokenAgeMinutes > tokenExpirationTimeMinutes;
 
             //Get token if old or missing
@@ -55,7 +52,7 @@ public class AmazonSeller extends BaseSeller {
                 log("Token expired or missing. Fetching new token...");
                 String[] credentials = apiFileManager.getCredentialsFromFile(PlatformType.AMAZON);
                 accessToken = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
-                lastAccessTokenGetTime = LocalDateTime.now();
+                lastAccessTokenGetTime = ZonedDateTime.now(ZoneOffset.UTC);
             }
 
             //Validate current access token
@@ -70,7 +67,7 @@ public class AmazonSeller extends BaseSeller {
 
                     String[] credentials = apiFileManager.getCredentialsFromFile(PlatformType.AMAZON);
                     accessToken = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
-                    lastAccessTokenGetTime = LocalDateTime.now();
+                    lastAccessTokenGetTime = ZonedDateTime.now(ZoneOffset.UTC);
 
                     //Validate the new token
                     int response2 = apiFileManager.validateAmazonAccessToken(accessToken);
@@ -146,10 +143,13 @@ public class AmazonSeller extends BaseSeller {
             }
             //We have a valid non-expired token, so get recent orders and parse
             log("Valid access token");
+
+
             String createdAfter = getLastGetOrderTimeForFetching()
-                    .atZone(ZoneId.systemDefault())
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+
+            System.out.println("[DEBUG] Fetching orders created after: " + createdAfter);
             String ordersEndpoint =
                     API_BASE_URL + "/orders/v0/orders?MarketplaceIds=ATVPDKIKX0DER&CreatedAfter=" + URLEncoder.encode(createdAfter, StandardCharsets.UTF_8);
 
@@ -158,7 +158,7 @@ public class AmazonSeller extends BaseSeller {
             conn.setRequestMethod("GET");
 
             conn.setRequestProperty("x-amz-access-token", accessToken);
-            conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
+            conn.setRequestProperty("User-Agent", "CompositeInventory/1.0");
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(10000);
 
@@ -191,7 +191,7 @@ public class AmazonSeller extends BaseSeller {
             }
 
             //We have the orders, now turn it into json
-            lastGetOrderTime = LocalDateTime.now();
+            lastGetOrderTime = ZonedDateTime.now(ZoneOffset.UTC);
             BufferedReader br = new BufferedReader(
                     new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8)
             );
@@ -242,7 +242,7 @@ public class AmazonSeller extends BaseSeller {
                     default -> OrderStatus.CONFIRMED;
                 };
                 String updateDateString = getString(orderObj, "LastUpdateDate");
-                LocalDateTime updateDate = LocalDateTime.parse(updateDateString,
+                ZonedDateTime updateDate = ZonedDateTime.parse(updateDateString,
                         DateTimeFormatter.ISO_DATE_TIME);
 
                 Order existing = platformManager.getOrder(PlatformType.AMAZON,orderId);
@@ -389,5 +389,5 @@ public class AmazonSeller extends BaseSeller {
         return sb.toString();
     }
 
-    public record IdAndStatus(String orderId,OrderStatus status, LocalDateTime updateDate){}
+    public record IdAndStatus(String orderId,OrderStatus status, ZonedDateTime updateDate){}
 }

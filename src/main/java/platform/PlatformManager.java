@@ -5,7 +5,12 @@ import gui.MainWindow;
 import storage.APIFileManager;
 import storage.FileManager;
 import javax.swing.*;
-import java.time.LocalDateTime;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +26,7 @@ public class PlatformManager {
     public EbaySeller ebaySeller;
     public WalmartSeller walmartSeller;
 
-    private LocalDateTime lastFetchTime;
+    private ZonedDateTime lastFetchTime;
     public final int fetchTimeCooldownSeconds= 30;
 
     private final APIFileManager apiFileManager;
@@ -49,7 +54,10 @@ public class PlatformManager {
         ebaySeller = new EbaySeller(this, apiFileManager);
         walmartSeller = new WalmartSeller(this, apiFileManager);
 
-        lastFetchTime = LocalDateTime.of(1990, 1, 1, 0, 0);
+        lastFetchTime = ZonedDateTime.ofInstant(
+                Instant.parse("1990-01-01T00:00:00Z"),
+                ZoneOffset.UTC
+        );
 
     }
 
@@ -77,7 +85,7 @@ public class PlatformManager {
             add(walmartSeller);
         }});
 
-        if(LocalDateTime.now().minusSeconds(fetchTimeCooldownSeconds).isBefore(lastFetchTime)){
+        if(ZonedDateTime.now().minusSeconds(fetchTimeCooldownSeconds).isBefore(lastFetchTime)){
             System.out.println("Fetching orders is on cooldown.");
             return;
         }
@@ -184,7 +192,7 @@ public class PlatformManager {
                 try {
                     Map<PlatformType, Map<String, BaseSeller.Order>> result = get();
                     handleFetchedOrders(result);
-                    lastFetchTime = LocalDateTime.now();
+                    lastFetchTime = ZonedDateTime.now();
                     fetching = false;
                     saveToFile();
                 } catch (Exception e) {
@@ -193,7 +201,7 @@ public class PlatformManager {
                             "Critical error in order fetch completion: " + e.getMessage(),
                             "");
 
-                    lastFetchTime = LocalDateTime.now();
+                    lastFetchTime = ZonedDateTime.now();
                     fetching = false;
 
                     System.out.println(Arrays.toString(e.getStackTrace()));
@@ -529,7 +537,7 @@ public class PlatformManager {
         }
     }
     public void saveToFile(){
-        fileManager.saveAll();
+        fileManager.saveAll(true);
     }
     public BaseSeller.Order getOrder(PlatformType platform, String id){
         Map<String, BaseSeller.Order> orders = allOrders.get(platform);
@@ -560,14 +568,58 @@ public class PlatformManager {
     private BaseSeller.Order createDummyConfirmedOrder(BaseSeller.Order order) {
         return new BaseSeller.Order(order.getOrderId(), BaseSeller.OrderStatus.CONFIRMED, order.getLastUpdated());
     }
-    public LocalDateTime getLastFetchTime(){
+    public ZonedDateTime getLastFetchTime(){
         return lastFetchTime;
     }
     public boolean isFetching(){
         return fetching || anySellersFetching();
     }
     public boolean onCooldown(){
-        return LocalDateTime.now().minusSeconds(fetchTimeCooldownSeconds)
+        return ZonedDateTime.now().minusSeconds(fetchTimeCooldownSeconds)
                 .isBefore(lastFetchTime);
+    }
+
+    public List<String> getAllUnlinkedItems() {
+        List<String> list = new ArrayList<>();
+        for(PlatformType p : PlatformType.values()){
+            HttpURLConnection conn = null;
+            if(!apiFileManager.hasToken(p))continue;
+            try{
+                switch (p){
+                    case AMAZON -> {
+
+                    }
+                    case EBAY -> {
+
+                    }
+                    case WALMART -> {
+                        URL url = new URL("https://marketplace.walmartapis.com/v3/items");
+                        conn = (HttpURLConnection) url.openConnection();
+                        conn.setRequestMethod("GET");
+
+                        String[] creds = apiFileManager.getCredentialsFromFile(PlatformType.WALMART);
+                        String clientID = creds[0];
+                        String clientSecret = creds[1];
+                        String accessToken = apiFileManager.getWalmartAccessToken(clientID,clientSecret);
+                        if(accessToken == null){
+                            list.add("\n\nCould not fetch inventory for walmart\n\n");
+                            break;
+                        }
+                        apiFileManager.addWalmartHeaders(conn,accessToken, clientID);
+                        conn.setConnectTimeout(10000);
+                        conn.setReadTimeout(10000);
+                        int response = conn.getResponseCode();
+                        String responseMessage = conn.getResponseMessage();
+                        if(response > 300 || response <200){
+                            list.add("\n\nCould not fetch inventory for walmart\n\n");
+                            break;
+                        }
+                    }
+                }
+            }catch (Exception e){
+
+            }
+        }
+        return list;
     }
 }

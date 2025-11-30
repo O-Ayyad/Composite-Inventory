@@ -42,7 +42,7 @@ public class WalmartSeller extends BaseSeller {
             JFrame parent = platformManager.getMainWindow();
 
             //token age
-            long tokenAgeMinutes = Duration.between(lastAccessTokenGetTime, LocalDateTime.now()).toMinutes();
+            long tokenAgeMinutes = Duration.between(lastAccessTokenGetTime,  ZonedDateTime.now(ZoneOffset.UTC)).toMinutes();
             boolean tokenIsOld = tokenAgeMinutes > tokenExpirationTimeMinutes;
 
             String[] credentials = apiFileManager.getCredentialsFromFile(PlatformType.WALMART);
@@ -53,7 +53,7 @@ public class WalmartSeller extends BaseSeller {
             if (tokenIsOld || accessToken == null) {
                 log("Token expired or missing. Fetching new token...");
                 accessToken = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
-                lastAccessTokenGetTime = LocalDateTime.now();
+                lastAccessTokenGetTime = ZonedDateTime.now(ZoneOffset.UTC);
             }
 
             //Validate current access token
@@ -67,7 +67,7 @@ public class WalmartSeller extends BaseSeller {
                     log("Attempting token refresh...");
 
                     accessToken = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
-                    lastAccessTokenGetTime = LocalDateTime.now();
+                    lastAccessTokenGetTime = ZonedDateTime.now();
 
                     //Validate the new token
                     int response2 = apiFileManager.validateWalmartAccessToken(accessToken, clientID);
@@ -143,9 +143,9 @@ public class WalmartSeller extends BaseSeller {
             keyFailCounter = 0;
             log(" Valid access token");
             String createdAfter = getLastGetOrderTimeForFetching()
-                    .atZone(ZoneId.systemDefault())
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+            System.out.println("[DEBUG] Fetching orders created after: " + createdAfter);
             String ordersEndpoint =
                     API_BASE_URL + "?createdStartDate=" + URLEncoder.encode(createdAfter, StandardCharsets.UTF_8);
 
@@ -187,7 +187,7 @@ public class WalmartSeller extends BaseSeller {
             }
 
             //We have the orders, now turn it into json
-            lastGetOrderTime = LocalDateTime.now();
+            lastGetOrderTime = ZonedDateTime.now(ZoneOffset.UTC);
             BufferedReader br = new BufferedReader(
                     new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8)
             );
@@ -216,9 +216,8 @@ public class WalmartSeller extends BaseSeller {
                 String orderId = orderObj.get("purchaseOrderId").getAsString();
 
                 long orderDateMillis = orderObj.get("orderDate").getAsLong();
-                LocalDateTime orderDate = Instant.ofEpochMilli(orderDateMillis)
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDateTime();
+                ZonedDateTime orderDate = Instant.ofEpochMilli(orderDateMillis)
+                        .atZone(ZoneId.systemDefault());
 
                 OrderStatus orderStatus = OrderStatus.CONFIRMED; // default
                 List<OrderPacket> newItems = new ArrayList<>();

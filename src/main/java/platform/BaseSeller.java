@@ -6,6 +6,8 @@ import com.google.gson.annotations.Expose;
 import storage.APIFileManager;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -17,10 +19,10 @@ public abstract class BaseSeller {
     protected final PlatformManager platformManager;
     protected final APIFileManager apiFileManager;
 
-    public LocalDateTime lastAccessTokenGetTime;
+    public ZonedDateTime  lastAccessTokenGetTime;
 
-    public LocalDateTime lastGetOrderTime;
-    public LocalDateTime firstGetOrderTime;
+    public ZonedDateTime  lastGetOrderTime;
+    public ZonedDateTime  firstGetOrderTime;
 
     public int tokenExpirationTimeMinutes;
 
@@ -38,7 +40,7 @@ public abstract class BaseSeller {
         this.platformManager = platformManager;
         this.apiFileManager = apiFileManager;
 
-        this.lastAccessTokenGetTime = LocalDateTime.of(1990, 1, 1, 0, 0);
+        this.lastAccessTokenGetTime = ZonedDateTime.of(1990, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 
         this.tokenExpirationTimeMinutes = switch (platformType) {
             case AMAZON -> 55;
@@ -51,16 +53,16 @@ public abstract class BaseSeller {
     // Every seller fetches its own orders with apis
     public abstract void fetchOrders();
 
-    public synchronized LocalDateTime getLastGetOrderTimeForFetching(){
+    public synchronized ZonedDateTime getLastGetOrderTimeForFetching(){
 
         if (firstGetOrderTime == null) {
-            firstGetOrderTime = LocalDateTime.now();
+            firstGetOrderTime = ZonedDateTime.now(ZoneOffset.UTC);
             return firstGetOrderTime;
         }
 
-        LocalDateTime cutoffTime = LocalDateTime.now().minusDays(14);
+        ZonedDateTime cutoffTime = ZonedDateTime.now(ZoneOffset.UTC).minusDays(14);
 
-        LocalDateTime effectiveCutoff = firstGetOrderTime.isAfter(cutoffTime) ? firstGetOrderTime : cutoffTime;
+        ZonedDateTime effectiveCutoff = firstGetOrderTime.isAfter(cutoffTime) ? firstGetOrderTime : cutoffTime;
 
         if (lastGetOrderTime != null && lastGetOrderTime.isAfter(effectiveCutoff)) {
             return lastGetOrderTime;
@@ -98,9 +100,9 @@ public abstract class BaseSeller {
         @Expose
         private final List<OrderPacket> items;
         @Expose
-        private LocalDateTime lastUpdated;
+        private ZonedDateTime lastUpdated;
 
-        public Order(String orderId, OrderStatus status,LocalDateTime lastUpdated) {
+        public Order(String orderId, OrderStatus status,ZonedDateTime lastUpdated) {
             this.orderId = orderId;
             this.status = status;
             this.items = new ArrayList<>();
@@ -114,10 +116,10 @@ public abstract class BaseSeller {
 
         public List<OrderPacket> getItems() {return Collections.unmodifiableList(items);}
 
-        public LocalDateTime getLastUpdated(){
+        public ZonedDateTime getLastUpdated(){
             return lastUpdated;
         }
-        public void setLastUpdated(LocalDateTime time){
+        public void setLastUpdated(ZonedDateTime time){
             lastUpdated = time;
         }
 

@@ -186,21 +186,18 @@ public class Inventory {
             addItemAmount(i,amount);
             return;
         }
-        Map<Item,Integer> newComposedOf = new HashMap<>();
-        for(Map.Entry<String, Integer> serialized : item.getComposedOfSerialized().entrySet()){
-            newComposedOf.put(getItemBySerial(serialized.getKey()), serialized.getValue());
-        }
-        //Create new item
+        //Create new item with serialized components
         Item newItem = new Item(
                 item.getName(),
                 item.getSerial(),
                 item.getLowStockTrigger(),
-                newComposedOf,
+                item.getComposedOfSerialized(),
                 item.getImagePath(),
                 itemManager,
                 item.getAmazonSellerSKU(),
                 item.getEbaySellerSKU(),
-                item.getWalmartSellerSKU()
+                item.getWalmartSellerSKU(),
+                true
         );
 
         registerItemMapping(newItem, amount);
@@ -208,7 +205,7 @@ public class Inventory {
     //Edit the amount of an item
     public void addItemAmount(Item item, int amount){
         if( item == null){
-            throw new IllegalStateException("Null item called in addItemAmount()");
+            throw new IllegalStateException("ERROR: Null item called in addItemAmount()");
         }
         addItemAmountSilent(item,amount);
         logManager.createLog(Log.LogType.AddedItem,
@@ -222,10 +219,10 @@ public class Inventory {
     //Does the same without logs
     public void addItemAmountSilent(Item item, int amount){
         if( item == null){
-            throw new IllegalStateException("Null item called in addItemAmount()");
+            throw new IllegalStateException("ERROR: Null item called in addItemAmount()");
         }
         if (!hasItem(item)) {
-            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+            throw new IllegalStateException("ERROR: Item not found in addItemAmount: " + item.getName());
         }
         int quantity = MainInventory.getOrDefault(item, 0);
         MainInventory.put(item, quantity + amount);
@@ -233,7 +230,7 @@ public class Inventory {
 
     public void decreaseItemAmount(Item item, int amount){
         if (!hasItem(item)) {
-            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+            throw new IllegalStateException("ERROR: Item not found in addItemAmount: " + item.getName());
         }
 
         int quantity = MainInventory.get(item);
@@ -250,7 +247,7 @@ public class Inventory {
 
     public void decreaseItemAmountSilent(Item item, int amount){
         if (!hasItem(item)) {
-            throw new IllegalStateException("Item not found in addItemAmount: " + item.getName());
+            throw new IllegalStateException("ERROR: Item not found in decreaseItemAmountSilent: " + item.getName());
         }
 
         int quantity = MainInventory.get(item);
@@ -259,7 +256,7 @@ public class Inventory {
     }
     public void setQuantity(Item item,int quantity){
         if (!hasItem(item)) {
-            throw new IllegalStateException("Item not found in setQuantity: " + item.getName());
+            throw new IllegalStateException("ERROR: Item not found in setQuantity: " + item.getName());
         }
         if(quantity < 0) return;
         MainInventory.put(item, quantity);
@@ -299,7 +296,7 @@ public class Inventory {
         if (name == null || name.isEmpty()) return returnList;
         for (Item item : MainInventory.keySet()) {
             if (item == null) {
-                System.err.println("Warning: null item key found in MainInventory!");
+                System.err.println("ERROR: : null item key found in MainInventory!");
                 continue;
             }
             if (name.equalsIgnoreCase(item.getName())) {
@@ -311,14 +308,14 @@ public class Inventory {
 
     public void composeItem(Item item, int amount) {
         if (item == null || !item.isComposite() || amount <= 0) {
-            throw new RuntimeException("ComposeItem called on non-existent item, or non-composite Item, or amount is invalid");
+            throw new RuntimeException("ERROR: ComposeItem called on non-existent item, or non-composite Item, or amount is invalid");
         }
         for(Map.Entry<Item,Integer> ip: item.getComposedOf().entrySet()){ //Check if we have enough of each part
             Item i = ip.getKey();
             int ipAmount = ip.getValue();
             long required = (long)ipAmount * (long)amount;
             if(required > getQuantity(i)){
-                throw new RuntimeException("Not enough "+ i.getName() + " to compose item: "+ item.getName() +". \n" +
+                throw new RuntimeException("ERROR: Not enough "+ i.getName() + " to compose item: "+ item.getName() +". \n" +
                         "(Amount needed = "+ipAmount*amount + " || Amount available = "+getQuantity(i) +")");
             }
         }
@@ -349,7 +346,7 @@ public class Inventory {
     }
     public void breakDownItem(Item item, Map<Item,Integer> used) {
         if (item == null || !item.isComposite()) {
-            throw new RuntimeException("breakDownItem() called on non-existent item, or non-composite Item, or amount is invalid");
+            throw new RuntimeException("ERROR: breakDownItem() called on non-existent item, or non-composite Item.");
         }
 
         ItemManager.BreakdownResult result = itemManager.breakDownItem(item, used);
@@ -457,7 +454,7 @@ public class Inventory {
             try{
                 Files.deleteIfExists(Paths.get(item.getImagePath()));
             } catch (Exception e){
-                System.out.println("Could not delete image files for item: " + item.getName());
+                System.out.println("ERROR: Could not delete image files for item: " + item.getName());
             }
         }
         notifyListeners(item);
@@ -467,7 +464,7 @@ public class Inventory {
     //Ensures all  hashmaps are always in sync
     public void registerItemMapping(Item item, int amount){
         if (item == null || amount < 0) {
-            throw new RuntimeException("registerItemMapping called on null item or negative quantity");
+            throw new RuntimeException("ERROR: registerItemMapping called on null item or negative quantity");
         }
 
         MainInventory.put(item, amount);
@@ -849,6 +846,26 @@ public class Inventory {
     private void notifyListeners(Item i) {
         for (ItemListener listener : listeners) {
             listener.onChange(i);
+        }
+    }
+
+    public void convertComposedSerialToItem() throws Exception {
+        for(Item i : MainInventory.keySet()){
+            Map<Item,Integer> composedOf = new HashMap<>();
+            for(Map.Entry<String,Integer> serializedComposedOf : i.getComposedOfSerialized().entrySet()){
+                String serial = serializedComposedOf.getKey();
+                int amount = serializedComposedOf.getValue();
+                Item baseItem = getItemBySerial(serial);
+
+                if(baseItem == null){
+                    Exception err =
+                            new Exception("FATAL ERROR: Item " + i.getName() + " (" + i.getSerial() + ") is composed of non-existent item.");
+                    throw new Exception(err);
+                }
+
+                composedOf.put(baseItem,amount);
+            }
+            i.replaceComposedOf(composedOf);
         }
     }
 
