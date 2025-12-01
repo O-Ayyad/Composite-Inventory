@@ -63,9 +63,6 @@ public class OrderFileManager extends AbstractFileManager{
                         seller.lastGetOrderTime = data.lastGetOrderTime();
                         seller.firstGetOrderTime = data.firstGetOrderTime();
 
-                        System.out.println("Last get order time for" + platform.getDisplayName() + data.lastGetOrderTime.toString());
-                        System.out.println("First get order time for" + platform.getDisplayName() + data.firstGetOrderTime.toString());
-
                         if (data.allOrders() != null && !data.allOrders().isEmpty()) {
                             platformManager.allOrders.put(platform, new ConcurrentHashMap<>(data.allOrders()));
                             System.out.println("[SUCCESS] Loaded " + data.allOrders().size() +
@@ -82,14 +79,14 @@ public class OrderFileManager extends AbstractFileManager{
                 }
             } catch (FileNotFoundException e) {
                 showError("ERROR:  Orders file not found for " + platform.getDisplayName() +" " + e.getMessage() + "\n " +
-                                "Load a working backup and contact support at O-Ayyad@proton.me.\n" +
+                                "Load a working backup" +
                                 "Starting with empty orders.",firstOpen);
                 platformManager.allOrders.put(platform, new ConcurrentHashMap<>());
                 allSuccess = false;
                 ex = e;
             } catch (Exception e) {
                 showError("ERROR:  Could not load orders for " + platform.getDisplayName() +" " + e.getMessage() + "\n " +
-                        "Load a working backup and contact support at O-Ayyad@proton.me",firstOpen);
+                        "Load a working backup",firstOpen);
                 System.out.println(Arrays.toString(e.getStackTrace()));
                 platformManager.allOrders.put(platform, new ConcurrentHashMap<>());
                 allSuccess = false;

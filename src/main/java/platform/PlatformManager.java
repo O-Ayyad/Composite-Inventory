@@ -587,7 +587,7 @@ public class PlatformManager {
     }
 
     public List<List<String>> getAllUnlinkedItems() {
-        List<List<String>> list = new ArrayList<>();
+        List<List<String>> list = Collections.synchronizedList(new ArrayList<>());
         List<Thread> threads = new ArrayList<>();
         for (PlatformType p : PlatformType.values()) {
             Thread thread = new Thread(() -> {

@@ -5,11 +5,9 @@ import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
-import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.function.Consumer;
 
 public class LogTableModel extends AbstractTableModel {
@@ -30,10 +28,10 @@ public class LogTableModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int columnIndex) {
-        return switch(columnIndex) {
-            case 0 -> Integer.class;
-            default -> String.class;
-        };
+        if(columnIndex == 0){
+            return Integer.class;
+        }
+        return String.class;
     }
 
     public int getRowCount(){ return logs.size(); }

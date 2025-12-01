@@ -229,7 +229,6 @@ public class AddWindow extends SubWindow {
                 composedLabel.setVisible(visible);
                 composedContainer.setVisible(visible);
 
-                pack();
                 if (visible) {
                     setSize(originalWidth * 4 / 3, originalHeight * 4 / 3);
                 } else {
@@ -568,8 +567,6 @@ public class AddWindow extends SubWindow {
 
         gbc.gridx = 2;
         panel.add(previewLabel, gbc);
-
-
 
 
         // Quantity

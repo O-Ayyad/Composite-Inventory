@@ -1,11 +1,14 @@
 package core;
 import java.awt.*;
+import java.io.File;
 import java.util.*;
 import javax.swing.ImageIcon;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.Expose;
+import constants.Constants;
+
 //Blueprint for all items
 //Each item serial number is unique and the quantity is stored by inventory manager
 public class Item {
@@ -74,6 +77,14 @@ public class Item {
         Image scaled = icon.getImage().getScaledInstance(newW, newH, Image.SCALE_SMOOTH);
         return new ImageIcon(scaled);
     }
+    public void checkMissingIcon() {
+        if (    iconPath == null ||
+                iconPath.equals(Constants.NOT_FOUND_PNG) || !
+                new File(iconPath).exists()) {
+
+            iconPath = Constants.NOT_FOUND_PNG;
+        }
+    }
     public int getLowStockTrigger() { return lowStockTrigger;}
     public void setLowStockTrigger(int lowST){lowStockTrigger = lowST;}
 
@@ -135,6 +146,7 @@ public class Item {
         this.name = name;
         this.serial = serialNum;
         this.lowStockTrigger = lowStockTrigger;
+
         this.composedOf = composedOf != null ? composedOf : new HashMap<>();
 
         composedOfSerialized = new HashMap<>();

@@ -650,7 +650,6 @@ public class APIFileManager {
 
     public void checkBadKeys(List<BaseSeller> sellers){
         for(BaseSeller seller : sellers){
-            System.out.println(seller.keyFailCounter);
             if (seller.isBadKey()){
                 removeToken(sellerToPlatform(seller));
                 seller.resetBadKeyCount();

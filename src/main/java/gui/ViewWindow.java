@@ -1,12 +1,13 @@
 package gui;
 
+import constants.Constants;
 import core.*;
 import javax.swing.*;
-import javax.swing.Timer;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
 import java.util.*;
 import java.util.List;
 
@@ -18,8 +19,6 @@ public class ViewWindow extends SubWindow {
     private DefaultTableModel tableModel;
     private JLabel summaryLabel;
     private final LogManager logManager;
-
-    private final Map<String, ImageIcon> iconCache = new HashMap<>();
 
     final int imageSize = 64;
     final int leftToolsWidth = 250;
@@ -139,7 +138,7 @@ public class ViewWindow extends SubWindow {
                 JOptionPane.showMessageDialog(this, "Please select an item to reduce stock.", "No item selected", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            new RemoveWindow(mainWindow, inventory, selected,RemoveWindow.SendTo.Reduce);
+            new RemoveWindow(mainWindow, inventory, selected, RemoveWindow.SendTo.Reduce);
         });
 
         breakBtn.addActionListener(e -> {
@@ -370,34 +369,11 @@ public class ViewWindow extends SubWindow {
 
     //Populate table
     private void refreshTable() {
-
         List<RowSorter.SortKey> sortKeys = new ArrayList<>();
         if (itemTable.getRowSorter() != null && itemTable.getRowSorter().getSortKeys() != null) {
             sortKeys.addAll(itemTable.getRowSorter().getSortKeys());
+            itemTable.setRowHeight(70);
         }
-
-        tableModel.setRowCount(0);
-
-        List<Item> items = new ArrayList<>(inventory.MainInventory.keySet());
-
-        for (Item i : items) {
-
-            ImageIcon icon = new ImageIcon(i.getImagePath());
-            ImageIcon scaledIcon = iconCache.computeIfAbsent(i.getSerial(), k -> getScaledIconTo(icon, imageSize));
-
-            tableModel.addRow(new Object[]{
-                    scaledIcon,
-                    inventory.getQuantity(i),
-                    i.getName(),
-                    i.getSerial(),
-                    i.getLowStockTrigger(),
-                    i.isComposite() ? "Yes" : "No",
-                    nullToNA(i.getAmazonSellerSKU()),
-                    nullToNA(i.getEbaySellerSKU()),
-                    nullToNA(i.getWalmartSellerSKU())
-            });
-        }
-        itemTable.setRowHeight(70);
 
         itemTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
@@ -422,21 +398,68 @@ public class ViewWindow extends SubWindow {
             itemTable.getRowSorter().setSortKeys(sortKeys);
         }
 
-        updateSummary();
+        tableModel.setRowCount(0);
+        List<Item> items = new ArrayList<>(inventory.MainInventory.keySet());
+
+        ImageIcon defaultIcon = new ImageIcon(Constants.NOT_FOUND_PNG);
+        long[] summary = new long[] {0,0,0};
+        new SwingWorker<Void, Object[]>() {
+            @Override
+            protected Void doInBackground() {
+                for (Item i : items) {
+                    updateSummary(summary,i);
+                    ImageIcon icon;
+                    String iconPath = i.getImagePath();
+                    if (iconPath == null || iconPath.equals(Constants.NOT_FOUND_PNG) || !new File(iconPath).exists()) {
+                        icon = defaultIcon;
+                    } else {
+                        icon = new ImageIcon(iconPath);
+                    }
+
+                    Icon scaledIcon = getScaledIconTo(icon, imageSize);
+
+                    Object[] row = new Object[]{
+                            scaledIcon,
+                            inventory.getQuantity(i),
+                            i.getName(),
+                            i.getSerial(),
+                            i.getLowStockTrigger(),
+                            i.isComposite() ? "Yes" : "No",
+                            nullToNA(i.getAmazonSellerSKU()),
+                            nullToNA(i.getEbaySellerSKU()),
+                            nullToNA(i.getWalmartSellerSKU())
+                    };
+                    publish(row);
+                }
+                return null;
+            }
+
+            @Override
+            protected void process(List<Object[]> chunks) {
+                for (Object[] row : chunks) {
+                    tableModel.addRow(row);
+                }
+            }
+
+            @Override
+            protected void done() {
+                if (!sortKeys.isEmpty() && itemTable.getRowSorter() != null) {
+                    itemTable.getRowSorter().setSortKeys(sortKeys);
+                }
+            }
+        }.execute();
     }
+    private void updateSummary(long[] summary, Item i) {
+        int qauntity = inventory.getQuantity(i);
+        summary[0] ++;
+        summary[1] = qauntity;
+        if(qauntity > i.getLowStockTrigger()){
+            summary[2]++;
+        }
 
-    private void updateSummary() {
-        int totalItems = tableModel.getRowCount();
-        int totalQuantity = inventory.SerialToItemMap.values().stream()
-                .mapToInt(i -> inventory.getQuantity(i))
-                .sum();
-        long lowStockCount = inventory.SerialToItemMap.values().stream()
-                .filter(i -> i.getLowStockTrigger() > 0 && inventory.getQuantity(i) <= i.getLowStockTrigger())
-                .count();
-
-        summaryLabel.setText("Total Items: " + totalItems +
-                " | Total Quantity: " + totalQuantity +
-                " | Low Stock: " + lowStockCount);
+        summaryLabel.setText("Total Items: " + summary[0] +
+                " | Total Quantity: " + summary[1] +
+                " | Low Stock: " + summary[2]);
     }
 
     private Item getSelectedItem() {

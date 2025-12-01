@@ -264,19 +264,17 @@ public class Inventory {
 
     public void processItemMap(Map<Item, Integer> items) {
         for(Map.Entry<Item,Integer> e : items.entrySet()){
-            processItemPacket(new ItemPacket(e.getKey(),e.getValue()));
-        }
-    }
-    public void processItemPacket(ItemPacket ip){
-        int IPQuant = ip.getQuantity();
-        if(IPQuant == 0) return;
-        if(IPQuant > 0){
-            addItemAmountSilent(ip.getItem(), IPQuant);
-        } else{
-            decreaseItemAmountSilent(ip.getItem(), IPQuant);
-        }
-    }
+            Item i = e.getKey();
+            int quant = e.getValue();
 
+            if(quant == 0) return;
+            if(quant > 0){
+                addItemAmountSilent(i, quant);
+            } else{
+                decreaseItemAmountSilent(i, quant);
+            }
+        }
+    }
     public Item getItemBySerial(String serial) {
         return SerialToItemMap.get(serial);
     }
@@ -344,12 +342,12 @@ public class Inventory {
             );
         }
     }
-    public void breakDownItem(Item item, Map<Item,Integer> used) {
+    public void breakDownItem(Item item, Map<Item,Integer> used, int amountToBreak) {
         if (item == null || !item.isComposite()) {
             throw new RuntimeException("ERROR: breakDownItem() called on non-existent item, or non-composite Item.");
         }
 
-        ItemManager.BreakdownResult result = itemManager.breakDownItem(item, used);
+        ItemManager.BreakdownResult result = itemManager.breakDownItem(item, used, amountToBreak);
 
         StringBuilder originalSB  = new StringBuilder();
         StringBuilder reclaimedSB = new StringBuilder();
@@ -383,7 +381,8 @@ public class Inventory {
         if (usedSB.length() > 2)    usedSB.setLength(usedSB.length() - 2);
 
         String logMessage =
-                "Broke down 1 " + item.getName() + "\n" +
+                        "Broke down " + amountToBreak + " × " + item.getName() + "\n" +
+
                         "  Original: ["   + originalSB  + "]\n" +
 
                         "\n  Used : [" + usedSB + "]\n" +
@@ -392,7 +391,7 @@ public class Inventory {
 
                         "\n  Inventory: " + result.before() + " → " + result.after();
 
-        logManager.createLog(Log.LogType.BrokenDownItem,1, logMessage,item.getSerial());
+        logManager.createLog(Log.LogType.BrokenDownItem,    amountToBreak, logMessage,item.getSerial());
     }
     //Rarely used to delete an item completely from inventory
     public void removeItem(Item item){

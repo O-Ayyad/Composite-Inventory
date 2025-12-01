@@ -48,6 +48,7 @@ public class LogFileManager extends AbstractFileManager{
                         continue; //Log already exists
                     }
                     logManager.addLogToCollectionsWithoutNotify(l);
+                    System.out.println("[LogFileManager] Loaded log ID: " + id);
                     LogManager.nextlogID = Collections.max(logs.keySet()) + 1;
                 }
             }
@@ -57,7 +58,7 @@ public class LogFileManager extends AbstractFileManager{
         } catch (Exception e) {
             System.out.println(Arrays.toString(e.getStackTrace()));
             showError("[LogFileManager]ERROR: Could not load logs. " + e.getMessage() + "\n " +
-                    "Load a working backup and contact support at O-Ayyad@proton.me",firstOpen);
+                    "Load a working backup",firstOpen);
             return new LoadResult(false, e);
         }finally {
             loading = false;

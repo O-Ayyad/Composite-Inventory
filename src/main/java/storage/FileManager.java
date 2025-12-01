@@ -59,15 +59,27 @@ public class FileManager {
         userConfigManager.setFirstOpenToFalse(uc);
     }
 
-
     private boolean loadAll(boolean firstOpen) {
-        List<AbstractFileManager.LoadResult> loadResults = new ArrayList<>();
+        List<AbstractFileManager.LoadResult> loadResults = Collections.synchronizedList(new ArrayList<>());
         boolean allSuccess = true;
-        for(AbstractFileManager fileManager: fileManagers){
-            AbstractFileManager.LoadResult lr = fileManager.load(firstOpen);
-            if(!lr.success()){
-                loadResults.add(lr);
-                allSuccess = false;
+
+        List<Thread> threads = Collections.synchronizedList(new ArrayList<>());
+        for (AbstractFileManager fileManager : fileManagers) {
+            Thread thread = new Thread(() -> {
+                AbstractFileManager.LoadResult lr = fileManager.load(firstOpen);
+                if (!lr.success()) {
+                    loadResults.add(lr);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        for (Thread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                System.out.println(Arrays.toString(e.getStackTrace()));
             }
         }
         if(!firstOpen) {
@@ -81,12 +93,26 @@ public class FileManager {
 
 
     public void saveAll(boolean isAutoSave) {
-        for(AbstractFileManager fileManager: fileManagers) {
+        List<Thread> threads = new ArrayList<>();
+
+        for (AbstractFileManager fileManager : fileManagers) {
+            Thread thread = new Thread(() -> {
+                try {
+                    fileManager.save();
+                } catch (Exception e) {
+                    String managerName = fileManager.getClass().getSimpleName();
+                    showError("[" + managerName + "] Save failed: " + e.getMessage());
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        for (Thread thread : threads) {
             try {
-                fileManager.save();
-            } catch (Exception e) {
-                String managerName = fileManager.getClass().getSimpleName();
-                showError("[" + managerName + "] Save failed : " + e.getMessage());
+                thread.join();
+            } catch (InterruptedException e) {
+                System.out.println(Arrays.toString(e.getStackTrace()));
             }
         }
 

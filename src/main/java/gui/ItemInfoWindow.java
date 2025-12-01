@@ -119,7 +119,6 @@ public class ItemInfoWindow extends SubWindow {
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
-        pack();
         setSize(new Dimension(900,800));
     }
 

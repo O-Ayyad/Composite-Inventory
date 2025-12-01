@@ -144,8 +144,9 @@ public abstract class SubWindow extends JFrame {
                         .forEach(model::addElement);
             }
             rebuilding[0] = false;
-            if (model.getSize() > 0) itemDropdown.showPopup();
-            else itemDropdown.hidePopup();
+            if (editor.hasFocus() && model.getSize() > 0) {
+                itemDropdown.showPopup();
+            }
             SwingUtilities.invokeLater(() -> editor.setCaretPosition(editor.getText().length()));
 
         });
@@ -399,5 +400,8 @@ public abstract class SubWindow extends JFrame {
         return new ImageIcon(img);
     }
     public record DropdownResult(JComboBox<String> menu, HashMap<String, String> serialMap) {
+    }
+    public String getPlural(String target){
+        return target.endsWith("s") ? target + "es" : target + "s";
     }
 }

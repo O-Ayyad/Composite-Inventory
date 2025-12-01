@@ -11,7 +11,7 @@ import java.util.Map;
 
 public class RemoveWindow extends SubWindow {
     public static String windowName = "Remove Item";
-    enum SendTo{
+    public enum SendTo{
         Break,
         Delete,
         Reduce,
@@ -58,7 +58,7 @@ public class RemoveWindow extends SubWindow {
 
         // Header
         JPanel top = new JPanel();
-        JTextArea info = new JTextArea("Reduce Stock or Completely Remove Item");
+        JTextArea info = new JTextArea("Reduce Stock");
         info.setEditable(false);
         info.setOpaque(false);
         info.setFont(UIUtils.FONT_ARIAL_BOLD);
@@ -193,6 +193,7 @@ public class RemoveWindow extends SubWindow {
                 return;
             }
 
+
             if (selectedSerial == null || !inventory.SerialToItemMap.containsKey(selectedSerial)) {
                 JOptionPane.showMessageDialog(this, "Please select a valid item.", "Invalid item", JOptionPane.ERROR_MESSAGE);
                 return;
@@ -206,7 +207,7 @@ public class RemoveWindow extends SubWindow {
 
             int currentStock = inventory.getQuantity(target);
             if (currentStock == 0){
-                JOptionPane.showMessageDialog(this, "Item stock is already 0", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, target.getName()+" is out of stock", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -218,6 +219,8 @@ public class RemoveWindow extends SubWindow {
                         JOptionPane.ERROR_MESSAGE);
                 return;
             }
+
+            checkReserved(target,amount);
 
             int response = JOptionPane.showConfirmDialog(this,
                     String.format("Are you sure you want to reduce stock of '%s' by %d units?", target.getName(), amount),
@@ -260,16 +263,20 @@ public class RemoveWindow extends SubWindow {
             String selectedItem = (String) itemDropdown.getEditor().getItem();
             String selectedSerial = displayToSerialMap.get(selectedItem);
             Item currSelected = inventory.SerialToItemMap.get(selectedSerial);
+            if (currSelected != null){
+                if (!currSelected.isComposite()){
+                    currSelected = null;
+                }
+            }
+            selected = currSelected;
 
             getContentPane().removeAll();
             add(breakDownPanel(), BorderLayout.CENTER);
             revalidate();
-            repaint();
             pack();
         });
         JScrollPane scrollPane = new JScrollPane(panel);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
-        mainPanel.setPreferredSize(new Dimension(550, 400));
         return mainPanel;
     }
     public JPanel deleteItemPanel(){
@@ -293,7 +300,6 @@ public class RemoveWindow extends SubWindow {
         gbc.anchor = GridBagConstraints.WEST;
         gbc.gridx = 0;
         gbc.gridy = 0;
-        mainPanel.setPreferredSize(new Dimension(500, 400));
         panel.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
 
         //Dropdown box
@@ -382,7 +388,6 @@ public class RemoveWindow extends SubWindow {
 
         JScrollPane scrollPane = new JScrollPane(panel);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
-        mainPanel.setPreferredSize(new Dimension(400, 300));
         return mainPanel;
     }
 
@@ -433,6 +438,14 @@ public class RemoveWindow extends SubWindow {
 
 
         gbc.gridx = 0; gbc.gridy++;
+        panel.add(new JLabel("Amount to break:"), gbc);
+        gbc.gridx = 1;
+        JTextField amountBox = new JTextField(10);
+        amountBox.setRequestFocusEnabled(false);
+        amountBox.setHorizontalAlignment(JTextField.LEFT);
+        panel.add(amountBox, gbc);
+
+        gbc.gridx = 0; gbc.gridy++;
         gbc.gridwidth = 2;
 
         JPanel componentPanel = new JPanel(new GridBagLayout());
@@ -448,7 +461,7 @@ public class RemoveWindow extends SubWindow {
         panel.add(compScroll, gbc);
 
         JTextArea disclaimer = new JTextArea("These are items that were used in composition.\n" +
-                "If no items were removed, then leave all fields as 0.");
+                "If no items were used, then leave all fields as 0.");
         disclaimer.setFont(new Font("Arial", Font.PLAIN, 12));
         disclaimer.setForeground(Color.GRAY);
         disclaimer.setWrapStyleWord(true);
@@ -457,52 +470,6 @@ public class RemoveWindow extends SubWindow {
 
 
         Map<Map.Entry<Item,Integer>, JTextField> componentFields = new HashMap<>();
-
-        //Add components to reclaim
-        itemDropdown.addActionListener(e -> {
-            itemDropdown.hidePopup();
-            itemDropdown.getEditor().getEditorComponent().setFocusable(false);
-            itemDropdown.getEditor().getEditorComponent().setFocusable(true);
-
-            componentFields.clear();
-            componentPanel.removeAll();
-
-            String display = (String) itemDropdown.getEditor().getItem();
-            String serial = displayToSerialMap.get(display);
-            Item target = inventory.SerialToItemMap.get(serial);
-
-            if (target == null || !target.isComposite()) {
-                componentPanel.revalidate();
-                componentPanel.repaint();
-                return;
-            }
-
-            int row = 0;
-            for (Map.Entry<Item,Integer> ip : target.getComposedOf().entrySet()) {
-                GridBagConstraints cgbc = new GridBagConstraints();
-                cgbc.insets = new Insets(4, 4, 4, 4);
-                cgbc.anchor = GridBagConstraints.WEST;
-
-                //component
-                cgbc.gridx = 0;
-                cgbc.gridy = row;
-                JLabel lbl = new JLabel(ip.getKey().getName() +
-                        " (Max: " + ip.getValue() + ")");
-                componentPanel.add(lbl, cgbc);
-
-                //Input fields
-                cgbc.gridx = 1;
-                JTextField field = new JTextField(5);
-                field.setText("0");
-                componentPanel.add(field, cgbc);
-
-                componentFields.put(ip, field);
-                row++;
-            }
-
-            componentPanel.revalidate();
-            componentPanel.repaint();
-        });
 
         // Buttons
         gbc.gridx = 0; gbc.gridy++;
@@ -516,11 +483,34 @@ public class RemoveWindow extends SubWindow {
         buttonRow.add(UIUtils.styleButton(cancelButton));
         panel.add(buttonRow, gbc);
 
+        amountBox.getDocument().addDocumentListener(new DocumentListener() {
+            public void update(){
+                updateUsedComponent(itemDropdown,amountBox,componentPanel,componentFields,displayToSerialMap,breakButton);
+            }
+            public void insertUpdate(DocumentEvent e) { update(); }
+            public void removeUpdate(DocumentEvent e) { update(); }
+            public void changedUpdate(DocumentEvent e) { update(); }
+        });
+
+        //Add components to reclaim
+        itemDropdown.addActionListener(e -> {
+            updateUsedComponent(itemDropdown,amountBox,componentPanel,componentFields,displayToSerialMap,breakButton);
+        });
+
         breakButton.addActionListener(e -> {
+
+
 
             String display = (String) itemDropdown.getEditor().getItem();
             String serial = displayToSerialMap.get(display);
             Item target = inventory.SerialToItemMap.get(serial);
+            Integer amountToBreak = getAmountFromTextBox(amountBox);
+
+            if(amountToBreak == null){
+                JOptionPane.showMessageDialog(this,"Please input a valid amount", "Invalid amount",JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
 
             if (target == null || !target.isComposite()) {
                 JOptionPane.showMessageDialog(this,
@@ -528,18 +518,23 @@ public class RemoveWindow extends SubWindow {
                         "Invalid Selection", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-
-            if (inventory.getQuantity(target) <= 0) {
+            int parentItemQuant = inventory.getQuantity(target);
+            if (parentItemQuant < amountToBreak) {
                 JOptionPane.showMessageDialog(this,
-                        target.getName() + " is out of stock.",
+                        target.getName() + " does not have sufficient stock. (Amount in stock: "+ parentItemQuant+")",
                         "Invalid Selection", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
+            checkReserved(target,amountToBreak);
 
+            String targetNamePlural = target.getName();
+            if(amountToBreak > 2){
+                targetNamePlural = getPlural(targetNamePlural);
+            }
             int confirm = JOptionPane.showConfirmDialog(
                     null,
-                    "Are you sure you want to break down " + target.getName() + "?",
+                    "Are you sure you want to break down "+amountToBreak +" " + targetNamePlural + "?",
                     "Confirm Breakdown",
                     JOptionPane.YES_NO_OPTION
             );
@@ -552,7 +547,7 @@ public class RemoveWindow extends SubWindow {
             for (Map.Entry<Map.Entry<Item,Integer>, JTextField> entry : componentFields.entrySet()) {
 
                 Item i = entry.getKey().getKey();
-                int amount = entry.getKey().getValue();
+                int amount = entry.getKey().getValue() * amountToBreak;
                 JTextField tf = entry.getValue();
 
                 try {
@@ -584,10 +579,10 @@ public class RemoveWindow extends SubWindow {
                     return;
                 }
             }
-            inventory.breakDownItem(target, usedComponents);
+            inventory.breakDownItem(target, usedComponents,amountToBreak);
 
             JOptionPane.showMessageDialog(this,
-                    "Item broken down successfully.\n",
+                    amountToBreak  + " " + targetNamePlural+ " broken down successfully.\n",
                     "Success", JOptionPane.INFORMATION_MESSAGE);
             dispose();
         });
@@ -603,8 +598,6 @@ public class RemoveWindow extends SubWindow {
 
         JScrollPane scrollPane = new JScrollPane(panel);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
-        mainPanel.setPreferredSize(new Dimension(600, 450));
-
         return mainPanel;
     }
 
@@ -616,14 +609,17 @@ public class RemoveWindow extends SubWindow {
                     : "Remove amount to this item";
         } else {
             String name = target.getName();
-            String plural = name.endsWith("s") ? name + "es" : name + "s";
+            String plural = getPlural(name);
             reduceButtonText = (amount > 1)
                     ? "Remove " + amount + " " + plural
                     : (amount <= 0 ? "Remove amount to " + name : "Remove " + amount + " " + name);
         }
         return reduceButtonText;
     }
-    void updateReduceButtonText(JButton removeButton,JComboBox<String> itemDropdown, Map<String,String> displayToSerialMap, JTextField textField){
+    void updateReduceButtonText(JButton removeButton,
+                                JComboBox<String> itemDropdown,
+                                Map<String,String> displayToSerialMap,
+                                JTextField textField){
         String currentItem = (String) itemDropdown.getEditor().getItem();
         String currentSerial = displayToSerialMap.get(currentItem);
         String quantityText = textField.getText().trim();
@@ -639,7 +635,8 @@ public class RemoveWindow extends SubWindow {
         Item currentTarget = inventory.SerialToItemMap.get(currentSerial);
         removeButton.setText(updateReduceText(currentTarget, currentAmount));
     }
-    String updateBreakDownText(Item target, int amount) {
+
+    void updateBreakDownButtonText(JButton breakButton, Item target, int amount) {
         String breakButtonText;
 
         if (target == null) {
@@ -648,39 +645,128 @@ public class RemoveWindow extends SubWindow {
                     : "Break down amount of this item";
         } else {
             String name = target.getName();
-            String plural = name.endsWith("s") ? name + "es" : name + "s";
-
+            String plural = getPlural(name);
             breakButtonText = (amount > 1)
                     ? "Break down " + amount + " " + plural
                     : (amount <= 0 ? "Break down amount of " + name
                     : "Break down " + amount + " " + name);
         }
 
-        return breakButtonText;
+        breakButton.setText(breakButtonText);
     }
-    void updateBreakDownButtonText(
-            JButton breakButton,
-            JComboBox<String> itemDropdown,
-            Map<String, String> displayToSerialMap,
-            JTextField amountField) {
+    Integer getAmountFromTextBox(JTextField textField) {
+        String text = textField.getText().trim();
 
-        String currentItem = (String) itemDropdown.getEditor().getItem();
-        String currentSerial = displayToSerialMap.get(currentItem);
-
-        String text = amountField.getText().trim();
-        int amount = 0;
-
-        if (!text.isEmpty()) {
-            try {
-                amount = Integer.parseInt(text);
-            } catch (NumberFormatException ex) {
-                // ignore invalid input; default stays 0
+        try {
+            int amount = Integer.parseInt(text);
+            if(amount <= 0){
+                return null;
             }
+            return amount;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+    void updateUsedComponent(
+            JComboBox<String> itemDropdown,
+
+            JTextField amountBox,
+
+            JPanel componentPanel,
+
+            Map<Map.Entry<Item, Integer>, JTextField> componentFields,
+
+            Map<String, String> displayToSerialMap,
+            JButton breakButton
+            ){
+
+        itemDropdown.hidePopup();
+
+
+        JTextField editor = (JTextField) itemDropdown.getEditor().getEditorComponent();
+        if (editor.hasFocus() && !editor.getText().trim().isEmpty()) {
+            itemDropdown.showPopup();
+        } else {
+            itemDropdown.hidePopup();
         }
 
-        Item target = inventory.SerialToItemMap.get(currentSerial);
+        componentFields.clear();
+        componentPanel.removeAll();
 
-        breakButton.setText(updateBreakDownText(target, amount));
+        String display = (String) itemDropdown.getEditor().getItem();
+        String serial = displayToSerialMap.get(display);
+        Item target = inventory.SerialToItemMap.get(serial);
+
+
+        if (target == null || !target.isComposite()) {
+            componentFields.clear();
+            componentPanel.removeAll();
+            componentPanel.repaint();
+            return;
+        }
+        Integer amount = getAmountFromTextBox(amountBox);
+
+        if(amount == null){
+            componentFields.clear();
+            componentPanel.removeAll();
+            componentPanel.repaint();
+            updateBreakDownButtonText(breakButton, target, 0);
+            return;
+        }
+
+        updateBreakDownButtonText(breakButton, target, amount);
+
+        int row = 0;
+        for (Map.Entry<Item,Integer> ip : target.getComposedOf().entrySet()) {
+            GridBagConstraints cgbc = new GridBagConstraints();
+            cgbc.insets = new Insets(4, 4, 4, 4);
+            cgbc.anchor = GridBagConstraints.WEST;
+
+            //component
+            cgbc.gridx = 0;
+            cgbc.gridy = row;
+            JLabel lbl = new JLabel(ip.getKey().getName() +
+                    " (Max: " + ip.getValue() * amount  + ")");
+            componentPanel.add(lbl, cgbc);
+
+            //Input fields
+            cgbc.gridx = 1;
+            JTextField field = new JTextField(5);
+            field.setText("0");
+            componentPanel.add(field, cgbc);
+
+            componentFields.put(ip, field);
+            row++;
+        }
+
+        componentPanel.revalidate();
+        componentPanel.repaint();
+    }
+
+    void checkReserved(Item target, int amountToUse){
+        int inStock = inventory.getQuantity(target);
+        int inStockAfterAction = inStock - amountToUse;
+
+        int availableStock = inventory.getAvailableQuantity(target);
+
+        if (inStockAfterAction > availableStock) {
+            String message = """
+                            <html>
+                            <b>Warning:</b><br><br>
+                            This action will make some non-shipped orders <b>unfulfillable</b>.<br>
+                            It will lower the stock of the reserved item.<br>
+                            You may still proceed but this will impact any existing orders<br><br>
+                            Please review your stock levels before proceeding.
+                            </html>
+                            """;
+
+            JOptionPane.showMessageDialog(
+                    null,
+                    message,
+                    "Reserved Item Warning",
+                    JOptionPane.WARNING_MESSAGE
+            );
+        }
     }
 }
 

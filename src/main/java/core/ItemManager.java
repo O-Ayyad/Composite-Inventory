@@ -14,10 +14,17 @@ public class ItemManager {
     //-------------------------------<Methods>-------------------------------
 
     //Clones an item's composed of then removes the item and adds composed of - removed items
-    public BreakdownResult breakDownItem(Item item, Map<Item,Integer> removedItems){
+    public BreakdownResult breakDownItem(Item item, Map<Item,Integer> removedItems, int amountToBreak){
         if (item == null || removedItems == null || inventory == null) throw new IllegalStateException("Item, removedItems, or inventory is null is breakDownItem()");
+        if (amountToBreak <= 0) throw new IllegalArgumentException("amountToBreak must be > 0");
 
+
+        Map<Item, Integer> baseComponents = item.getComposedOf();
         Map<Item, Integer> originalMap = new HashMap<>(item.getComposedOf());
+
+        for (Map.Entry<Item, Integer> e : baseComponents.entrySet()) {
+            originalMap.put(e.getKey(), e.getValue() * amountToBreak);
+        }
 
         //Make sure everything is right before breaking down
         for (Map.Entry<Item, Integer> entry : removedItems.entrySet()) {
@@ -62,8 +69,7 @@ public class ItemManager {
         int beforeQuantity = inventory.getQuantity(item);
 
         inventory.processItemMap(remainderComponents);
-
-        inventory.decreaseItemAmountSilent(item, 1);
+        inventory.decreaseItemAmountSilent(item, amountToBreak);
 
         int afterQuantity = inventory.getQuantity(item);
 

@@ -7,9 +7,8 @@ import core.*;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.*;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+
 
 ///Two files:
 /// items.json stores the serial number of the item and the item information
@@ -36,7 +35,6 @@ public class InventoryFileManager extends AbstractFileManager{
         return Path.of(itemQuantitiesFilePath);
     }
 
-    @Override
     public LoadResult load(boolean firstOpen) {
         loading = true;
         Path itemsPath = getItemDetailsFilePath();
@@ -60,9 +58,8 @@ public class InventoryFileManager extends AbstractFileManager{
                     for (Map.Entry<String, Item> entry : items.entrySet()) {
                         Item item = entry.getValue();
                         Integer quantity = quantities.getOrDefault(entry.getKey(), 0);
-                        if (item.getIcon(4) == null) {
-                            item.setImagePath("src/resources/icons/itemIcons/imageNotFound.png");
-                        }
+                        item.checkMissingIcon();
+
                         inventory.createItemFromSave(item, quantity);
                     }
                     System.out.println("SUCCESS: Loaded " + items.size() + " items from storage");
@@ -73,7 +70,7 @@ public class InventoryFileManager extends AbstractFileManager{
             if(firstOpen) {
                 System.out.println("ERROR: " + e.getMessage() + Arrays.toString(e.getStackTrace()));
                 showError("ERROR: Could not load inventory." + e.getMessage() + "\n " +
-                        "Load a working backup and contact support at O-Ayyad@proton.me", firstOpen);
+                        "Load a working backup", firstOpen);
             }
             return new LoadResult(false, e);
         }finally {
