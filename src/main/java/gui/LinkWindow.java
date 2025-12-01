@@ -164,7 +164,7 @@ public class LinkWindow extends SubWindow {
     }
     private void handleAmazonConnect(PlatformType type, JLabel statusLabel, JButton connectBtn, JButton disconnectBtn) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setPreferredSize(new Dimension(450, 350));
+        panel.setPreferredSize(new Dimension(450, 425));
 
         JEditorPane info = createInfoPane(
                 """
@@ -173,8 +173,8 @@ public class LinkWindow extends SubWindow {
                 1. Open <a href='https://solutionproviderportal.amazon.com/'>the amazon solution portal</a>.<br>
                 2. Sign into your amazon account.<br>
                 3. When prompted verify with Amazon (This is usually automatic)<br>
-                4. Select your app (or create one via Self-Authorization).<br>
-                6. Copy your <b>Client ID</b>, <b>Client Secret</b>, and <b>Refresh Token</b> below. <br>
+                4. Select your app or create one via Self-Authorization.<br>
+                5. Copy your <b>Client ID</b>, <b>Client Secret</b>, and <b>Refresh Token</b> below.<br>
                 Do not share these codes with anyone and <br>
                 do not save anywhere else<br>
                 </body></html>
@@ -219,7 +219,7 @@ public class LinkWindow extends SubWindow {
 
             if (clientId.isEmpty() || clientSecret.isEmpty() || refreshToken.isEmpty()) {
                 JOptionPane.showMessageDialog(this,
-                        "Please enter all three values: Client ID, Client Secret, and Refresh Token.",
+                        "Please enter all three values: Client ID, Client Secret,  and Refresh Token.",
                         "Missing Fields",
                         JOptionPane.WARNING_MESSAGE);
                 return;

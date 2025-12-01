@@ -17,6 +17,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.List;
 import javax.swing.Timer;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Style;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 
 
 public class MainWindow extends JFrame implements Inventory.ItemListener {
@@ -44,6 +48,8 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
     private final Map<PlatformType, JLabel> platformLabels = new HashMap<>();
 
     public UserConfigManager.UserConfig config;
+
+    public JFrame unlinkedFrame = null;
 
     public MainWindow() {
 
@@ -305,11 +311,11 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
         //Left buttons
         JButton fetchOrdersBtn = new JButton("Fetch Orders");
-        JButton saveInfoBtn = new JButton("Save information");
         JButton unlinkedItemsBtn = new JButton("<html><div style='text-align:center;'>Find unlinked items<br>on platforms</div></html>");
+        JButton saveInfoBtn = new JButton("Save information");
         JButton openDebugBtn = new JButton("<html><div style='text-align:center;'>Open Debug Console<br>(Shift + ~)</div></html>");
 
-        JButton[] toolButtons = {fetchOrdersBtn, saveInfoBtn, unlinkedItemsBtn, openDebugBtn};
+        JButton[] toolButtons = {fetchOrdersBtn, unlinkedItemsBtn,saveInfoBtn, openDebugBtn};
         for (JButton btn : toolButtons) {
             btn.setAlignmentX(Component.CENTER_ALIGNMENT);
             btn.setMaximumSize(new Dimension(200, 45));
@@ -358,6 +364,151 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
         fetchOrderButtonChecker.start();
 
+
+        unlinkedItemsBtn.setEnabled(false);
+        Timer unlinkedItemsBtnChecker = new Timer(50, e -> {
+            boolean anyConnected = false;
+            for (PlatformType p : PlatformType.values()) {
+                if (apiFileManager.hasToken(p)) {
+                    anyConnected = true;
+                    break;
+                }
+            }
+            boolean alreadyExist = unlinkedFrame != null;
+            unlinkedItemsBtn.setEnabled(anyConnected && !alreadyExist || platformManager.isFetching());
+        });
+        unlinkedItemsBtnChecker.start();
+
+        unlinkedItemsBtn.addActionListener(e->{
+            int choice = JOptionPane.showConfirmDialog(
+                    null,
+                    """
+                    
+                    
+                    This action will give you all items
+                    on your connected platforms via their SKU.
+            
+                    If an item is linked then it will tell you so,
+                    on the other hand if an item is not linked
+                    then it will tell you the name of the unlinked item
+                    as it appears on the platform.
+            
+                    This action will take around 15 seconds for smaller inventories.
+                    Proceed?
+                    
+                    """,
+                    "Unlinked Item Confirmation",
+                    JOptionPane.YES_NO_OPTION
+            );
+            if(choice != JOptionPane.YES_OPTION){
+                return;
+            }
+            unlinkedFrame = new JFrame("Unlinked Items") {
+                @Override
+                public void dispose() {
+                    super.dispose();
+                    unlinkedFrame = null;
+                }
+            };
+
+            unlinkedFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+
+            JTextPane textPane = new JTextPane();
+            textPane.setEditable(false);
+
+            textPane.setFont(UIUtils.FONT_UI_BOLD);
+
+            JScrollPane scrollPane = new JScrollPane();
+            scrollPane.setBackground(UIUtils.BACKGROUND_MAIN);
+            scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
+
+            unlinkedFrame.add(scrollPane);
+            unlinkedFrame.setSize(1400, 800);
+            unlinkedFrame.setLocationRelativeTo(this);
+
+            JDialog loading = new JDialog(unlinkedFrame, "Loading", false);
+            JLabel label = new JLabel("Loading unlinked items report...", JLabel.CENTER);
+            label.setFont(UIUtils.FONT_UI_LARGE_BOLD);
+            loading.add(label, BorderLayout.CENTER);
+            loading.setSize(300,200);
+            loading.setLocationRelativeTo(unlinkedFrame);
+            loading.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            loading.setVisible(true);
+
+
+            SwingWorker<List<List<String>>, Void> worker = new SwingWorker<>() {
+                @Override
+                protected List<List<String>> doInBackground(){
+                    return platformManager.getAllUnlinkedItems();
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        List<List<String>> message = get();
+                        StyledDocument doc = textPane.getStyledDocument();
+
+                        Style critical = textPane.addStyle("critical", null);
+                        StyleConstants.setBackground(critical, UIUtils.CRITICAL_COLOR);
+
+                        Style success = textPane.addStyle("success", null);
+                        StyleConstants.setBackground(success, UIUtils.LINK_SUCCESS);
+
+                        Style separator = textPane.addStyle("separator", null);
+                        StyleConstants.setBackground(separator, UIUtils.NORMAL_COLOR);
+                        StyleConstants.setFontSize(separator, 24);
+
+                        for (List<String> list : message) {
+                            for (String item : list) {
+                                String[] lines = item.split("\n");
+
+                                for (String line : lines) {
+
+                                    if (line.isEmpty()) continue;
+
+                                    Style style;
+                                    String lowerLine = line.toLowerCase();
+
+                                    if (lowerLine.contains("is registered") || lowerLine.contains("•")) { //Registered item
+                                        style = success;
+
+                                    } else if (lowerLine.contains("not registered") || lowerLine.contains("||--")) { //Not registered
+                                        style = critical;
+
+                                    }else{ //Seperator
+                                        style = separator;
+                                    }
+
+                                    try {
+                                        doc.insertString(doc.getLength(), line + "\n", style);
+                                    } catch (BadLocationException ex) {
+                                        System.out.println(Arrays.toString(ex.getStackTrace()));
+                                    }
+                                }
+                                try {
+                                    doc.insertString(doc.getLength(),  "\n", null);
+                                } catch (BadLocationException ex) {
+                                    System.out.println(Arrays.toString(ex.getStackTrace()));
+                                }
+                            }
+                        }
+                        textPane.setBorder(new EmptyBorder(40, 60,0,40));
+                        scrollPane.setViewportView(textPane);
+                        unlinkedFrame.add(scrollPane);
+                        unlinkedFrame.setVisible(true);
+                    } catch (Exception e) {
+                        System.out.println(Arrays.toString(e.getStackTrace()));
+                    } finally {
+                        loading.dispose();
+                    }
+                }
+            };
+            worker.execute();
+        });
+
+
+
         saveInfoBtn.addActionListener(e->{
             try{
                 if(platformManager.isFetching()){
@@ -384,49 +535,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
         fetchOrderButtonChecker.start();
 
-        unlinkedItemsBtn.setEnabled(false);
-        Timer unlinkedItemsBtnChecker = new Timer(2000, e -> {
-            boolean anyConnected = false;
-            for (PlatformType p : PlatformType.values()) {
-                if (apiFileManager.hasToken(p)) {
-                    anyConnected = true;
-                    break;
-                }
-            }
-            unlinkedItemsBtn.setEnabled(anyConnected);
-        });
-        unlinkedItemsBtnChecker.start();
 
-
-        unlinkedItemsBtn.addActionListener(e->{
-            JFrame unlinkedFrame = new JFrame("Unlinked Items");
-            JTextArea textArea = new JTextArea();
-
-            textArea.setEditable(false);
-            textArea.setLineWrap(true);
-            textArea.setWrapStyleWord(true);
-            textArea.setFont(UIUtils.FONT_ARIAL_REGULAR);
-
-            ScrollPane scrollPane = new ScrollPane();
-            unlinkedFrame.add(scrollPane);
-            unlinkedFrame.setSize(800, 400);
-            unlinkedFrame.setLocationRelativeTo(null);
-
-            StringBuilder allItemsText = new StringBuilder();
-
-            List<String> message = platformManager.getAllUnlinkedItems();
-
-            for (String item : message) {
-                allItemsText.append(item).append("\n");
-            }
-
-            textArea.setText(allItemsText.toString());
-
-            unlinkedFrame.add(scrollPane);
-
-            unlinkedFrame.setVisible(true);
-
-        });
 
         openDebugBtn.addActionListener(e->{
             if(debugConsole.isVisible()){

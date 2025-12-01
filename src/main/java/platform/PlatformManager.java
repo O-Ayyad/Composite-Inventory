@@ -1,13 +1,20 @@
 package platform;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import core.*;
 import gui.MainWindow;
 import storage.APIFileManager;
 import storage.FileManager;
 import javax.swing.*;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -579,46 +586,317 @@ public class PlatformManager {
                 .isBefore(lastFetchTime);
     }
 
-    public List<String> getAllUnlinkedItems() {
-        List<String> list = new ArrayList<>();
-        for(PlatformType p : PlatformType.values()){
-            HttpURLConnection conn = null;
-            if(!apiFileManager.hasToken(p))continue;
-            try{
-                switch (p){
-                    case AMAZON -> {
+    public List<List<String>> getAllUnlinkedItems() {
+        List<List<String>> list = new ArrayList<>();
+        List<Thread> threads = new ArrayList<>();
+        for (PlatformType p : PlatformType.values()) {
+            Thread thread = new Thread(() -> {
+                List<String> subList  = getUnlinkedItemsForPlatform(p);
+                list.add(subList);
+            });
+            threads.add(thread);
+            thread.start();
+        }
+        for (Thread t : threads) {
+            try {
+                t.join();
+            }
+            catch (Exception e){
+                System.out.println("ERROR: Couldn't get all unlinked items.");
+                System.out.println(Arrays.toString(e.getStackTrace()));
+            }
+        }
+        return list;
+    }
 
-                    }
-                    case EBAY -> {
+    private ArrayList<String> getUnlinkedItemsForPlatform(PlatformType platform) {
 
+        ArrayList<String> list = new ArrayList<>();
+        if (!apiFileManager.hasToken(platform)) {
+            list.add("===== " + platform.getDisplayName() + " is not connected! =====");
+        }
+        HttpURLConnection conn;
+        try {
+            switch (platform) {
+                case AMAZON -> {
+                    List<JsonObject> allItems = new ArrayList<>();
+
+                    String[] creds = apiFileManager.getCredentialsFromFile(PlatformType.AMAZON);
+                    String clientID = creds[0];
+                    String clientSecret= creds[1];
+                    String refreshToken = creds[2];
+
+                    String accessToken = apiFileManager.getAmazonAccessToken(clientID,clientSecret,refreshToken);
+
+                    String sellerID = apiFileManager.getSellerId(accessToken);
+                    if(sellerID == null){
+                        sellerID = apiFileManager.getSellerIdFromLwaToken(accessToken);
                     }
-                    case WALMART -> {
-                        URL url = new URL("https://marketplace.walmartapis.com/v3/items");
+                    if (sellerID == null) {
+                        sellerID = JOptionPane.showInputDialog(
+                                null,
+                                "Could not automatically retrieve your Amazon Seller ID for the US marketplace.\n" +
+                                        "Please enter your Seller ID (Merchant Token) manually:",
+                                "Enter Amazon Seller ID",
+                                JOptionPane.PLAIN_MESSAGE
+                        );
+
+                        // Validate the input
+                        if (sellerID == null || sellerID.trim().isEmpty()) {
+                            JOptionPane.showMessageDialog(
+                                    null,
+                                    "No Seller ID provided. Cannot fetch Amazon inventory.",
+                                    "Missing Seller ID",
+                                    JOptionPane.ERROR_MESSAGE
+                            );
+                            list.add("""
+                            
+                            
+                            ===== Could not fetch inventory for Amazon =====
+                                          Seller ID is null
+                            
+                            """);
+                            return list;
+                        }
+
+                        sellerID = sellerID.trim(); // Remove extra spaces
+                    }
+
+                    if (accessToken == null) {
+                        list.add("""
+                            
+                            
+                            ===== Could not fetch inventory for Amazon =====
+                                          Access token is null
+                            
+                            """);
+                        break;
+                    }
+
+                    String nextToken = null;
+                    do {
+                        String urlString = "https://sellingpartnerapi-na.amazon.com/listings/2021-08-01/items/" + sellerID +
+                                "?marketplaceIds=ATVPDKIKX0DER";
+                        if (nextToken != null) {
+                            urlString += "&nextToken=" + nextToken;
+                        }
+
+                        URL url = new URL(urlString);
+
+                        conn = (HttpURLConnection) url.openConnection();
+                        conn.setRequestMethod("GET");
+                        conn.setRequestProperty("x-amz-access-token", accessToken);
+                        conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
+                        conn.setConnectTimeout(10000);
+                        conn.setReadTimeout(10000);
+
+                        int response = conn.getResponseCode();
+                        InputStream inputStream = (response >= 200 && response < 300) ? conn.getInputStream() : conn.getErrorStream();
+                        String responseBody = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+
+                        // Print full response for debugging
+                        System.out.println("Response Code: " + response);
+                        System.out.println("Response Body: " + responseBody);
+
+                        if (response < 200 || response >= 300) {
+                            list.add(String.format(
+                                    "\n===== Could not fetch inventory for Amazon =====\nResponse code: %d\n", response));
+                            return list;
+                        }
+
+                        JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
+
+                        JsonArray items = json.has("items") ? json.getAsJsonArray("items") : new JsonArray();
+                        for (JsonElement el : items) {
+                            if (!el.isJsonNull()) {
+                                allItems.add(el.getAsJsonObject());
+                            }
+                        }
+
+                        nextToken = json.has("nextToken") ? json.get("nextToken").getAsString() : null;
+
+                    } while (nextToken != null);
+                    list.add("===== " + platform.getDisplayName() + " items =====");
+                    TreeMap<String, String> treeSku = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+
+                    for (JsonObject item : allItems) {
+                        String sku = item.has("sku") ? item.get("sku").getAsString() : "N/A";
+                        String productName = item.has("summaries") && !item.getAsJsonArray("summaries").isEmpty()
+                                ? item.getAsJsonArray("summaries").get(0).getAsJsonObject().get("itemName").getAsString()
+                                : "";
+
+                        Item itemExists = inventory.getItemByAmazonSKU(sku);
+
+                        if (itemExists == null) {
+                            treeSku.put(sku, String.format(
+                                    """
+                                            ||-------------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            ------------------------------||
+                                                      ✕  Amazon Item %s is not registered. (SKU: %s) ✕
+                                            ||-------------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            ------------------------------||""",
+                                    productName, sku
+                            ));
+                        } else {
+                            treeSku.put(sku, String.format(
+                                    """
+                                    •
+                                    •  Amazon Item %s is registered. (SKU: %s | In-app name: %s) •
+                                    •
+                                    """,
+                                    productName, sku, itemExists.getName()
+                            ));
+                        }
+                    }
+                    list.addAll(treeSku.values());
+                }
+                case EBAY -> {
+
+                }
+                case WALMART -> {
+                    String nextCursor = "*";
+                    List<JsonObject> allItems = new ArrayList<>();
+
+                    String[] creds = apiFileManager.getCredentialsFromFile(PlatformType.WALMART);
+                    String clientID = creds[0];
+                    String clientSecret = creds[1];
+                    String accessToken = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
+
+                    if (accessToken == null) {
+                        list.add("""
+                                
+                                
+                                ===== Could not fetch inventory for Walmart =====
+                                              Access token is null
+                                
+                                """);
+                        return list;
+                    }
+
+                    do {
+                        URL url = new URL("https://marketplace.walmartapis.com/v3/items?nextCursor=" + URLEncoder.encode(nextCursor, StandardCharsets.UTF_8));
                         conn = (HttpURLConnection) url.openConnection();
                         conn.setRequestMethod("GET");
 
-                        String[] creds = apiFileManager.getCredentialsFromFile(PlatformType.WALMART);
-                        String clientID = creds[0];
-                        String clientSecret = creds[1];
-                        String accessToken = apiFileManager.getWalmartAccessToken(clientID,clientSecret);
-                        if(accessToken == null){
-                            list.add("\n\nCould not fetch inventory for walmart\n\n");
-                            break;
-                        }
-                        apiFileManager.addWalmartHeaders(conn,accessToken, clientID);
+                        apiFileManager.addWalmartHeaders(conn, accessToken, clientID);
+
                         conn.setConnectTimeout(10000);
                         conn.setReadTimeout(10000);
+
                         int response = conn.getResponseCode();
-                        String responseMessage = conn.getResponseMessage();
-                        if(response > 300 || response <200){
-                            list.add("\n\nCould not fetch inventory for walmart\n\n");
-                            break;
+                        if (response > 300 || response < 200) {
+                            list.add("""
+                                    
+                                    
+                                    ===== Could not fetch inventory for Walmart =====
+                                                 Response code : %d
+                                    
+                                    """);
+
+                            return list;
+                        }
+
+                        String responseBody = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                        JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
+                        JsonArray items = json.getAsJsonArray("ItemResponse");
+
+                        if (items == null) {
+                            list.add("""
+                                    
+                                    
+                                    ===== Could not fetch inventory for Walmart  =====
+                                                    Inventory is null
+                                    
+                                    """);
+                            return list;
+                        }
+                        if (items.isEmpty()) {
+                            list.add("""
+                                    
+                                    
+                                    ===== Could not fetch inventory for Walmart  =====
+                                    
+                                                    Inventory is empty
+                                    
+                                    """);
+                        }
+
+                        for (JsonElement el : items) {
+                            if (!el.isJsonNull()) {
+                                allItems.add(el.getAsJsonObject());
+                            }
+                        }
+
+                        if (json.has("nextCursor") && !json.get("nextCursor").isJsonNull()) {
+                            nextCursor = json.get("nextCursor").getAsString();
+                        } else {
+                            nextCursor = null;
+                        }
+
+                        Thread.sleep(1200);
+                    }while (nextCursor != null && !nextCursor.isEmpty());
+                    //Parse all items
+                    list.add("===== " + platform.getDisplayName() + " items =====");
+                    TreeMap<String, String> treeSku = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+                    for (JsonElement el : allItems) {
+                        JsonObject item = el.getAsJsonObject();
+                        String sku = item.has("sku") ? item.get("sku").getAsString() : null;
+                        String productName = item.has("productName") ? item.get("productName").getAsString() : "";
+                        Item itemExists = inventory.getItemByWalmartSKU(sku);
+
+
+                        if (itemExists == null) {
+                            treeSku.put(sku,String.format(
+                                    """
+                                            ||-------------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            ------------------------------||
+                                                      ✕  Walmart Item %s is not registered. (SKU: %s) ✕
+                                            ||-------------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            --------------------------\
+                                            ------------------------------||""",
+                                    productName, sku
+                            ));
+                        } else {
+                            treeSku.put(sku,String.format(
+
+                                    """
+                                    •
+                                    •  Walmart Item %s is registered. (SKU: %s | In-app name: %s) •
+                                    •
+                                    """,
+                                    productName, sku, itemExists.getName()
+                            ));
                         }
                     }
+                    list.addAll(treeSku.values());
                 }
-            }catch (Exception e){
-
             }
+        } catch (Exception e) {
+            System.out.println(Arrays.toString(e.getStackTrace()));
+            list.add("Error fetching Walmart items: " + e.getMessage());
         }
         return list;
     }

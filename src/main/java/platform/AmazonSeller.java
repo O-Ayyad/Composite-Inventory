@@ -149,7 +149,6 @@ public class AmazonSeller extends BaseSeller {
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
 
-            System.out.println("[DEBUG] Fetching orders created after: " + createdAfter);
             String ordersEndpoint =
                     API_BASE_URL + "/orders/v0/orders?MarketplaceIds=ATVPDKIKX0DER&CreatedAfter=" + URLEncoder.encode(createdAfter, StandardCharsets.UTF_8);
 
@@ -203,8 +202,6 @@ public class AmazonSeller extends BaseSeller {
             conn.disconnect();
 
             String json = sb.toString();
-            log("RAW JSON RESPONSE:\n" + json);
-
             JsonObject ordersResponse = JsonParser.parseString(sb.toString()).getAsJsonObject();
 
             JsonArray ordersList = ordersResponse.getAsJsonObject("payload").getAsJsonArray("Orders");

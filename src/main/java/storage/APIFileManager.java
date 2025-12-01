@@ -17,9 +17,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import platform.*;
 
 
@@ -305,7 +303,8 @@ public class APIFileManager {
         String[] parts = token.split("\\|::\\|");
 
         if ((platform == PlatformType.WALMART && parts.length != 2) ||
-                ((platform == PlatformType.AMAZON || platform == PlatformType.EBAY) && parts.length != 3)) {
+                (platform == PlatformType.AMAZON && parts.length != 3) ||
+        (platform == PlatformType.EBAY && parts.length != 3)) {
             System.out.println("ERROR: Invalid token format for " + platform);
             return null;
         }
@@ -365,6 +364,77 @@ public class APIFileManager {
             if(conn != null){
                 conn.disconnect();
             }
+        }
+    }
+    public String getSellerIdFromLwaToken(String accessToken) {
+        try {
+            String[] parts = accessToken.split("\\.");
+            if (parts.length < 2) return null;
+
+            String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+            JsonObject json = JsonParser.parseString(payloadJson).getAsJsonObject();
+
+            return json.has("selling_partner_id") ? json.get("selling_partner_id").getAsString() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    public String getSellerId(String accessToken) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL("https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("x-amz-access-token", accessToken);
+            conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+
+            int response = conn.getResponseCode();
+            InputStream inputStream = (response >= 200 && response < 300)
+                    ? conn.getInputStream()
+                    : conn.getErrorStream();
+
+            String responseBody = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            System.out.println("[SP-API] marketplaceParticipations response: " + responseBody);
+
+            if (response < 200 || response >= 300) {
+                System.out.println("[SP-API] Failed to fetch marketplace participations. HTTP " + response);
+                return null;
+            }
+
+            JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
+            if (!json.has("payload") || !json.get("payload").isJsonArray()) {
+                System.out.println("[SP-API] No participations found in payload.");
+                return null;
+            }
+
+            JsonArray payloadArray = json.getAsJsonArray("payload");
+
+            for (JsonElement elem : payloadArray) {
+                if (!elem.isJsonObject()) continue;
+                JsonObject participationObj = elem.getAsJsonObject();
+
+                if (participationObj.has("marketplace") && participationObj.get("marketplace").isJsonObject()) {
+                    JsonObject marketplace = participationObj.getAsJsonObject("marketplace");
+                    String marketplaceId = marketplace.has("id") ? marketplace.get("id").getAsString() : null;
+
+                    if (!"ATVPDKIKX0DER".equals(marketplaceId)) continue;
+
+                    System.out.println("[SP-API] Participation found for US marketplace, but sellerId is no longer provided.");
+                    return null;
+                }
+            }
+
+            System.out.println("[SP-API] US Seller ID not found in participations.");
+            return null;
+
+        } catch (Exception e) {
+            System.out.println(Arrays.toString(e.getStackTrace()));
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
         }
     }
     public String getWalmartAccessToken(String clientId, String clientSecret) {

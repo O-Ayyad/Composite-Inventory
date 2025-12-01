@@ -145,7 +145,6 @@ public class WalmartSeller extends BaseSeller {
             String createdAfter = getLastGetOrderTimeForFetching()
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
-            System.out.println("[DEBUG] Fetching orders created after: " + createdAfter);
             String ordersEndpoint =
                     API_BASE_URL + "?createdStartDate=" + URLEncoder.encode(createdAfter, StandardCharsets.UTF_8);
 
@@ -199,7 +198,6 @@ public class WalmartSeller extends BaseSeller {
             conn.disconnect();
 
             String json = sb.toString();
-            log("RAW JSON RESPONSE:\n" + json);
 
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
             JsonObject list = root.getAsJsonObject("list");
