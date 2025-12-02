@@ -87,6 +87,9 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
+                if(!doneLoading){
+                    return;
+                }
                 fetchTimer.stop();
                 autoSaveTimer.stop();
                 if (platformManager.isFetching()) {

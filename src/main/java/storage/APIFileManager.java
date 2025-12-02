@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import com.google.gson.*;
 import gui.MainWindow;
+import gui.UIUtils;
 import platform.*;
 
 
@@ -135,8 +136,8 @@ public class APIFileManager {
             contentPanel.add(pf);
 
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-            JButton okButton = new JButton("OK");
-            JButton resetButton = new JButton("Reset");
+            JButton okButton = UIUtils.styleButton(new JButton("OK"));
+            JButton resetButton = UIUtils.styleButton(new JButton("Reset"));
             resetButton.setPreferredSize(new Dimension(75, 25));
 
             buttonPanel.add(okButton);

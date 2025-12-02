@@ -36,7 +36,7 @@ public class LinkWindow extends SubWindow {
 
         JPanel forgotPasswordPanel = new JPanel();
         forgotPasswordPanel.setOpaque(false);
-        JButton forgotPasswordBtn = new JButton("Forgot Password?");
+        JButton forgotPasswordBtn = UIUtils.styleButton(new JButton("Forgot Password?"));
         forgotPasswordBtn.setForeground(Color.BLUE);
         forgotPasswordBtn.setBorderPainted(false);
         forgotPasswordBtn.setContentAreaFilled(false);
