@@ -65,7 +65,6 @@ public class PlatformManager {
                 Instant.parse("1990-01-01T00:00:00Z"),
                 ZoneOffset.UTC
         );
-
     }
 
     public void setFileManager(FileManager fm){
@@ -571,6 +570,7 @@ public class PlatformManager {
         }
         return false;
     }
+
     //Only for new orders that have already been shipped
     private BaseSeller.Order createDummyConfirmedOrder(BaseSeller.Order order) {
         return new BaseSeller.Order(order.getOrderId(), BaseSeller.OrderStatus.CONFIRMED, order.getLastUpdated());

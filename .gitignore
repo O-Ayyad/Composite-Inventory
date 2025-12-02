@@ -17,3 +17,5 @@ Thumbs.db
 *.swp
 *~
 target/
+src/main/resources/icons/itemIcons/*.png
+!src/main/resources/icons/itemIcons/imageNotFound.png

@@ -253,13 +253,23 @@ public class FileManager {
             JOptionPane.showMessageDialog(null, message, "File Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-
-    public UserConfigManager.UserConfig getUserConfig() {
+    public UserConfigManager getUserConfigManager(){
         for(AbstractFileManager fileManager : fileManagers){
             if(fileManager instanceof UserConfigManager){
-                return ((UserConfigManager) fileManager).getUserConfig();
+                return ((UserConfigManager) fileManager);
             }
         }
-        return UserConfigManager.defaultConfig;
+        System.out.println("ERROR: NO USER CONFIG MANAGER EXISTS");
+        return null;
+    }
+    public UserConfigManager.UserConfig getUserConfig() {
+        UserConfigManager ucm = getUserConfigManager();
+        if(ucm == null) return UserConfigManager.defaultConfig;
+        return ucm.getUserConfig();
+    }
+
+    public void setHasConnected(boolean val) {
+        getUserConfig().hasConnect = val;
+        getUserConfigManager().save();
     }
 }

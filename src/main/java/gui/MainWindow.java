@@ -34,7 +34,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
     private APIFileManager apiFileManager;
     private PlatformManager platformManager;
     private FileManager fileManager;
-    private UserConfigManager.UserConfig config;
+    public UserConfigManager.UserConfig config;
 
     JPanel accountSummary;
 
@@ -368,15 +368,18 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         ItemManager itemManager = new ItemManager(inventory);
         inventory.setItemManager(itemManager);
 
-
-        apiFileManager = new APIFileManager();
+        apiFileManager = new APIFileManager(this);
 
         platformManager = new PlatformManager(inventory, logManager, apiFileManager);
         platformManager.setMainWindow(this);
 
         fileManager = new FileManager(inventory, logManager, platformManager, this);
-
         config = fileManager.getUserConfig();
+
+        if(config.hasConnect){
+            apiFileManager.initializePassword(false);
+        }
+
         platformManager.setFileManager(fileManager);
 
         logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refresh));
@@ -394,11 +397,9 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                 System.out.println("Could not autosave. " + ex.getMessage());
             }
         });
-        autoSaveTimer.setInitialDelay(config.autofetchTimer);
-        autoSaveTimer.start();
+
 
         // Auto fetch
-        platformManager.fetchAllRecentOrders();
         fetchTimer = new Timer(config.autofetchTimer, e -> {
             try {
                 if ( platformManager.isFetching() || platformManager.onCooldown() || !doneLoading) {
@@ -410,11 +411,16 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                 System.out.println("Could not auto fetch. " + ex.getMessage());
             }
         });
-        fetchTimer.start();
     }
     void setUI(){
+        autoSaveTimer.setInitialDelay(config.autofetchTimer);
+        autoSaveTimer.start();
+        fetchTimer.start();
+
+
         setLocationRelativeTo(null); // center
         setLayout(new BorderLayout());
+
 
 
         // ---------------- LOGO, BUTTONS, INFO BAR ----------------
@@ -937,8 +943,12 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
         add(mainArea, BorderLayout.CENTER);
         setSize(1200, 800);
+        setLocationRelativeTo(null);
         setResizable(true);
         System.out.println("Welcome to Composite Inventory!");
+    }
+    public void setHasConnected(boolean val){
+        fileManager.setHasConnected(val);
     }
 }
 

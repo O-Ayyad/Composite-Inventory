@@ -3,6 +3,8 @@ package storage;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.swing.*;
+import java.awt.*;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -18,51 +20,284 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.gson.*;
+import gui.MainWindow;
 import platform.*;
 
 
-//Securely read,writes and stores tokens in encrypted folders
-//File : ~resources/data/encrypted_tokens/(amazon/ebay/walmart)/token.enc
+//Securely read,writes and stores tokens in encrypted files
+//File : ~encrypted_tokens/(amazon/ebay/walmart)/token.enc
 public class APIFileManager {
-    public final String passphrase;
-    public final SecureRandom secureRandom;
 
+    private String password; //machine bound + user password
+    private final SecureRandom secureRandom;
 
-    public static final String BASE_DIR =
+    MainWindow mainWindow;
+
+    private static final String BASE_DIR =
             new File("encrypted_tokens").getAbsolutePath();
 
-    public static final int GCM_IV_LENGTH = 12;
-    public static final int GCM_TAG_LENGTH = 128;
+    private static final int GCM_IV_LENGTH = 12;
+    private static final int GCM_TAG_LENGTH = 128;
 
-    public APIFileManager() {
+    private static final String VALIDATION_FILENAME = "password_validation.enc";
+    private static final String VALIDATION_STRING = "VALID_PASSWORD_CHECK";
+
+    public APIFileManager(MainWindow mainWindow) {
         try {
-            passphrase = generateMachineBoundKey();
+            this.mainWindow = mainWindow;
             secureRandom = SecureRandom.getInstanceStrong();
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize secure storage", e);
         }
     }
-
-    private static String generateMachineBoundKey() {
+    private String generateMachineBoundKey(String personalPassword) {
         try {
             String osName = System.getProperty("os.name");
             String user = System.getProperty("user.name");
             String home = System.getProperty("user.home");
             String machineId = java.net.InetAddress.getLocalHost().getHostName();
-            String combined = osName + "|" + user + "|" + home + "|" + machineId;
+            String combined = osName + "|" + user + "|" + home + "|" + machineId + "|" + personalPassword;
 
             MessageDigest sha = MessageDigest.getInstance("SHA-256");
             byte[] hash = sha.digest(combined.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(hash);
-
         } catch (Exception e) {
             throw new RuntimeException("ERROR: Cannot generate machine key", e);
         }
     }
 
+    public boolean validInputPassword(String input) {
+        try {
+            String osName = System.getProperty("os.name");
+            String user = System.getProperty("user.name");
+            String home = System.getProperty("user.home");
+            String machineId = java.net.InetAddress.getLocalHost().getHostName();
+            String combined = osName + "|" + user + "|" + home + "|" + machineId + "|" + input;
+
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            byte[] hash = sha.digest(combined.getBytes(StandardCharsets.UTF_8));
+            return password.equals(Base64.getEncoder().encodeToString(hash));
+        } catch (Exception e) {
+            throw new RuntimeException("ERROR: Cannot generate machine key", e);
+        }
+    }
+    private void generatePassword(String personalPassword) {
+        password = generateMachineBoundKey(personalPassword);
+    }
+
+    private String createPassword() {
+        while (true) {
+            JPasswordField pf1 = new JPasswordField(20);
+            JPasswordField pf2 = new JPasswordField(20);
+
+            JPanel panel = new JPanel(new GridLayout(4, 1, 5, 5));
+            panel.add(new JLabel("<html>Create a new password:<br>"
+                    + "Do not forget this! If lost, orders cannot be fetched.<br></html>"));
+            panel.add(pf1);
+            panel.add(new JLabel("Confirm password:"));
+            panel.add(pf2);
+
+            int result = JOptionPane.showConfirmDialog(
+                    null, panel, "Create Password",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE
+            );
+
+            if (result != JOptionPane.OK_OPTION) continue;
+
+            String pass1 = new String(pf1.getPassword());
+            String pass2 = new String(pf2.getPassword());
+
+            if (pass1.equals(pass2)) {
+                return pass1;
+            }
+
+            JOptionPane.showMessageDialog(null,
+                    "Passwords do not match. Please try again.",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    private String getPassword() {
+        final String[] enteredPassword = {null};
+
+        //Check if password is empty
+        generatePassword("");
+        boolean emptyValid = validPassword();
+
+        if (emptyValid){
+            return "";
+        }
+
+        do {
+            JPasswordField pf = new JPasswordField(20);
+
+            JPanel contentPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+            contentPanel.add(new JLabel("Enter your password:"));
+            contentPanel.add(pf);
+
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton okButton = new JButton("OK");
+            JButton resetButton = new JButton("Reset");
+            resetButton.setPreferredSize(new Dimension(75, 25));
+
+            buttonPanel.add(okButton);
+            buttonPanel.add(resetButton);
+
+            JDialog dialog = new JDialog((Frame) null, "Enter Password", true);
+            dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+            dialog.setLayout(new BorderLayout());
+            dialog.add(contentPanel, BorderLayout.CENTER);
+            dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            okButton.addActionListener(e -> {
+                String pass = new String(pf.getPassword()).trim();
+                enteredPassword[0] = pass;
+                generatePassword(pass);
+
+                if (validPassword()) {
+                    dialog.dispose();
+                } else {
+                    JOptionPane.showMessageDialog(
+                            dialog,
+                            "Invalid password. Please try again.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    enteredPassword[0] = null;
+                }
+            });
+
+            resetButton.addActionListener(e -> {
+                int reset = JOptionPane.showConfirmDialog(
+                        dialog,
+                        "Do you want to reset your password?\nThis will remove all connections.",
+                        "Reset Password",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+                if (reset == JOptionPane.YES_OPTION) {
+
+                    for (PlatformType p : PlatformType.values()) {
+                        removeToken(p);
+                    }
+
+                    deleteValidationFile();
+                    enteredPassword[0] = createPassword();
+                    generatePassword(enteredPassword[0]);
+                    savePasswordValidation();
+
+                    JOptionPane.showMessageDialog(
+                            dialog,
+                            "Password has been reset. All connections have been removed.",
+                            "Password Reset",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    dialog.dispose();
+                }
+            });
+
+            dialog.pack();
+            dialog.setLocationRelativeTo(null);
+            dialog.setVisible(true);
+
+        } while (enteredPassword[0] == null);
+
+        return enteredPassword[0];
+    }
+    public synchronized boolean validPassword() {
+        if (password == null) {
+            return false;
+        }
+        if (!hasValidationFile()) {
+            return false;
+        }
+
+        try {
+            Path file = Path.of(getValidationFilePath());
+            String encrypted = Files.readString(file);
+            String decrypted = decrypt(encrypted);
+
+            return VALIDATION_STRING.equals(decrypted);
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    public void initializePassword(boolean firstLink) {
+        try {
+            String personalPassword;
+
+            if (firstLink) {
+                personalPassword = createPassword();
+                generatePassword(personalPassword);
+
+                savePasswordValidation();
+            } else {
+
+                personalPassword = getPassword();
+                generatePassword(personalPassword);
+            }
+            if (personalPassword == null) {
+                throw new RuntimeException("Password creation failed.");
+            }
+
+
+        } catch (Exception e) {
+            throw new RuntimeException("ERROR: Cannot generate machine key", e);
+        }
+    }
+    private String getValidationFilePath() {
+        return BASE_DIR + File.separator + VALIDATION_FILENAME;
+    }
+
+    private boolean hasValidationFile() {
+        return Files.exists(Path.of(getValidationFilePath()));
+    }
+
+    private void savePasswordValidation() {
+        try {
+            Path dir = Path.of(BASE_DIR);
+            Files.createDirectories(dir);
+
+            String encrypted = encrypt(VALIDATION_STRING);
+            Path file = Path.of(getValidationFilePath());
+            Path tempFile = Paths.get(file + ".tmp");
+
+            Files.writeString(tempFile, encrypted,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
+
+            try {
+                Files.setPosixFilePermissions(tempFile,
+                        PosixFilePermissions.fromString("rw-------"));
+            } catch (UnsupportedOperationException ignored) {
+            }
+
+            Files.move(tempFile, file,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+
+        } catch (Exception e) {
+            throw new RuntimeException("ERROR: Could not save password validation", e);
+        }
+    }
+
+    public void deleteValidationFile() {
+        try {
+            Path file = Path.of(getValidationFilePath());
+            if (Files.exists(file)) {
+                Files.delete(file);
+            }
+        } catch (Exception e) {
+            System.out.println("ERROR: Could not delete validation file");
+            System.out.println(e.getMessage());
+        }
+    }
+
     private SecretKeySpec getSecretKey() throws Exception {
         MessageDigest sha = MessageDigest.getInstance("SHA-256");
-        byte[] key = sha.digest(passphrase.getBytes(StandardCharsets.UTF_8));
+        byte[] key = sha.digest(password.getBytes(StandardCharsets.UTF_8));
         return new SecretKeySpec(key, "AES");
     }
 
@@ -82,7 +317,6 @@ public class APIFileManager {
 
         return Base64.getEncoder().encodeToString(combined);
     }
-
     private String decrypt(String encryptedData) throws Exception {
         byte[] combined = Base64.getDecoder().decode(encryptedData.trim());
 
@@ -102,6 +336,7 @@ public class APIFileManager {
 
         byte[] decrypted = cipher.doFinal(ciphertext);
         return new String(decrypted, StandardCharsets.UTF_8);
+
     }
 
     public synchronized void saveToken(PlatformType platform, String token) {
@@ -124,6 +359,7 @@ public class APIFileManager {
 
         } catch (Exception e) {
             System.out.println("ERROR: Could not save token for "+ platform.name());
+            System.out.println(e.getMessage());
         }
     }
     public synchronized String loadToken(PlatformType platform) {
@@ -151,6 +387,17 @@ public class APIFileManager {
         try {
             Files.deleteIfExists(Path.of(getTokenFilePath(platform)));
         } catch (IOException ignored) {}
+
+        if(!hasAnyConnected()){
+            mainWindow.setHasConnected(false);
+            deleteValidationFile();
+        }
+    }
+    public boolean hasAnyConnected(){
+        for(PlatformType p : PlatformType.values()){
+            if(hasToken(p)) return true;
+        }
+        return false;
     }
     public int validateToken(PlatformType type, String token) {
         try {
@@ -663,9 +910,13 @@ public class APIFileManager {
             return PlatformType.EBAY;
         } else if (seller instanceof WalmartSeller) {
             return PlatformType.WALMART;
-        }else{
+        } else {
             System.out.println("sellerToPlatform called on seller that has no platform");
             return null;
         }
+    }
+
+    public void clearPassword() {
+        password = null;
     }
 }

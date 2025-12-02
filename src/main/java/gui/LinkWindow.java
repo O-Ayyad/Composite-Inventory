@@ -34,6 +34,20 @@ public class LinkWindow extends SubWindow {
 
         mainPanel.add(content, BorderLayout.CENTER);
 
+        JPanel forgotPasswordPanel = new JPanel();
+        forgotPasswordPanel.setOpaque(false);
+        JButton forgotPasswordBtn = new JButton("Forgot Password?");
+        forgotPasswordBtn.setForeground(Color.BLUE);
+        forgotPasswordBtn.setBorderPainted(false);
+        forgotPasswordBtn.setContentAreaFilled(false);
+        forgotPasswordBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        forgotPasswordBtn.setFont(UIUtils.FONT_UI_SMALL);
+
+       forgotPasswordBtn.addActionListener(e -> handleForgotPassword());
+
+        forgotPasswordPanel.add(forgotPasswordBtn);
+        forgotPasswordPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+
         JPanel footer = new JPanel();
         footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
         footer.setOpaque(false);
@@ -57,7 +71,12 @@ public class LinkWindow extends SubWindow {
         footer.add(footerText);
         footer.add(UIUtils.styleButton(closeBtn));
 
-        mainPanel.add(footer, BorderLayout.SOUTH);
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.setOpaque(false);
+        bottomPanel.add(forgotPasswordPanel, BorderLayout.NORTH);
+        bottomPanel.add(footer, BorderLayout.SOUTH);
+
+        mainPanel.add(bottomPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
         pack();
@@ -126,29 +145,51 @@ public class LinkWindow extends SubWindow {
             );
 
             if (choice == JOptionPane.YES_OPTION) {
-                String confirm = JOptionPane.showInputDialog(
+
+                JPasswordField passwordField = new JPasswordField(20);
+
+                JPanel panelPass = new JPanel(new GridLayout(2, 1, 5, 5));
+                panelPass.add(new JLabel("Type in your password to permanently remove your saved token:"));
+                panelPass.add(passwordField);
+
+                int result = JOptionPane.showConfirmDialog(
                         this,
-                        "Type CONFIRM to permanently remove your saved token:",
+                        panelPass,
                         "Final Confirmation",
+                        JOptionPane.OK_CANCEL_OPTION,
                         JOptionPane.WARNING_MESSAGE
                 );
 
-                if (confirm != null && confirm.trim().equalsIgnoreCase("CONFIRM")) {
-                    assert type != null;
-                    apiFileManager.removeToken(type);
-                    statusLabel.setText("Not Connected");
-                    statusLabel.setForeground(Color.GRAY);
-                    connectButton.setEnabled(true);
-                    disconnectButton.setEnabled(false);
+                if (result == JOptionPane.OK_OPTION) {
 
-                    JOptionPane.showMessageDialog(
-                            this,
-                            platformName + " account disconnected successfully.",
-                            "Disconnected",
-                            JOptionPane.INFORMATION_MESSAGE
-                    );
+                    String confirm = new String(passwordField.getPassword());
 
-                    System.out.println("[LinkWindow] " + platformName + " token removed successfully.");
+                    if (apiFileManager.validInputPassword(confirm)) {
+                        assert type != null;
+                        apiFileManager.removeToken(type);
+
+                        statusLabel.setText("Not Connected");
+                        statusLabel.setForeground(Color.GRAY);
+                        connectButton.setEnabled(true);
+                        disconnectButton.setEnabled(false);
+
+                        JOptionPane.showMessageDialog(
+                                this,
+                                platformName + " account disconnected successfully.",
+                                "Disconnected",
+                                JOptionPane.INFORMATION_MESSAGE
+                        );
+
+                        System.out.println("[LinkWindow] " + platformName + " token removed successfully.");
+                    } else {
+
+                        JOptionPane.showMessageDialog(
+                                this,
+                                "Incorrect password. Disconnect cancelled.",
+                                "Authentication Failed",
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                    }
                 } else {
                     JOptionPane.showMessageDialog(
                             this,
@@ -170,7 +211,7 @@ public class LinkWindow extends SubWindow {
                 """
                 <html><body style='font-family:Segoe UI; font-size:12px;'>
                 <b>To connect your Amazon Seller Account:</b><br><br>
-                1. Open <a href='https://solutionproviderportal.amazon.com/'>the amazon solution portal</a>.<br>
+                1. Open <a href='https://solutionproviderportal.amazon.com/'>the Amazon Solution portal</a>.<br>
                 2. Sign into your amazon account.<br>
                 3. When prompted verify with Amazon (This is usually automatic)<br>
                 4. Select your app or create one via Self-Authorization.<br>
@@ -411,6 +452,10 @@ public class LinkWindow extends SubWindow {
         int messageType;
 
         if ( responseCode >= 200 && responseCode <= 299) { //Success
+            if(!mainWindow.config.hasConnect){
+                apiFileManager.initializePassword(true);
+                mainWindow.setHasConnected(true);
+            }
             messageText += "Account connected successfully. Orders can now be fetched and processed";
             title = "Account connected";
             apiFileManager.saveToken(type, token);
@@ -457,9 +502,79 @@ public class LinkWindow extends SubWindow {
                 title,
                 messageType
         );
+        pack();
     }
     private JEditorPane createInfoPane(String str) {
         return new JEditorPane("text/html",
                 str);
+    }
+    private void handleForgotPassword() {
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                """
+                        WARNING: Resetting your password will remove all platform connections.
+                        
+                        You will need to reconnect all your accounts after resetting.
+                        
+                        Do you want to continue?
+                        """,
+                "Forgot Password - Warning",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        JPanel confirmPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+        confirmPanel.add(new JLabel("Type 'CONFIRM' to proceed with password reset:"));
+        JTextField confirmField = new JTextField(20);
+        confirmPanel.add(confirmField);
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                confirmPanel,
+                "Final Confirmation",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (result == JOptionPane.OK_OPTION) {
+            String input = confirmField.getText().trim();
+
+            if ("CONFIRM".equals(input)) {
+                for (PlatformType p : PlatformType.values()) {
+                    apiFileManager.removeToken(p);
+                }
+
+                apiFileManager.deleteValidationFile();
+                apiFileManager.clearPassword();
+                mainWindow.setHasConnected(false);
+
+                JOptionPane.showMessageDialog(
+                        this,
+                        """
+                                Password reset successfully.
+                                
+                                All platform connections have been removed.
+                                You will create a new password when you connect your next account.
+                                
+                                """,
+                        "Password Reset Complete",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+
+                dispose();
+
+            } else {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "You must type 'CONFIRM' exactly to proceed.\nPassword reset cancelled.",
+                        "Confirmation Failed",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        }
     }
 }

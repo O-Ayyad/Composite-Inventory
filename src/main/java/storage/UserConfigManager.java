@@ -26,13 +26,9 @@ public class UserConfigManager extends AbstractFileManager {
     static int DEFAULT_AUTOFETCH_TIMER = 180000; //3 minutes
 
     public static final UserConfig defaultConfig =
-            new UserConfig(true, DEFAULT_AUTOSAVE_TIMER, DEFAULT_AUTOFETCH_TIMER);
+            new UserConfig(true, DEFAULT_AUTOSAVE_TIMER, DEFAULT_AUTOFETCH_TIMER,false);
 
     private UserConfig userConfig;
-
-
-
-    
 
     public UserConfigManager(MainWindow mainWindow, String dataDirName){
         super(dataDirName);
@@ -119,11 +115,14 @@ public class UserConfigManager extends AbstractFileManager {
         public int autoSaveTimer;
         @Expose
         public int autofetchTimer;
+        @Expose
+        public boolean hasConnect;
 
-        public UserConfig(boolean firstOpen, int autoSaveTimer, int autofetchTimer){
+        public UserConfig(boolean firstOpen, int autoSaveTimer, int autofetchTimer,boolean hasConnect){
             this.firstOpen = firstOpen;
             this.autoSaveTimer = autoSaveTimer;
             this.autofetchTimer = autofetchTimer;
+            this.hasConnect = hasConnect;
         }
     }
     public UserConfigManager.UserConfig getUserConfig(){
