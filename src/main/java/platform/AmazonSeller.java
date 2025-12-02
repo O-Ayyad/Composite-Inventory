@@ -51,7 +51,10 @@ public class AmazonSeller extends BaseSeller {
             if (tokenIsOld || accessToken == null) {
                 log("Token expired or missing. Fetching new token...");
                 String[] credentials = apiFileManager.getCredentialsFromFile(PlatformType.AMAZON);
-                accessToken = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
+
+                APIFileManager.AccessTokenResponse accessTokenResponse = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
+                accessToken = accessTokenResponse.accessToken();
+
                 lastAccessTokenGetTime = ZonedDateTime.now(ZoneOffset.UTC);
             }
 
@@ -66,8 +69,9 @@ public class AmazonSeller extends BaseSeller {
                     log("Attempting token refresh...");
 
                     String[] credentials = apiFileManager.getCredentialsFromFile(PlatformType.AMAZON);
-                    accessToken = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
-                    lastAccessTokenGetTime = ZonedDateTime.now(ZoneOffset.UTC);
+
+                    APIFileManager.AccessTokenResponse accessTokenResponse = apiFileManager.getAmazonAccessToken(credentials[0], credentials[1], credentials[2]);
+                    accessToken = accessTokenResponse.accessToken();
 
                     //Validate the new token
                     int response2 = apiFileManager.validateAmazonAccessToken(accessToken);
@@ -142,9 +146,6 @@ public class AmazonSeller extends BaseSeller {
                 keyFailCounter = 0;
             }
             //We have a valid non-expired token, so get recent orders and parse
-            log("Valid access token");
-
-
             String createdAfter = getLastGetOrderTimeForFetching()
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
@@ -153,17 +154,11 @@ public class AmazonSeller extends BaseSeller {
                     API_BASE_URL + "/orders/v0/orders?MarketplaceIds=ATVPDKIKX0DER&CreatedAfter=" + URLEncoder.encode(createdAfter, StandardCharsets.UTF_8);
 
             URL url = new URL(ordersEndpoint);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-
-            conn.setRequestProperty("x-amz-access-token", accessToken);
-            conn.setRequestProperty("User-Agent", "CompositeInventory/1.0");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
+            HttpURLConnection conn = apiFileManager.openAmazonConnection(url, accessToken);
 
             int ordersResponseCode = conn.getResponseCode();
-            log("Orders API Response: " + ordersResponseCode);
 
+            log("Orders API Response: " + ordersResponseCode);
             if (ordersResponseCode < 200 || ordersResponseCode > 299) {
                 SwingUtilities.invokeLater(() -> {
                     String message = String.format(
@@ -292,7 +287,7 @@ public class AmazonSeller extends BaseSeller {
 
                         try {
                             String url = API_BASE_URL + "/orders/v0/orders/" + info.orderId + "/orderItems";
-                            conn = openGetConnection(url);
+                            conn = apiFileManager.openAmazonConnection(url,accessToken);
 
                             long start = System.currentTimeMillis();
                             int response = conn.getResponseCode();
@@ -310,7 +305,7 @@ public class AmazonSeller extends BaseSeller {
 
                                 retry++;
                                 Thread.sleep(wait);
-                                continue; //retry
+                                continue; //retry in while loop
                             }
 
                             retry = 0;
@@ -365,16 +360,6 @@ public class AmazonSeller extends BaseSeller {
             }
         };
         worker.execute();
-    }
-    private HttpURLConnection openGetConnection(String urlStr) throws Exception {
-        URL url = new URL(urlStr);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setRequestProperty("x-amz-access-token", accessToken);
-        conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
-        conn.setConnectTimeout(10000);
-        conn.setReadTimeout(10000);
-        return conn;
     }
     private String readResponse(HttpURLConnection conn) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(

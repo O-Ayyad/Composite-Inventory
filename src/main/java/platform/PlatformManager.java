@@ -157,8 +157,12 @@ public class PlatformManager {
                 fetching = false;
 
                 if (!fetchExceptions.isEmpty()) {
+                    StringBuilder message = new StringBuilder();
+                    for(Exception e : fetchExceptions){
+                        message.append(e.getMessage()).append("  ").append("\n");
+                    }
                     logManager.createLog(Log.LogType.SystemError, fetchExceptions.size(),
-                            fetchExceptions.size() + " platform(s) failed to fetch orders",
+                            fetchExceptions.size() + " platform(s) failed to fetch orders\n" +message,
                             "");
                 }
                 System.out.println("[Worker] Processing fetched results...");
@@ -232,13 +236,14 @@ public class PlatformManager {
             PlatformType platform,
             final Map<String, BaseSeller.Order> newOrders,
             final Map<String, BaseSeller.Order> allOrders) {
-
+        int newOrderCount = 0;
+        int changedOrderCount = 0;
+        int allOrderCount = 0;
         for (Map.Entry<String, BaseSeller.Order> entry : newOrders.entrySet()) {
 
             String id = entry.getKey();
             BaseSeller.Order newOrder = entry.getValue();
             BaseSeller.Order oldOrder = allOrders.get(id);
-            System.out.println("Processing " +platform.getDisplayName() + " order ID : " + id);
 
             if (oldOrder == null) { //Neworder has a brand-new order
                 handleNewOrder(platform, newOrder);
@@ -626,7 +631,22 @@ public class PlatformManager {
                     String clientSecret= creds[1];
                     String refreshToken = creds[2];
 
-                    String accessToken = apiFileManager.getAmazonAccessToken(clientID,clientSecret,refreshToken);
+                    APIFileManager.AccessTokenResponse accessTokenResponse = apiFileManager.getAmazonAccessToken(clientID,clientSecret,refreshToken);
+                    String accessToken = accessTokenResponse.accessToken();
+                    int responseCode = accessTokenResponse.response();
+
+                    if(accessToken == null){
+
+                        list.add("""
+                            
+                            
+                            ===== Could not fetch inventory for Amazon =====
+                                          Access Token is null """ + responseCode+ """
+                            
+                            """);
+
+                        return list;
+                    }
 
                     String sellerID = apiFileManager.getSellerId(accessToken);
                     if(sellerID == null){
@@ -683,12 +703,7 @@ public class PlatformManager {
 
                         URL url = new URL(urlString);
 
-                        conn = (HttpURLConnection) url.openConnection();
-                        conn.setRequestMethod("GET");
-                        conn.setRequestProperty("x-amz-access-token", accessToken);
-                        conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
-                        conn.setConnectTimeout(10000);
-                        conn.setReadTimeout(10000);
+                        conn = apiFileManager.openAmazonConnection(url,accessToken);
 
                         int response = conn.getResponseCode();
                         InputStream inputStream = (response >= 200 && response < 300) ? conn.getInputStream() : conn.getErrorStream();
@@ -772,14 +787,17 @@ public class PlatformManager {
                     String[] creds = apiFileManager.getCredentialsFromFile(PlatformType.WALMART);
                     String clientID = creds[0];
                     String clientSecret = creds[1];
-                    String accessToken = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
+                    APIFileManager.AccessTokenResponse accessTokenResponse = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
+
+                    String accessToken = accessTokenResponse.accessToken();
+                    int responseCode = accessTokenResponse.response();
 
                     if (accessToken == null) {
                         list.add("""
                                 
                                 
                                 ===== Could not fetch inventory for Walmart =====
-                                              Access token is null
+                                              Access token is null """+responseCode +"""
                                 
                                 """);
                         return list;
@@ -817,7 +835,7 @@ public class PlatformManager {
                                     
                                     
                                     ===== Could not fetch inventory for Walmart  =====
-                                                    Inventory is null
+                                                    Inventory is null 
                                     
                                     """);
                             return list;

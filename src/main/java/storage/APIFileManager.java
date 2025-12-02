@@ -407,7 +407,6 @@ public class APIFileManager {
             switch (type) {
                 case AMAZON -> {
                     System.out.println("[BEGIN ADD AMAZON ACCOUNT]");
-                    System.out.println("-> Token format check...");
                     String[] parts = token.split("\\|::\\|");
                     if (parts.length != 3) {
                         System.out.println("ERROR: Invalid token format (found " + parts.length + ") Expected : 3");
@@ -417,26 +416,19 @@ public class APIFileManager {
                     String clientSecret = parts[1];
                     String refreshToken = parts[2];
 
-                    System.out.println("-> Getting Amazon Token");
-                    String accessToken = getAmazonAccessToken(clientId, clientSecret, refreshToken);
+                    AccessTokenResponse accessTokenResponse = getAmazonAccessToken(clientId, clientSecret, refreshToken);
+
+                    int responseCode = accessTokenResponse.response;
+                    String accessToken = accessTokenResponse.accessToken;
+
                     System.out.println("-> Returned accessToken=" + (accessToken == null ? "null" : "OK len=" + accessToken.length()));
                     if (accessToken == null) {
                         System.out.println("ERROR: Amazon access token is null");
-                        return -1;
+                        return -responseCode;
                     }
 
-                    System.out.println("-> Opening SP-API connection...");
                     URL url = new URL("https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations");
-                    conn = (HttpURLConnection) url.openConnection();
-
-                    System.out.println("-> Setting request method...");
-                    conn.setRequestMethod("GET");
-
-                    System.out.println("-> Adding headers...");
-                    conn.setRequestProperty("x-amz-access-token", accessToken);
-                    conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
-
-                    System.out.println("-> Setting timeouts");
+                    conn = openAmazonConnection(url,accessToken);
                 }
                 case EBAY -> {
                     //Same as amazon
@@ -458,7 +450,6 @@ public class APIFileManager {
                 case WALMART -> {
                     // Walmart is client ID + client secret combined
                     System.out.println("[BEGIN ADD WALMART ACCOUNT]");
-                    System.out.println("-> Token format check...");
                     String[] parts = token.split("\\|::\\|");
                     if (parts.length != 2) {
                         System.out.println("ERROR: Invalid token format (found " + parts.length + ") Expected : 2");
@@ -468,26 +459,21 @@ public class APIFileManager {
                     String clientID = parts[0];
                     String clientSecret = parts[1];
 
-                    System.out.println("-> Getting Walmart Token");
-                    String accessToken = getWalmartAccessToken(clientID, clientSecret);
-                    System.out.println("-> Returned accessToken=" + (accessToken == null ? "null" : "OK len=" + accessToken.length()));
+                    AccessTokenResponse accessTokenResponse = getWalmartAccessToken(clientID, clientSecret);
+
+                    int responseCode = accessTokenResponse.response;
+                    String accessToken = accessTokenResponse.accessToken;
 
                     if (accessToken == null) {
                         System.out.println("ERROR: Walmart access token is null or invalid.");
-                        return -1;
+                        return responseCode;
                     }
 
-                    System.out.println("-> Opening Walmart API connection...");
                     URL url = new URL("https://marketplace.walmartapis.com/v3/orders");
                     conn = (HttpURLConnection) url.openConnection();
-
-                    System.out.println("-> Setting request method...");
                     conn.setRequestMethod("GET");
 
-                    System.out.println("-> Adding headers...");
                     addWalmartHeaders(conn, accessToken,clientID);
-
-                    System.out.println("-> Setting timeouts");
                 }
                 default -> throw new RuntimeException("Platform type not implemented: " + type);
             }
@@ -495,12 +481,12 @@ public class APIFileManager {
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
 
-            System.out.println("-> Attempting to get response code");
             int response = conn.getResponseCode();
-            String message = "Good response";
+            String message = "Response from "+type.getDisplayName();
             System.out.println("-> Response code: " + response);
             boolean goodResponse = (response >= 200 && response < 300);
             if(!goodResponse){
+                System.out.println("ERROR. Bad HTTP response");
                 message = conn.getResponseMessage();
                 StringBuilder sb = new StringBuilder();
                 try (BufferedReader br = new BufferedReader(new InputStreamReader(
@@ -525,23 +511,20 @@ public class APIFileManager {
                 }catch (Exception e){
                     System.out.println("ERROR: "+ e.getMessage());
                 }
+            }else{
+                System.out.println("Success. Good HTTP response");
             }
 
             conn.disconnect();
             System.out.println("[VALIDATING TOKEN END] Response code: " + response + " (" + message + ")");
 
-
-            // 200–299 = valid, anything else = invalid
-            if(goodResponse) {
-                System.out.println("Success. Good HTTP response");
-            }else{
-                System.out.println("ERROR. Bad HTTP response");
-            }
             return response;
         } catch (IOException e) {
             System.out.println("ERROR: [VALIDATING TOKEN FAILED]");
             System.out.println(Arrays.toString(e.getStackTrace()));
             return -1;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
     public String[] getCredentialsFromFile(PlatformType platform) {
@@ -558,7 +541,7 @@ public class APIFileManager {
 
         return parts;
     }
-    public String getAmazonAccessToken(String clientId, String clientSecret, String refreshToken) {
+    public AccessTokenResponse getAmazonAccessToken(String clientId, String clientSecret, String refreshToken) {
         HttpURLConnection conn = null;
         try {
             URL url = new URL("https://api.amazon.com/auth/o2/token");
@@ -577,9 +560,9 @@ public class APIFileManager {
             }
 
             int code = conn.getResponseCode();
-            if (code != 200) {
+            if (code <200 || code >=300) {
                 System.out.println("[Amazon] ERROR: HTTP " + code + " - " + conn.getResponseMessage());
-                return null;
+                return new AccessTokenResponse(code,null);
             }
 
             StringBuilder sb = new StringBuilder();
@@ -594,7 +577,7 @@ public class APIFileManager {
             JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
             if (!json.has("access_token")) {
                 System.out.println("[Amazon] ERROR: access_token not found in response.");
-                return null;
+                return new AccessTokenResponse(code,null);
             }
 
             System.out.println("[Amazon] Received token response.");
@@ -602,10 +585,10 @@ public class APIFileManager {
             String token = json.get("access_token").getAsString();
             System.out.println("[Amazon] Access token retrieved successfully (len=" + token.length() + ")");
 
-            return token;
+            return new AccessTokenResponse(code,token);
 
         } catch (Exception e) {
-            return null;
+            return new AccessTokenResponse(-1,null);
         }
         finally{
             if(conn != null){
@@ -630,13 +613,9 @@ public class APIFileManager {
         HttpURLConnection conn = null;
         try {
             URL url = new URL("https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations");
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("x-amz-access-token", accessToken);
-            conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
+
+            conn = openAmazonConnection(url, accessToken);
             conn.setRequestProperty("Accept", "application/json");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
 
             int response = conn.getResponseCode();
             InputStream inputStream = (response >= 200 && response < 300)
@@ -684,7 +663,7 @@ public class APIFileManager {
             if (conn != null) conn.disconnect();
         }
     }
-    public String getWalmartAccessToken(String clientId, String clientSecret) {
+    public AccessTokenResponse getWalmartAccessToken(String clientId, String clientSecret) {
         HttpURLConnection conn = null;
         try {
             System.out.println("[Walmart] Requesting new access token...");
@@ -724,7 +703,7 @@ public class APIFileManager {
 
             if (stream == null) {
                 System.out.println("[Walmart] No response body from server.");
-                return null;
+                return new AccessTokenResponse(code,null);
             }
             String encoding = conn.getContentEncoding();
 
@@ -743,7 +722,7 @@ public class APIFileManager {
             String responseBody = sb.toString().trim();
 
             if(responseBody.equals("Bad Request")){
-                return null;
+                return new AccessTokenResponse(code,null);
             }
 
             JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
@@ -753,17 +732,17 @@ public class APIFileManager {
 
             } else {
                 System.out.println("[Walmart] ERROR: access_token not found in response.");
-                return null;
+                return new AccessTokenResponse(code,null);
 
             }
             String token = json.get("access_token").getAsString();
             System.out.println("[Walmart] Access token retrieved successfully (len=" + token.length() + ")");
-            return token;
+            return new AccessTokenResponse(code,token);
 
         } catch (Exception e) {
             System.out.println("[Walmart] EXCEPTION while getting token: " + e);
             System.out.println(Arrays.toString(e.getStackTrace()));
-            return null;
+            return new AccessTokenResponse(-1,null);
 
         } finally {
             if (conn != null) conn.disconnect();
@@ -773,21 +752,9 @@ public class APIFileManager {
     public int validateAmazonAccessToken(String accessToken){
         System.out.println("[BEGIN VALIDATING ACCESS TOKEN]");
         try{
-            HttpURLConnection conn;
             System.out.println("-> Opening SP-API connection...");
             URL url = new URL("https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations");
-            conn = (HttpURLConnection) url.openConnection();
-
-            System.out.println("-> Setting request method...");
-            conn.setRequestMethod("GET");
-
-            System.out.println("-> Adding headers...");
-            conn.setRequestProperty("x-amz-access-token", accessToken);
-            conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
-
-            System.out.println("-> Setting timeouts");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(10000);
+            HttpURLConnection conn = openAmazonConnection(url, accessToken);
 
             System.out.println("-> Attempting to get response code");
             int response = conn.getResponseCode();
@@ -880,12 +847,33 @@ public class APIFileManager {
         return -1;
     }
     public void addWalmartHeaders(HttpURLConnection conn, String accessToken, String clientID){
+
         conn.setRequestProperty("WM_SEC.ACCESS_TOKEN", accessToken);
         conn.setRequestProperty("WM_CONSUMER.CHANNEL.TYPE", clientID);
         conn.setRequestProperty("WM_SVC.NAME", "Walmart Marketplace");
         conn.setRequestProperty("WM_QOS.CORRELATION_ID", UUID.randomUUID().toString());
         conn.setRequestProperty("Accept", "application/json");
         conn.setRequestProperty("Content-Type", "application/json");
+    }
+
+    public HttpURLConnection openAmazonConnection(String urlStr,String accessToken) throws Exception {
+        URL url = new URL(urlStr);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("x-amz-access-token", accessToken);
+        conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(10000);
+        return conn;
+    }
+    public HttpURLConnection openAmazonConnection(URL url,String accessToken) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("x-amz-access-token", accessToken);
+        conn.setRequestProperty("User-Agent", "InventoryApp/1.0");
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(10000);
+        return conn;
     }
     public static String getStorageDir(PlatformType platform) {
         return BASE_DIR + File.separator + platform.getDisplayName().toLowerCase();
@@ -919,4 +907,6 @@ public class APIFileManager {
     public void clearPassword() {
         password = null;
     }
+
+    public record AccessTokenResponse(int response, String accessToken){};
 }

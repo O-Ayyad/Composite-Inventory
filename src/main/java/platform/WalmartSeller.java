@@ -52,7 +52,9 @@ public class WalmartSeller extends BaseSeller {
             //Get token if old or missing
             if (tokenIsOld || accessToken == null) {
                 log("Token expired or missing. Fetching new token...");
-                accessToken = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
+                APIFileManager.AccessTokenResponse accessTokenResponse = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
+                accessToken = accessTokenResponse.accessToken();
+
                 lastAccessTokenGetTime = ZonedDateTime.now(ZoneOffset.UTC);
             }
 
@@ -66,7 +68,9 @@ public class WalmartSeller extends BaseSeller {
                 if (tokenIsOld || tokenAgeMinutes > 5) {  // If token is more than 5 minutes old
                     log("Attempting token refresh...");
 
-                    accessToken = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
+                    APIFileManager.AccessTokenResponse accessTokenResponse = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
+                    accessToken = accessTokenResponse.accessToken();
+
                     lastAccessTokenGetTime = ZonedDateTime.now();
 
                     //Validate the new token
@@ -141,7 +145,6 @@ public class WalmartSeller extends BaseSeller {
             }
             //We have a valid non-expired token, so get recent orders and parse
             keyFailCounter = 0;
-            log(" Valid access token");
             String createdAfter = getLastGetOrderTimeForFetching()
                     .withZoneSameInstant(ZoneOffset.UTC)
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));

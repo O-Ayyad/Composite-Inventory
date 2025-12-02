@@ -13,13 +13,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class FileManager {
-    private static final int MAX_BACKUPS = 800;
+    private static final int MAX_BACKUPS = 400;
     private static final String BACKUP_DIR = "data/backups";
     private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
     private final String[] DATA_DIRS = {"orders", "inventory", "logs", "config"};
 
-    private static int backUpCounter = 0; //Every 30 auto saves a backup is made unless it is on close on manual save
-    private final static int backUpCounterMax = 30;
+    private static int backUpCounter = 0; //Every 70 auto saves a backup is made unless it is on close on manual save
+    private final static int backUpCounterMax = 70;
     Set<AbstractFileManager> fileManagers = new HashSet<>();
 
     boolean firstOpen;

@@ -470,9 +470,11 @@ public class LinkWindow extends SubWindow {
                         "\n2. Click connect and re-authorize to obtain a new token.\n\n If you recently changed your seller account or credentials, the old token may no longer work.";
             } else if (responseCode >= 500) {
                 messageText += "No response received from " + platformName + ". Ensure the correct formating for the token or check your internet connection.";
-            } else  {
-                messageText += "An unexpected response (" + responseCode + ") was received from " + platformName + ".\n\n" +
-                        "Try reauthorizing your account if this continues.";
+            } else if (responseCode == -1) {
+                messageText += "Internal system error with Composite Inventory. Please try again and contact support if this issue continues.";
+            }else{
+                    messageText += "An unexpected response (" + responseCode + ") was received from " + platformName + ".\n\n" +
+                            "Try reauthorizing your account if this continues.";
             }
             messageType = JOptionPane.WARNING_MESSAGE;
         }
