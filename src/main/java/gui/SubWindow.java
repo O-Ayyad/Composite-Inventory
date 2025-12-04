@@ -6,6 +6,7 @@ import core.Item;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
+import java.awt.event.*;
 import java.io.File;
 import java.util.*;
 import java.util.List;
@@ -16,11 +17,17 @@ import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
 
+import net.bramp.ffmpeg.FFmpeg;
+import net.bramp.ffmpeg.FFmpegExecutor;
+import net.bramp.ffmpeg.builder.FFmpegBuilder;
+
 public abstract class SubWindow extends JFrame {
 
     MainWindow mainWindow;
     Inventory inventory;
 
+    boolean ffmpegAvailable = false;
+    FFmpeg ffmpeg = null;
 
     public SubWindow(MainWindow mainWindow, String name, Inventory inventory) {
         super(name);
@@ -28,7 +35,9 @@ public abstract class SubWindow extends JFrame {
         this.inventory = inventory;
         setLocationRelativeTo(mainWindow);
 
+
         mainWindow.addInstance(this);
+
 
         if(handleCloneSubwindow()){
             return;
@@ -45,7 +54,6 @@ public abstract class SubWindow extends JFrame {
                 mainWindow.removeInstance(SubWindow.this);
             }
         });
-
         setVisible(true);
     }
     public abstract void setupUI();
@@ -294,49 +302,6 @@ public abstract class SubWindow extends JFrame {
             );
         }
     }
-    public void getImage(JButton imageButton, JLabel imageLabel, Consumer<String> onImageSelected){
-        imageButton.addActionListener(e -> {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ex) {
-                System.out.println(ex.getMessage());
-            }
-
-            JFileChooser fileChooser = getJFileChooser();
-            int result = fileChooser.showOpenDialog(SwingUtilities.getWindowAncestor(imageButton));
-            if (result != JFileChooser.APPROVE_OPTION) return;
-
-            File selectedImageFile = fileChooser.getSelectedFile();
-            try {
-                BufferedImage original = ImageIO.read(selectedImageFile);
-                if (original == null) {
-                    imageLabel.setText("Unsupported image");
-                    return;
-                }
-                Icon itemIcon = scaleImage(original);
-                imageLabel.setIcon(itemIcon);
-                imageLabel.setText("");
-
-                String path = "src/main/resources/icons/itemIcons/";
-                File resourcesDir = new File(path);
-                if (!resourcesDir.exists()) {
-                    resourcesDir.mkdirs();
-                }
-                String timestamp = String.valueOf(System.currentTimeMillis());
-                String fileName = "item_" + timestamp + ".png";
-                String savedPath = path + fileName;
-                File outputFile = new File(savedPath);
-                ImageIO.write(original, "png", outputFile);
-
-                if (onImageSelected != null) {
-                    onImageSelected.accept(savedPath);
-                }
-            } catch (Exception ex) {
-                imageLabel.setText("Failed to load image");
-            }
-        });
-    }
-
     Icon scaleImage(Image selectedImage){
         float aspectRatio = (float) selectedImage.getWidth(null) / (float) selectedImage.getHeight(null);
         int scaledWidth = 128,
@@ -376,13 +341,18 @@ public abstract class SubWindow extends JFrame {
             public boolean accept(File f) {
                 if (f.isDirectory()) return true;
                 String name = f.getName().toLowerCase();
-                return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")
-                        || name.endsWith(".gif") || name.endsWith(".bmp") || name.endsWith(".webp");
+                return name.endsWith(".png")
+                        || name.endsWith(".jpg")
+                        || name.endsWith(".jpeg")
+                        || name.endsWith(".gif")
+                        || name.endsWith(".bmp")
+                        || name.endsWith(".webp")
+                        || name.endsWith(".avif");
             }
 
             @Override
             public String getDescription() {
-                return "Image Files (*.png, *.jpg, *.jpeg, *.gif, *.bmp, *.webp)";
+                return "Image Files (*.png, *.jpg, *.jpeg, *.gif, *.bmp, *.webp, *.avif)";
             }
         });
         return fileChooser;
@@ -403,5 +373,71 @@ public abstract class SubWindow extends JFrame {
     }
     public String getPlural(String target){
         return target.endsWith("s") ? target + "es" : target + "s";
+    }
+    public void getImage(JButton imageButton, JLabel imageLabel, Consumer<String> onImageSelected){
+        imageButton.addActionListener(e -> {
+
+            JFileChooser fileChooser = getJFileChooser();
+            int result = fileChooser.showOpenDialog(SwingUtilities.getWindowAncestor(imageButton));
+            if (result != JFileChooser.APPROVE_OPTION) return;
+
+            File selectedImageFile = fileChooser.getSelectedFile();
+            processImageFile(selectedImageFile, imageLabel, onImageSelected);
+        });
+    }
+
+    public void processImageFile(File imageFile, JLabel imageLabel, Consumer<String> onImageSelected) {
+        try {
+            ImageIO.scanForPlugins();
+
+            File fileToRead = imageFile;
+
+            if (ffmpegAvailable && imageFile.getName().toLowerCase().endsWith(".avif")) {
+                File tmpPng = File.createTempFile("tmp-", ".png");
+                tmpPng.deleteOnExit();
+
+                FFmpegBuilder builder = new FFmpegBuilder()
+                        .setInput(imageFile.getAbsolutePath())
+                        .overrideOutputFiles(true)
+                        .addOutput(tmpPng.getAbsolutePath())
+                        .setFormat("image2")
+                        .setVideoCodec("png")
+                        .done();
+
+                new FFmpegExecutor(ffmpeg).createJob(builder).run();
+
+                fileToRead = tmpPng;
+            }
+
+            BufferedImage original = ImageIO.read(fileToRead);
+
+            if (original == null) {
+                imageLabel.setText("Unsupported or corrupt image");
+                System.err.println("Failed to read: " + imageFile.getName());
+                return;
+            }
+
+            Icon itemIcon = scaleImage(original);
+            imageLabel.setIcon(itemIcon);
+            imageLabel.setText("");
+
+            String path = "src/main/resources/icons/itemIcons/";
+            File resourcesDir = new File(path);
+            if (!resourcesDir.exists()) {
+                resourcesDir.mkdirs();
+            }
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String fileName = "item_" + timestamp + ".png";
+            String savedPath = path + fileName;
+            File outputFile = new File(savedPath);
+            ImageIO.write(original, "png", outputFile);
+
+            if (onImageSelected != null) {
+                onImageSelected.accept(savedPath);
+            }
+        } catch (Exception ex) {
+            System.out.println(ex.getMessage());
+            imageLabel.setText("Failed to load image");
+        }
     }
 }

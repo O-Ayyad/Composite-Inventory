@@ -81,14 +81,14 @@ public class DebugConsole extends JFrame {
                 .addKeyEventDispatcher(e -> {
                     if (e.getID() == KeyEvent.KEY_PRESSED &&
                             e.getKeyCode() == KeyEvent.VK_BACK_QUOTE &&
-                            e.isShiftDown()) {
+                            e.isAltDown()) {
                         dc.toggle();
                         return true;
                     }
                     return false;
                 });
 
-        System.out.println("[DebugConsole] Initialized. Press Shift + ~ to toggle.");
+        System.out.println("[DebugConsole] Initialized. Press Alt + ~ to toggle.");
         return dc;
     }
     public void toggle(){

@@ -28,11 +28,15 @@ public class ViewWindow extends SubWindow {
     private JCheckBox hasNoEbayBox;
     private JCheckBox hasNoWalmartBox;
 
+    Set<RowFilter.Entry<? extends DefaultTableModel, ? extends Integer>> exactMatch;
+
     public ViewWindow(MainWindow mainWindow, Inventory inventory, LogManager logManager) {
         super(mainWindow, windowName, inventory);
 
         this.logManager = logManager;
         logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refreshTable));
+
+        exactMatch = new HashSet<>();
 
         setupUI();
     }
@@ -450,10 +454,10 @@ public class ViewWindow extends SubWindow {
         }.execute();
     }
     private void updateSummary(long[] summary, Item i) {
-        int qauntity = inventory.getQuantity(i);
+        int quantity = inventory.getQuantity(i);
         summary[0] ++;
-        summary[1] = qauntity;
-        if(qauntity > i.getLowStockTrigger()){
+        summary[1] = quantity;
+        if(quantity > i.getLowStockTrigger()){
             summary[2]++;
         }
 
@@ -510,10 +514,65 @@ public class ViewWindow extends SubWindow {
         TableRowSorter<DefaultTableModel> sorter =
                 (TableRowSorter<DefaultTableModel>) itemTable.getRowSorter();
 
-        if (sorter != null) {
-            String text = searchField.getText().trim().toLowerCase();
-            sorter.setRowFilter(createRowFilter(text));
+        Comparator<Object> exactFirst = (o1, o2) -> {
+            String search = searchField.getText().trim().toLowerCase();
+            String s1 = o1.toString().toLowerCase();
+            String s2 = o2.toString().toLowerCase();
+
+            boolean aExact = s1.equals(search);
+            boolean bExact = s2.equals(search);
+
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+
+            Integer n1 = parseIntOrNull(s1);
+            Integer n2 = parseIntOrNull(s2);
+
+            if (n1 != null && n2 != null)
+                return Integer.compare(n1, n2);
+
+            return s1.compareToIgnoreCase(s2);
+        };
+
+        sorter.setComparator(2, exactFirst);
+        sorter.setComparator(3, exactFirst);
+        sorter.setComparator(6, exactFirst);
+        sorter.setComparator(7, exactFirst);
+        sorter.setComparator(8, exactFirst);
+
+        String text = searchField.getText().trim().toLowerCase();
+        sorter.setRowFilter(createRowFilter(text));
+
+        List<RowSorter.SortKey> sortKeys = new ArrayList<>();
+
+        sorter.setRowFilter(createRowFilter(text));
+
+        if (!text.isEmpty()) {
+            int[] searchableCols = {2, 3, 6, 7, 8};
+
+
+            Integer sortCol = null;
+            for (int col : searchableCols) {
+                for (int viewRow = 0; viewRow < itemTable.getRowCount(); viewRow++) {
+                    int modelRow = itemTable.convertRowIndexToModel(viewRow);
+                    String value = tableModel.getValueAt(modelRow, col).toString().toLowerCase();
+                    if (value.equals(text)) {
+                        sortCol = col;
+                        break;
+                    }
+                }
+                if (sortCol != null) break;
+            }
+
+            sortKeys.add(new RowSorter.SortKey(sortCol != null ? sortCol : 2, SortOrder.ASCENDING));
+            sorter.setSortKeys(sortKeys);
+        } else {
+            sortKeys.add(new RowSorter.SortKey(1, SortOrder.DESCENDING));
+            sorter.setSortKeys(sortKeys);
         }
+
+        sorter.setSortKeys(sortKeys);
+
     }
 
     private RowFilter<DefaultTableModel, Integer> createRowFilter(String searchText) {
@@ -553,5 +612,21 @@ public class ViewWindow extends SubWindow {
         if(entry.getStringValue(3) == null) return null;
         String serial = entry.getStringValue(3);
         return inventory.getItemBySerial(serial);
+    }
+
+    private boolean isExactMatch(int row) {
+        String search = searchField.getText().trim().toLowerCase();
+        if (search.isEmpty()) return false;
+
+        for (int col : new int[]{2,3,6,7,8}) {
+            String value = itemTable.getValueAt(row, col).toString().toLowerCase();
+            if (value.equals(search)) return true;
+        }
+        return false;
+    }
+
+    private Integer parseIntOrNull(String s) {
+        try { return Integer.parseInt(s); }
+        catch (Exception e) { return null; }
     }
 }

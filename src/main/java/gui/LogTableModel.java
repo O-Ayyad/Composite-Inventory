@@ -171,7 +171,9 @@ public class LogTableModel extends AbstractTableModel {
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                 JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED
         );
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         scrollPane.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
 
         scrollPane.addComponentListener(new ComponentAdapter() {
             @Override

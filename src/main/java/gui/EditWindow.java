@@ -1,8 +1,17 @@
 package gui;
 
 import core.*;
+import net.bramp.ffmpeg.FFmpeg;
+
 import javax.swing.*;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDropEvent;
+import java.io.File;
 import java.util.*;
 import java.util.List;
 
@@ -12,33 +21,50 @@ public class EditWindow extends SubWindow {
     private final Map<String, Integer> componentsBySerial = new LinkedHashMap<>();
     private final LogManager logManager;
 
+
     public EditWindow(MainWindow mainWindow, Inventory inventory, Item selected,LogManager logManager) {
         super(mainWindow, windowName, inventory);
         this.selectedItem = selected;
         this.logManager = logManager;
+
+        try{
+            ffmpeg = new FFmpeg("ffmpeg");
+            ffmpegAvailable = true;
+        }catch (Exception e){
+            System.out.println("No Avif file support: FFmpeg not found");
+        }
+
         setupUI();
     }
     @Override
     public boolean handleCloneSubwindow(){
 
-        Class<? extends SubWindow> clazz = getClass();
-
-        boolean hasExisting = mainWindow.hasInstance(clazz);
-
-        if (hasExisting) {
-
+        System.out.println("called");
+        try{
+            Class<? extends SubWindow> clazz = getClass();
             List<SubWindow> existingList = mainWindow.getInstances(getClass());
 
-            for(SubWindow existing : existingList){
+            System.out.println("1");
+
+            boolean closedAny = false;
+            for(SubWindow existing : new ArrayList<>(existingList)){
+                System.out.println("2");
                 if(existing != this){
+                    System.out.println("3");
                     mainWindow.destroyExistingInstance(existing);
+                    System.out.println("4");
+                    closedAny = true;
                 }
             }
-            this.requestFocus();
+            System.out.println("5");
+            if (closedAny) {
+                System.out.println("Old " + clazz.getSimpleName() + " closed for new window.");
+            }
 
-            System.out.println("Old" + clazz.getSimpleName() + " closed for new window.");
+            return false;
+        }catch (Exception e){
+            System.out.println(Arrays.toString(e.getStackTrace()));
         }
-
         return false;
     }
 
@@ -114,7 +140,7 @@ public class EditWindow extends SubWindow {
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Item Icon:"), gbc);
         gbc.gridx = 1;
-        JButton imageButton = new JButton("Change Image");
+        JButton imageButton = new JButton("Select or drag image");
         JLabel imageLabel = new JLabel();
         String[] filePath = new String[] {selectedItem.getImagePath()};
 
@@ -123,6 +149,26 @@ public class EditWindow extends SubWindow {
         panel.add(UIUtils.styleButton(imageButton), gbc);
         gbc.gridx = 1; gbc.gridy++;
         panel.add(imageLabel, gbc);
+
+        new DropTarget(mainPanel, new DropTargetAdapter() {
+            @Override
+            public void drop(DropTargetDropEvent ev) {
+                try {
+                    ev.acceptDrop(DnDConstants.ACTION_COPY);
+                    Transferable t = ev.getTransferable();
+
+                    List<File> dropped = (List<File>) t.getTransferData(DataFlavor.javaFileListFlavor);
+                    if (!dropped.isEmpty()) {
+                        File droppedFile = dropped.get(0);
+
+                        processImageFile(droppedFile, imageLabel, file -> filePath[0] = file);
+
+                    }
+                } catch (Exception ex) {
+                    System.out.println(Arrays.toString(ex.getStackTrace()));
+                }
+            }
+        });
 
         //Is composite
         gbc.gridx = 0; gbc.gridy++;
@@ -241,6 +287,7 @@ public class EditWindow extends SubWindow {
 
         saveButton.addActionListener(e -> {
             try {
+
                 String newName = nameField.getText().trim();
                 int newQty = Integer.parseInt(quantityField.getText().trim());
                 int trigger = lowStockField.getText().isBlank() ? 0 : Integer.parseInt(lowStockField.getText().trim());
@@ -272,18 +319,29 @@ public class EditWindow extends SubWindow {
                 }
 
                 List<Item> duplicateNameItemList = inventory.getItemByName(newName);
+
                 duplicateNameItemList.remove(selectedItem);
                 if (!duplicateNameItemList.isEmpty()) {
                     StringBuilder sb = new StringBuilder();
+
+                    int totalDuplicates = duplicateNameItemList.size();
                     String itemAmountText = duplicateNameItemList.size() == 1 ? "Another item":"Other items";
                     sb.append("Warning: ").append(itemAmountText).append(" already uses the name \"").append(newName).append("\".\n\n");
-                    for(Item duplicateNameItem : duplicateNameItemList){
+
+
+
+                    int showCount = Math.min(3, totalDuplicates);
+                    for(int i = 0; i < showCount; i++){
+                        Item duplicateNameItem = duplicateNameItemList.get(i);
                         sb.append("Existing Item Details:\n\n")
                                 .append("Name: ").append(duplicateNameItem.getName()).append("\n")
                                 .append("Serial: ").append(duplicateNameItem.getSerial()).append("\n")
                                 .append("Amazon SKU: ").append(duplicateNameItem.getAmazonSellerSKU() != null ? duplicateNameItem.getAmazonSellerSKU() : "N/A").append("\n")
-                                .append("eBay SKU: ").append(duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A").append("\n")
-                                .append("Walmart SKU: ").append(duplicateNameItem.getWalmartSellerSKU() != null ? duplicateNameItem.getWalmartSellerSKU() : "N/A").append("\n\n\n");
+                                .append("eBay SKU: ").append(duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A").append("\n");
+                    }
+
+                    if (totalDuplicates > 3) {
+                        sb.append("...and ").append(totalDuplicates - 3).append(" more item(s) with this name.\n\n");
                     }
                     sb.append("You can still proceed, but it’s recommended to use a unique name for each item.");
                     JOptionPane.showMessageDialog(
@@ -357,6 +415,7 @@ public class EditWindow extends SubWindow {
                 }
 
                 StringBuilder sb = new StringBuilder();
+
                 sb.append("<html><body width='400'>");
                 sb.append("<b>Review your changes before saving:</b><br><br>");
                 sb.append("<b>Name:</b> ").append(selectedItem.getName()).append(" → ").append(newName).append("<br>");
@@ -409,7 +468,7 @@ public class EditWindow extends SubWindow {
 
                 int confirm = JOptionPane.showConfirmDialog(
                         this,
-                        new JLabel(sb.toString()),
+                        sb.toString(),
                         "Confirm Changes",
                         JOptionPane.YES_NO_OPTION,
                         JOptionPane.QUESTION_MESSAGE
@@ -493,6 +552,7 @@ public class EditWindow extends SubWindow {
         });
 
         JScrollPane scrollPane = new JScrollPane(panel);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         add(mainPanel, BorderLayout.CENTER);
 

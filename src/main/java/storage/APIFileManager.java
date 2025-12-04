@@ -5,6 +5,10 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -14,10 +18,8 @@ import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.util.Arrays;
-import java.util.Base64;
+import java.util.*;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.gson.*;
 import gui.MainWindow;
@@ -86,6 +88,59 @@ public class APIFileManager {
         password = generateMachineBoundKey(personalPassword);
     }
 
+
+    public void changePassword() {
+        while (true) {
+            JPasswordField pf1 = new JPasswordField(20);
+            JPasswordField pf2 = new JPasswordField(20);
+
+            JPanel panel = new JPanel(new GridLayout(4, 1, 5, 5));
+            panel.add(new JLabel("<html>Change password:<br>"
+                    + "Do not forget this! If lost, orders cannot be fetched.<br></html>"));
+            panel.add(pf1);
+            panel.add(new JLabel("Confirm password:"));
+            panel.add(pf2);
+
+            int result = JOptionPane.showConfirmDialog(
+                    null, panel, "Change Password",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE
+            );
+
+            if (result != JOptionPane.OK_OPTION) continue;
+
+            String pass1 = new String(pf1.getPassword());
+            String pass2 = new String(pf2.getPassword());
+
+            if (pass1.equals(pass2)) {
+
+                Map<PlatformType, String> platformToken = new HashMap<>();
+                for(PlatformType p : PlatformType.values()){
+                    if(!hasToken(p)) continue;
+                    String token = loadToken(p);
+                    platformToken.put(p,token);
+                }
+
+                generatePassword(pass1);
+                for(Map.Entry<PlatformType, String> pToken : platformToken.entrySet()){
+                    saveToken(pToken.getKey(), pToken.getValue());
+                }
+                savePasswordValidation();
+
+                JOptionPane.showMessageDialog(
+                        null,
+                        "Password changed successfully",
+                        "Password Change Complete", JOptionPane.INFORMATION_MESSAGE
+                );
+
+                break;
+            }else{
+                JOptionPane.showMessageDialog(null,
+                        "Passwords do not match. Please try again.",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
     private String createPassword() {
         while (true) {
             JPasswordField pf1 = new JPasswordField(20);
@@ -145,9 +200,27 @@ public class APIFileManager {
 
             JDialog dialog = new JDialog((Frame) null, "Enter Password", true);
             dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+            dialog.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    mainWindow.dispose();
+                    System.exit(0);
+                }
+            });
             dialog.setLayout(new BorderLayout());
             dialog.add(contentPanel, BorderLayout.CENTER);
             dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            pf.requestFocusInWindow();
+            pf.addKeyListener(new KeyAdapter() {
+                @Override
+                public void keyPressed(KeyEvent e) {
+                    System.out.println(e.getKeyCode());
+                    if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                        okButton.doClick();
+                    }
+                }
+            });
 
             okButton.addActionListener(e -> {
                 String pass = new String(pf.getPassword()).trim();
@@ -908,6 +981,7 @@ public class APIFileManager {
     public void clearPassword() {
         password = null;
     }
+
 
     public record AccessTokenResponse(int response, String accessToken){};
 }

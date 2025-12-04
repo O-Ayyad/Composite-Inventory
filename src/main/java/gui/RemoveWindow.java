@@ -276,6 +276,7 @@ public class RemoveWindow extends SubWindow {
             pack();
         });
         JScrollPane scrollPane = new JScrollPane(panel);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         return mainPanel;
     }
@@ -387,6 +388,7 @@ public class RemoveWindow extends SubWindow {
         });
 
         JScrollPane scrollPane = new JScrollPane(panel);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         return mainPanel;
     }
@@ -457,6 +459,7 @@ public class RemoveWindow extends SubWindow {
         );
         componentPanel.setBorder(tableBorder);
         JScrollPane compScroll = new JScrollPane(componentPanel);
+        compScroll.getHorizontalScrollBar().setUnitIncrement(20);
         compScroll.setPreferredSize(new Dimension(400,200));
         panel.add(compScroll, gbc);
 
@@ -597,6 +600,7 @@ public class RemoveWindow extends SubWindow {
 
 
         JScrollPane scrollPane = new JScrollPane(panel);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         return mainPanel;
     }

@@ -1,5 +1,6 @@
 package gui;
 
+import constants.Constants;
 import platform.*;
 import core.*;
 import storage.*;
@@ -22,6 +23,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Style;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+
 
 
 public class MainWindow extends JFrame implements Inventory.ItemListener {
@@ -85,13 +87,9 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         setVisible(true);
 
         addWindowListener(new WindowAdapter() {
+
             @Override
             public void windowClosing(WindowEvent e) {
-                if(!doneLoading){
-                    return;
-                }
-                fetchTimer.stop();
-                autoSaveTimer.stop();
                 if (platformManager.isFetching()) {
                     JOptionPane.showMessageDialog(
                             null,
@@ -105,6 +103,9 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
             }
 
             private void confirmCloseAllAndExit() {
+                fetchTimer.stop();
+                autoSaveTimer.stop();
+
                 int choice = JOptionPane.showConfirmDialog(null,
                         "Are you sure you want to exit? \nMake sure to save all data manually before exiting.",
                         "Exit Confirmation",
@@ -361,6 +362,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
     }
 
     private void bootstrap() {
+
         // Create managers
         inventory = new Inventory();
         logManager = new LogManager();
@@ -581,7 +583,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         JButton fetchOrdersBtn = new JButton("Fetch Orders");
         JButton unlinkedItemsBtn = new JButton("<html><div style='text-align:center;'>Find unlinked items<br>on platforms</div></html>");
         JButton saveInfoBtn = new JButton("Save information");
-        JButton openDebugBtn = new JButton("<html><div style='text-align:center;'>Open Debug Console<br>(Shift + ~)</div></html>");
+        JButton openDebugBtn = new JButton("<html><div style='text-align:center;'>Open Debug Console<br>(Alt + ~)</div></html>");
 
         JButton[] toolButtons = {fetchOrdersBtn, unlinkedItemsBtn,saveInfoBtn, openDebugBtn};
         for (JButton btn : toolButtons) {
@@ -863,6 +865,7 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
 
         //Scroll Panel
         JScrollPane scrollPane = LogTableModel.createScrollPane(logTable);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
 
         //Search
         searchField.getDocument().addDocumentListener(new DocumentListener() {

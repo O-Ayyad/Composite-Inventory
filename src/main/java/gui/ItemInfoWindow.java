@@ -93,6 +93,7 @@ public class ItemInfoWindow extends SubWindow {
         detailsWrapper.add(centerPanel, BorderLayout.CENTER);
 
         JScrollPane scrollPane = new JScrollPane(detailsWrapper);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         scrollPane.setBorder(null);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
@@ -253,6 +254,7 @@ public class ItemInfoWindow extends SubWindow {
         LogTableModel.styleTable(logTable);
 
         JScrollPane scrollPane = LogTableModel.createScrollPane(logTable);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
 
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;

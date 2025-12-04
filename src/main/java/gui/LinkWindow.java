@@ -1,5 +1,6 @@
 package gui;
 import core.*;
+import platform.PlatformManager;
 import storage.APIFileManager;
 import platform.PlatformType;
 
@@ -28,25 +29,43 @@ public class LinkWindow extends SubWindow {
         JPanel content = new JPanel();
         content.setLayout(new GridLayout(3, 1, 15, 15));
 
-        content.add(createPlatformPanel("Amazon"));
-        content.add(createPlatformPanel("eBay"));
-        content.add(createPlatformPanel("Walmart"));
-
+        for(PlatformType p : PlatformType.values()){
+            content.add(createPlatformPanel(p));
+        }
         mainPanel.add(content, BorderLayout.CENTER);
 
         JPanel forgotPasswordPanel = new JPanel();
         forgotPasswordPanel.setOpaque(false);
         JButton forgotPasswordBtn = UIUtils.styleButton(new JButton("Forgot Password?"));
+
         forgotPasswordBtn.setForeground(Color.BLUE);
         forgotPasswordBtn.setBorderPainted(false);
         forgotPasswordBtn.setContentAreaFilled(false);
+
         forgotPasswordBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         forgotPasswordBtn.setFont(UIUtils.FONT_UI_SMALL);
 
-       forgotPasswordBtn.addActionListener(e -> handleForgotPassword());
+        forgotPasswordBtn.addActionListener(e -> handleForgotPassword());
 
         forgotPasswordPanel.add(forgotPasswordBtn);
-        forgotPasswordPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        forgotPasswordPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+
+
+        JPanel changePasswordPanel = new JPanel();
+        changePasswordPanel.setOpaque(false);
+        JButton changePasswordBtn = UIUtils.styleButton(new JButton("Change Password?"));
+
+        changePasswordBtn.setForeground(Color.BLUE);
+        changePasswordBtn.setBorderPainted(false);
+        changePasswordBtn.setContentAreaFilled(false);
+
+        changePasswordBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        changePasswordBtn.setFont(UIUtils.FONT_UI_SMALL);
+
+        changePasswordBtn.addActionListener(e -> handleChangePassword());
+
+        changePasswordPanel.add(changePasswordBtn);
+        changePasswordPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
 
         JPanel footer = new JPanel();
         footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
@@ -74,6 +93,7 @@ public class LinkWindow extends SubWindow {
         JPanel bottomPanel = new JPanel(new BorderLayout());
         bottomPanel.setOpaque(false);
         bottomPanel.add(forgotPasswordPanel, BorderLayout.NORTH);
+        bottomPanel.add(changePasswordPanel, BorderLayout.CENTER);
         bottomPanel.add(footer, BorderLayout.SOUTH);
 
         mainPanel.add(bottomPanel, BorderLayout.SOUTH);
@@ -82,13 +102,13 @@ public class LinkWindow extends SubWindow {
         pack();
         setResizable(false);
     }
-    private JPanel createPlatformPanel(String platformName) {
+    private JPanel createPlatformPanel(PlatformType type) {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(UIUtils.BORDER_LIGHT),
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)
         ));
-
+        String platformName = type.getDisplayName();
         JLabel nameLabel = new JLabel(platformName);
         nameLabel.setFont(UIUtils.FONT_UI_BOLD );
         panel.add(nameLabel, BorderLayout.WEST);
@@ -107,13 +127,6 @@ public class LinkWindow extends SubWindow {
         buttonPanel.add(UIUtils.styleButton(disconnectButton));
         panel.add(buttonPanel, BorderLayout.EAST);
 
-        PlatformType type = switch (platformName) {
-            case "Amazon" -> PlatformType.AMAZON;
-            case "eBay" -> PlatformType.EBAY;
-            case "Walmart" -> PlatformType.WALMART;
-            default -> null;
-        };
-
         if (type != null) {
             String existingToken = apiFileManager.loadToken(type);
             if (existingToken != null) {
@@ -124,10 +137,10 @@ public class LinkWindow extends SubWindow {
             }
         }
         connectButton.addActionListener(e -> {
-            switch (platformName) {
-                case "Amazon" -> handleAmazonConnect(type, statusLabel, connectButton, disconnectButton);
-                case "eBay" -> handleEbayConnect(type, statusLabel, connectButton, disconnectButton);
-                case "Walmart" -> handleWalmartConnect(type, statusLabel, connectButton, disconnectButton);
+            switch (type) {
+                case AMAZON -> handleAmazonConnect(type, statusLabel, connectButton, disconnectButton);
+                case EBAY -> handleEbayConnect(type, statusLabel, connectButton, disconnectButton);
+                case WALMART -> handleWalmartConnect(type, statusLabel, connectButton, disconnectButton);
             }
         });
         disconnectButton.addActionListener(e -> {
@@ -574,6 +587,33 @@ public class LinkWindow extends SubWindow {
                         this,
                         "You must type 'CONFIRM' exactly to proceed.\nPassword reset cancelled.",
                         "Confirmation Failed",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        }
+    }
+    void handleChangePassword() {
+        JPanel changePanel = new JPanel(new GridLayout(2, 1, 5, 5));
+        changePanel.add(new JLabel("Type in old password:"));
+        JPasswordField changeField = new JPasswordField(20);
+        changePanel.add(changeField);
+
+        int result = JOptionPane.showConfirmDialog(
+                null,
+                changePanel,
+                "Verify Existing Password",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result == JOptionPane.OK_OPTION) {
+            if (apiFileManager.validInputPassword(String.valueOf(changeField.getPassword()))) {
+                apiFileManager.changePassword();
+            } else {
+                JOptionPane.showMessageDialog(
+                        null,
+                        "Incorrect Password",
+                        "Incorrect Password",
                         JOptionPane.ERROR_MESSAGE
                 );
             }

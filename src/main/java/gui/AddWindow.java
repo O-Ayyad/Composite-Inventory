@@ -1,12 +1,20 @@
 package gui;
 import constants.Constants;
 import core.*;
+import net.bramp.ffmpeg.FFmpeg;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.KeyEvent;
+import java.io.File;
 import java.util.*;
 import java.util.List;
 
@@ -18,10 +26,24 @@ public class AddWindow extends SubWindow {
 
     public AddWindow(MainWindow mainWindow, Inventory inventory) {
         this(mainWindow,inventory,null,false); //Delegate to unified constructor
+
+        try{
+            ffmpeg = new FFmpeg("ffmpeg");
+            ffmpegAvailable = true;
+        }catch (Exception e){
+            System.out.println("No Avif file support: FFmpeg not found");
+        }
     }
     public AddWindow(MainWindow mainWindow, Inventory inventory,Item selected,boolean compose) {
         super(mainWindow, windowName,inventory);
         setupUI(selected,compose);
+
+        try{
+            ffmpeg = new FFmpeg("ffmpeg");
+            ffmpegAvailable = true;
+        }catch (Exception e){
+            System.out.println("No Avif file support: FFmpeg not found");
+        }
     }
     @Override
     public void setupUI() {
@@ -120,15 +142,35 @@ public class AddWindow extends SubWindow {
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Item Icon:"), gbc);
         gbc.gridx = 1;
-        JButton imageButton = new JButton("Select Image");
+        JButton imageButton = new JButton("Select or drag image");
         JLabel imageLabel = new JLabel("No image selected", SwingConstants.LEFT);
         String[] filePath = new String[] {Constants.NOT_FOUND_PNG};
+
         getImage(imageButton, imageLabel, file -> filePath[0] = file );
 
         panel.add(UIUtils.styleButton(imageButton), gbc);
         gbc.gridx = 1; gbc.gridy++;
         panel.add(imageLabel, gbc);
 
+        new DropTarget(mainPanel, new DropTargetAdapter() {
+            @Override
+            public void drop(DropTargetDropEvent ev) {
+                try {
+                    ev.acceptDrop(DnDConstants.ACTION_COPY);
+                    Transferable t = ev.getTransferable();
+
+                    List<File> dropped = (List<File>) t.getTransferData(DataFlavor.javaFileListFlavor);
+                    if (!dropped.isEmpty()) {
+                        File droppedFile = dropped.get(0);
+
+                        processImageFile(droppedFile, imageLabel, file -> filePath[0] = file);
+
+                    }
+                } catch (Exception ex) {
+                    System.out.println(Arrays.toString(ex.getStackTrace()));
+                }
+            }
+        });
         //Is Composite
         gbc.gridx = 0; gbc.gridy++;
         panel.add(new JLabel("Is Composite (Yes / No):"), gbc);
@@ -354,11 +396,17 @@ public class AddWindow extends SubWindow {
             }
 
             List<Item> duplicateNameItemList = inventory.getItemByName(name);
-            if (duplicateNameItemList != null && !duplicateNameItemList.isEmpty()) {
+            if (!duplicateNameItemList.isEmpty()) {
                 StringBuilder sb = new StringBuilder();
-                String itemAmountText = duplicateNameItemList.size() == 1 ? "Another item":"Other items";
+
+                int totalDuplicates = duplicateNameItemList.size();
+                String itemAmountText = totalDuplicates == 1 ? "Another item" : "Other items";
                 sb.append("Warning: ").append(itemAmountText).append(" already uses the name \"").append(name).append("\".\n\n");
-                for(Item duplicateNameItem : duplicateNameItemList){
+
+
+                int showCount = Math.min(3, totalDuplicates);
+                for(int i = 0; i < showCount; i++){
+                    Item duplicateNameItem = duplicateNameItemList.get(i);
                     sb.append("Existing Item Details:\n\n")
                             .append("Name: ").append(duplicateNameItem.getName()).append("\n")
                             .append("Serial: ").append(duplicateNameItem.getSerial()).append("\n")
@@ -366,7 +414,11 @@ public class AddWindow extends SubWindow {
                             .append("eBay SKU: ").append(duplicateNameItem.getEbaySellerSKU() != null ? duplicateNameItem.getEbaySellerSKU() : "N/A").append("\n")
                             .append("Walmart SKU: ").append(duplicateNameItem.getWalmartSellerSKU() != null ? duplicateNameItem.getWalmartSellerSKU() : "N/A").append("\n\n\n");
                 }
-                sb.append("You can still proceed, but it’s recommended to use a unique name for each item.");
+
+                if (totalDuplicates > 3) {
+                    sb.append("...and ").append(totalDuplicates - 3).append(" more item(s) with this name.\n\n");
+                }
+                sb.append("You can still proceed, but it's recommended to use a unique name for each item.");
                 JOptionPane.showMessageDialog(
                         this,
                         sb.toString(),
@@ -492,6 +544,7 @@ public class AddWindow extends SubWindow {
 
         //Scroll and Add
         JScrollPane scrollPane = new JScrollPane(panel);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(20);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
         //Select the name field
