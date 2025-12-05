@@ -71,7 +71,7 @@ public class WalmartSeller extends BaseSeller {
                     APIFileManager.AccessTokenResponse accessTokenResponse = apiFileManager.getWalmartAccessToken(clientID, clientSecret);
                     accessToken = accessTokenResponse.accessToken();
 
-                    lastAccessTokenGetTime = ZonedDateTime.now();
+                    lastAccessTokenGetTime = ZonedDateTime.now(ZoneOffset.UTC);
 
                     //Validate the new token
                     int response2 = apiFileManager.validateWalmartAccessToken(accessToken, clientID);

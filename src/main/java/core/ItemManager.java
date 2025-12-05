@@ -95,7 +95,8 @@ public class ItemManager {
                 throw new RuntimeException("ERROR: Unable to find item " + component.getName() + " to compose item: "+ composedItem.getName());
             }
 
-            int amountNeeded = inventory.getQuantity(component);
+            int amountNeeded = composedItem.getComposedOf().get(component);
+
             int have = inventory.getQuantity(component);
 
 

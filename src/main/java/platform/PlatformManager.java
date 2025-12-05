@@ -91,7 +91,7 @@ public class PlatformManager {
             add(walmartSeller);
         }});
 
-        if(ZonedDateTime.now().minusSeconds(fetchTimeCooldownSeconds).isBefore(lastFetchTime)){
+        if(ZonedDateTime.now(ZoneOffset.UTC).minusSeconds(fetchTimeCooldownSeconds).isBefore(lastFetchTime)){
             System.out.println("Fetching orders is on cooldown.");
             return;
         }
@@ -202,7 +202,7 @@ public class PlatformManager {
                 try {
                     Map<PlatformType, Map<String, BaseSeller.Order>> result = get();
                     handleFetchedOrders(result);
-                    lastFetchTime = ZonedDateTime.now();
+                    lastFetchTime = ZonedDateTime.now(ZoneOffset.UTC);
                     fetching = false;
                     saveToFile();
                 } catch (Exception e) {
@@ -211,7 +211,7 @@ public class PlatformManager {
                             "Critical error in order fetch completion: " + e.getMessage(),
                             "");
 
-                    lastFetchTime = ZonedDateTime.now();
+                    lastFetchTime = ZonedDateTime.now(ZoneOffset.UTC);
                     fetching = false;
 
                     System.out.println(Arrays.toString(e.getStackTrace()));
@@ -587,7 +587,7 @@ public class PlatformManager {
         return fetching || anySellersFetching();
     }
     public boolean onCooldown(){
-        return ZonedDateTime.now().minusSeconds(fetchTimeCooldownSeconds)
+        return ZonedDateTime.now(ZoneOffset.UTC).minusSeconds(fetchTimeCooldownSeconds)
                 .isBefore(lastFetchTime);
     }
 

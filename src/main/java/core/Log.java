@@ -69,10 +69,7 @@ public class Log {
     public Log(LogType type, Integer amount, String message, String serial, int logID) {
         this.logID = logID;
         LocalDateTime timeTemp = LocalDateTime.now();
-        if(timeTemp.getHour() > 12){
-            timeTemp = timeTemp.minusHours(12);
-        }
-        timestamp = timeTemp.format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss"));
+        timestamp = timeTemp.format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm:ss a"));
         this.amount = amount;
         this.type = type;
         this.message = message;

@@ -209,13 +209,15 @@ public class Inventory {
             throw new IllegalStateException("ERROR: Null item called in addItemAmount()");
         }
         addItemAmountSilent(item,amount);
-        logManager.createLog(Log.LogType.AddedItem,
-                amount,
-                "Added " + amount + " units of item '" + item.getName() +
-                        "' (Serial: " + item.getSerial() + "). " +
-                        "New quantity: " + MainInventory.get(item),
-                item.getSerial()
-        );
+        if (logManager != null) {
+            logManager.createLog(Log.LogType.AddedItem,
+                    amount,
+                    "Added " + amount + " units of item '" + item.getName() +
+                            "' (Serial: " + item.getSerial() + "). " +
+                            "New quantity: " + MainInventory.get(item),
+                    item.getSerial()
+            );
+        }
     }
     //Does the same without logs
     public void addItemAmountSilent(Item item, int amount){
@@ -237,13 +239,15 @@ public class Inventory {
         int quantity = MainInventory.get(item);
         quantity = Math.max(0,quantity-amount);
         MainInventory.put(item, quantity);
-        logManager.createLog(Log.LogType.ReducedStock,
-                amount,
-                "Removed " + amount + " units of item '" + item.getName() +
-                        "' (Serial: " + item.getSerial() + "). " +
-                        "New quantity: " + MainInventory.get(item),
-                item.getSerial()
-        );
+        if (logManager != null) {
+            logManager.createLog(Log.LogType.ReducedStock,
+                    amount,
+                    "Removed " + amount + " units of item '" + item.getName() +
+                            "' (Serial: " + item.getSerial() + "). " +
+                            "New quantity: " + MainInventory.get(item),
+                    item.getSerial()
+            );
+        }
     }
 
     public void decreaseItemAmountSilent(Item item, int amount){
@@ -441,12 +445,14 @@ public class Inventory {
         unregisterItemMapping(item);
 
         //Remove all logs
-        ArrayList<Log> logsToRemove = logManager.itemToLogs.get(item);
+        if (logManager != null) {
+            ArrayList<Log> logsToRemove = logManager.itemToLogs.get(item);
 
-        if (logsToRemove != null) {
-            ArrayList<Log> copy = new ArrayList<>(logsToRemove);
-            for (Log l : copy) {
-                logManager.removeLog(l);
+            if (logsToRemove != null) {
+                ArrayList<Log> copy = new ArrayList<>(logsToRemove);
+                for (Log l : copy) {
+                    logManager.removeLog(l);
+                }
             }
         }
 
@@ -702,7 +708,7 @@ public class Inventory {
     //Returns the composition of items in from elementary parts
     //A is composed of 2C and 1 B and each B is composed of 3 D and each. So getBaseComposition of A is 2 C, 3 D.
     // So getBaseComposition of (1A) = 2C, 3D
-    private transient final Map<Item, Map<Item, Integer>> baseCompositionCache = new HashMap<>(); //Cache items we already broke down into parts, but only for 1
+    private transient final Map<Item, Map<Item, Integer>> baseCompositionCache = new HashMap<>();//Cache items we already broke down into parts, but only for 1
     public Map<Item, Integer> getBaseComposition(Item item, int amount) {
         Map<Item, Integer> baseUnit = baseCompositionCache.get(item);
         if (baseUnit == null) {

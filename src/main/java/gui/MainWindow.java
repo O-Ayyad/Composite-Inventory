@@ -1,6 +1,5 @@
 package gui;
 
-import constants.Constants;
 import platform.*;
 import core.*;
 import storage.*;
@@ -173,7 +172,6 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                 repaint();
             }
         }.execute();
-
 
     }
 
@@ -418,8 +416,13 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         });
     }
     void setUI(){
-        autoSaveTimer.setInitialDelay(config.autofetchTimer);
+
+        doneLoading = true;
+
+        autoSaveTimer.setInitialDelay(config.autoSaveTimer);
         autoSaveTimer.start();
+        
+        fetchTimer.setInitialDelay(1);
         fetchTimer.start();
 
 
@@ -645,7 +648,8 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
                 }
             }
             boolean alreadyExist = unlinkedFrame != null;
-            unlinkedItemsBtn.setEnabled(anyConnected && !alreadyExist || platformManager.isFetching());
+
+            unlinkedItemsBtn.setEnabled(anyConnected && !alreadyExist && !platformManager.isFetching());
         });
         unlinkedItemsBtnChecker.start();
 
