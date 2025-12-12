@@ -39,24 +39,18 @@ public class EditWindow extends SubWindow {
     @Override
     public boolean handleCloneSubwindow(){
 
-        System.out.println("called");
         try{
             Class<? extends SubWindow> clazz = getClass();
             List<SubWindow> existingList = mainWindow.getInstances(getClass());
 
-            System.out.println("1");
 
             boolean closedAny = false;
             for(SubWindow existing : new ArrayList<>(existingList)){
-                System.out.println("2");
                 if(existing != this){
-                    System.out.println("3");
                     mainWindow.destroyExistingInstance(existing);
-                    System.out.println("4");
                     closedAny = true;
                 }
             }
-            System.out.println("5");
             if (closedAny) {
                 System.out.println("Old " + clazz.getSimpleName() + " closed for new window.");
             }

@@ -84,7 +84,6 @@ public class MainWindow extends JFrame implements Inventory.ItemListener {
         setResizable(false);
         setLocationRelativeTo(null);
         setVisible(true);
-
         addWindowListener(new WindowAdapter() {
 
             @Override

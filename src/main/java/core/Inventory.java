@@ -407,7 +407,7 @@ public class Inventory {
                 0,
                 "Deleted item '" + item.getName() +
                         "' (Serial: " + item.getSerial() + ") from inventory and all associated logs.",
-                item.getSerial()
+                ""
         );
     }
 
@@ -454,6 +454,7 @@ public class Inventory {
                     logManager.removeLog(l);
                 }
             }
+            logManager.itemToLogs.remove(item);
         }
 
         if(!item.getImagePath().equals(Constants.NOT_FOUND_PNG)){

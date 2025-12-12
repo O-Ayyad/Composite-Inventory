@@ -3,6 +3,8 @@ package storage;
 import core.Inventory;
 import core.LogManager;
 import gui.MainWindow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import platform.PlatformManager;
 
 import javax.swing.*;
@@ -16,21 +18,27 @@ public class FileManager {
     private static final int MAX_BACKUPS = 400;
     private static final String BACKUP_DIR = "data/backups";
     private static final DateTimeFormatter TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final Logger log = LoggerFactory.getLogger(FileManager.class);
     private final String[] DATA_DIRS = {"orders", "inventory", "logs", "config"};
 
     private static int backUpCounter = 0; //Every 70 auto saves a backup is made unless it is on close on manual save
     private final static int backUpCounterMax = 70;
     Set<AbstractFileManager> fileManagers = new HashSet<>();
 
+    private final InventoryFileManager inventoryFileManager;
+    private final LogFileManager logFileManager;
+    private final OrderFileManager orderFileManager;
+    private final UserConfigManager userConfigManager;
+
     boolean firstOpen;
 
     public FileManager(Inventory inventory, LogManager logManager, PlatformManager platformManager, MainWindow mainWindow) {
         createDirectory();
 
-        InventoryFileManager inventoryFileManager = new InventoryFileManager(inventory, "inventory");
-        LogFileManager logFileManager = new LogFileManager(logManager, "logs");
-        OrderFileManager orderFileManager = new OrderFileManager(platformManager, "orders");
-        UserConfigManager userConfigManager = new UserConfigManager(mainWindow, "config");
+        inventoryFileManager = new InventoryFileManager(inventory, "inventory");
+        logFileManager = new LogFileManager(logManager,inventory, "logs");
+        orderFileManager = new OrderFileManager(platformManager, "orders");
+        userConfigManager = new UserConfigManager(mainWindow, "config");
 
         fileManagers.add(inventoryFileManager);
         fileManagers.add(logFileManager);
@@ -82,10 +90,24 @@ public class FileManager {
                 System.out.println(Arrays.toString(e.getStackTrace()));
             }
         }
+        for(AbstractFileManager.LoadResult loadResult : loadResults){
+            if(!loadResult.success()){
+                allSuccess = false;
+                break;
+            }
+        }
+        try {
+            logFileManager.buildItemToLogLinks();
+        } catch (Exception e) {
+            System.out.println("[FileManager] ERROR: Failed to build item-to-log links: " + e.getMessage());
+            allSuccess = false;
+        }
+
         if(!firstOpen) {
             for (AbstractFileManager.LoadResult lr : loadResults) {
                 showError("Error when loading file :" + lr.error().getMessage());
                 System.out.println(Arrays.toString(lr.error().getStackTrace()));
+                allSuccess = false;
             }
         }
         return allSuccess;
@@ -253,23 +275,13 @@ public class FileManager {
             JOptionPane.showMessageDialog(null, message, "File Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-    public UserConfigManager getUserConfigManager(){
-        for(AbstractFileManager fileManager : fileManagers){
-            if(fileManager instanceof UserConfigManager){
-                return ((UserConfigManager) fileManager);
-            }
-        }
-        System.out.println("ERROR: NO USER CONFIG MANAGER EXISTS");
-        return null;
-    }
     public UserConfigManager.UserConfig getUserConfig() {
-        UserConfigManager ucm = getUserConfigManager();
-        if(ucm == null) return UserConfigManager.defaultConfig;
-        return ucm.getUserConfig();
+        if(userConfigManager == null) return UserConfigManager.defaultConfig;
+        return userConfigManager.getUserConfig();
     }
 
     public void setHasConnected(boolean val) {
         getUserConfig().hasConnect = val;
-        getUserConfigManager().save();
+        userConfigManager.save();
     }
 }

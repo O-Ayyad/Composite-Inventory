@@ -46,10 +46,13 @@ public class LogManager {
     }
     public void addLogToCollections(Log l) {
         if (l == null) return;
-        Item i = inventory.getItemBySerial(l.getSerial());
         AllLogs.add(l);
         logById.put(l.getLogID(), l);
-        itemToLogs.computeIfAbsent(i, k -> new ArrayList<>()).add(l);
+
+        Item i = inventory.getItemBySerial(l.getSerial());
+        if(l.getSerial() != null && !l.getSerial().isEmpty() && i != null){
+            itemToLogs.computeIfAbsent(i, k -> new ArrayList<>()).add(l);
+        }
 
         switch (l.getSeverity()) {
             case Critical -> CriticalLogs.add(l);
@@ -60,10 +63,13 @@ public class LogManager {
     }
     public void addLogToCollectionsWithoutNotify(Log l) {
         if (l == null) return;
-        Item i = inventory.getItemBySerial(l.getSerial());
         AllLogs.add(l);
         logById.put(l.getLogID(), l);
-        itemToLogs.computeIfAbsent(i, k -> new ArrayList<>()).add(l);
+
+        Item i = inventory.getItemBySerial(l.getSerial());
+        if(l.getSerial() != null && !l.getSerial().isEmpty() && i != null){
+            itemToLogs.computeIfAbsent(i, k -> new ArrayList<>()).add(l);
+        }
 
         switch (l.getSeverity()) {
             case Critical -> CriticalLogs.add(l);
@@ -87,14 +93,16 @@ public class LogManager {
         logById.remove(log.getLogID());
 
         //Remove from item logs
-        Item item = inventory.getItemBySerial(log.getSerial());
-        if (item != null) {
+        if(!log.getSerial().isEmpty()){
+            Item item = inventory.getItemBySerial(log.getSerial());
+            if (item != null) {
 
-            ArrayList<Log> itemLogs = itemToLogs.get(item);
-            if (itemLogs != null) {
-                itemLogs.remove(log);
-                if (itemLogs.isEmpty()) {
-                    itemToLogs.remove(item);
+                ArrayList<Log> itemLogs = itemToLogs.get(item);
+                if (itemLogs != null) {
+                    itemLogs.remove(log);
+                    if (itemLogs.isEmpty()) {
+                        itemToLogs.remove(item);
+                    }
                 }
             }
         }
@@ -133,7 +141,7 @@ public class LogManager {
             throw new RuntimeException("ERROR: suppressLog() called, but log #" + l.getLogID()
                     + " is already suppressed.");
         }
-
+        l.setSuppressed(true);
         String msg = "Suppressed log #" + l.getLogID() + " (" + l.getSeverity() + "): \"" + l.getMessage() + "\"";
         createLog(Log.LogType.SuppressedLog, 0, msg, l.getSerial());
     }
@@ -161,27 +169,29 @@ public class LogManager {
         }
 
         //Remove the previously created log
-        Item i = inventory.getItemBySerial(l.getSerial());
-        if (i == null) {
-            throw new RuntimeException("ERROR: Item is null in unsuppressLog()");
-        }
-
-        ArrayList<Log> itemLogs = itemToLogs.get(i);
-        if (itemLogs == null || itemLogs.isEmpty()) {
-            throw new RuntimeException("ERROR: Item has no logs to remove");
-        }
-
-        Log toRemove = null;
-        for (Log suppressLog : itemLogs) {
-            if (suppressLog.getType() == Log.LogType.SuppressedLog &&
-                    suppressLog.getMessage().contains("#" + l.getLogID())){ //Double check that the suppressed log is specifically for this log
-                toRemove = suppressLog;
-                break;
+        if(!l.getSerial().isEmpty()){
+            Item i = inventory.getItemBySerial(l.getSerial());
+            if (i == null) {
+                throw new RuntimeException("ERROR: Item is null in unsuppressLog()");
             }
-        }
-        if (toRemove != null) {
-            removeLog(toRemove);
-            l.setSuppressed(false);
+
+            ArrayList<Log> itemLogs = itemToLogs.get(i);
+            if (itemLogs == null || itemLogs.isEmpty()) {
+                throw new RuntimeException("ERROR: Item has no logs to remove");
+            }
+
+            Log toRemove = null;
+            for (Log suppressLog : itemLogs) {
+                if (suppressLog.getType() == Log.LogType.SuppressedLog &&
+                        suppressLog.getMessage().contains("#" + l.getLogID())){ //Double check that the suppressed log is specifically for this log
+                    toRemove = suppressLog;
+                    break;
+                }
+            }
+            if (toRemove != null) {
+                removeLog(toRemove);
+                l.setSuppressed(false);
+            }
         }
     }
 
@@ -193,5 +203,28 @@ public class LogManager {
         for (Runnable listener : listeners) {
             listener.run();
         }
+    }
+
+    public void debugPrintItemToLogs() {
+        System.out.println("=== ITEM TO LOG LINKS ===");
+
+        if (itemToLogs.isEmpty()) {
+            System.out.println("(empty)");
+            return;
+        }
+
+        for (Map.Entry<Item, ArrayList<Log>> entry : itemToLogs.entrySet()) {
+            Item item = entry.getKey();
+            String serial = (item == null ? "NULL_ITEM" : item.getSerial());
+
+            List<Integer> ids = new ArrayList<>();
+            for (Log l : entry.getValue()) {
+                if (l != null) ids.add(l.getLogID());
+            }
+
+            System.out.println(serial + " : " + ids);
+        }
+
+        System.out.println("========================");
     }
 }
