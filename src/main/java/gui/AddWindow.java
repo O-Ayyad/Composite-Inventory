@@ -486,7 +486,7 @@ public class AddWindow extends SubWindow {
             );
 
             if (confirm == null) return;
-            if (!confirm.equals(serial)) {
+            if (!confirm.trim().equalsIgnoreCase(serial)) {
                 JOptionPane.showMessageDialog(this, "Serial numbers do not match. Item not added.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }

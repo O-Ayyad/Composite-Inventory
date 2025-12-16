@@ -106,7 +106,6 @@ public class LogManager {
                 }
             }
         }
-        notifyListeners();
     }
     public void solveLog(Log l) {
         if (l == null) return;
@@ -203,28 +202,5 @@ public class LogManager {
         for (Runnable listener : listeners) {
             listener.run();
         }
-    }
-
-    public void debugPrintItemToLogs() {
-        System.out.println("=== ITEM TO LOG LINKS ===");
-
-        if (itemToLogs.isEmpty()) {
-            System.out.println("(empty)");
-            return;
-        }
-
-        for (Map.Entry<Item, ArrayList<Log>> entry : itemToLogs.entrySet()) {
-            Item item = entry.getKey();
-            String serial = (item == null ? "NULL_ITEM" : item.getSerial());
-
-            List<Integer> ids = new ArrayList<>();
-            for (Log l : entry.getValue()) {
-                if (l != null) ids.add(l.getLogID());
-            }
-
-            System.out.println(serial + " : " + ids);
-        }
-
-        System.out.println("========================");
     }
 }

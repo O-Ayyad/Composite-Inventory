@@ -243,7 +243,7 @@ public abstract class SubWindow extends JFrame {
                 "Confirm Deletion",
                 JOptionPane.WARNING_MESSAGE
         );
-        if (!inSerial.equals(serial)) {
+        if (!inSerial.equalsIgnoreCase(serial)) {
             JOptionPane.showMessageDialog(this, "Serial numbers do not match. Item not removed.",
                     "Error", JOptionPane.ERROR_MESSAGE);
             return;

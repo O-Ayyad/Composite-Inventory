@@ -28,17 +28,16 @@ public class ViewWindow extends SubWindow {
     private JCheckBox hasNoEbayBox;
     private JCheckBox hasNoWalmartBox;
 
-    Set<RowFilter.Entry<? extends DefaultTableModel, ? extends Integer>> exactMatch;
+    private boolean isRefreshing = false;
 
     public ViewWindow(MainWindow mainWindow, Inventory inventory, LogManager logManager) {
         super(mainWindow, windowName, inventory);
 
         this.logManager = logManager;
-        logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refreshTable));
-
-        exactMatch = new HashSet<>();
 
         setupUI();
+        logManager.addChangeListener(() -> SwingUtilities.invokeLater(this::refreshTable));
+
     }
 
     public void setupUI() {
@@ -373,85 +372,91 @@ public class ViewWindow extends SubWindow {
 
     //Populate table
     private void refreshTable() {
-        List<RowSorter.SortKey> sortKeys = new ArrayList<>();
-        if (itemTable.getRowSorter() != null && itemTable.getRowSorter().getSortKeys() != null) {
-            sortKeys.addAll(itemTable.getRowSorter().getSortKeys());
-            itemTable.setRowHeight(70);
-        }
-
-        itemTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object icon, boolean isSelected, boolean hasFocus, int row, int column) {
-                JLabel label = new JLabel();
-                if (icon instanceof ImageIcon) {
-                    label.setIcon((ImageIcon) icon);
-                    label.setHorizontalAlignment(JLabel.CENTER);
-                }
-                if (isSelected) {
-                    label.setBackground(table.getSelectionBackground());
-                    label.setForeground(table.getSelectionForeground());
-                } else {
-                    label.setBackground(table.getBackground());
-                    label.setForeground(table.getForeground());
-                }
-                label.setOpaque(true);
-                return label;
+        if (isRefreshing) return;
+        isRefreshing = true;
+        try {
+            List<RowSorter.SortKey> sortKeys = new ArrayList<>();
+            if (itemTable.getRowSorter() != null && itemTable.getRowSorter().getSortKeys() != null) {
+                sortKeys.addAll(itemTable.getRowSorter().getSortKeys());
+                itemTable.setRowHeight(70);
             }
-        });
-        if (!sortKeys.isEmpty() && itemTable.getRowSorter() != null) {
-            itemTable.getRowSorter().setSortKeys(sortKeys);
-        }
 
-        tableModel.setRowCount(0);
-        List<Item> items = new ArrayList<>(inventory.MainInventory.keySet());
-
-        ImageIcon defaultIcon = new ImageIcon(Constants.NOT_FOUND_PNG);
-        long[] summary = new long[] {0,0,0};
-        new SwingWorker<Void, Object[]>() {
-            @Override
-            protected Void doInBackground() {
-                for (Item i : items) {
-                    updateSummary(summary,i);
-                    ImageIcon icon;
-                    String iconPath = i.getImagePath();
-                    if (iconPath == null || iconPath.equals(Constants.NOT_FOUND_PNG) || !new File(iconPath).exists()) {
-                        icon = defaultIcon;
-                    } else {
-                        icon = new ImageIcon(iconPath);
+            itemTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
+                @Override
+                public Component getTableCellRendererComponent(JTable table, Object icon, boolean isSelected, boolean hasFocus, int row, int column) {
+                    JLabel label = new JLabel();
+                    if (icon instanceof ImageIcon) {
+                        label.setIcon((ImageIcon) icon);
+                        label.setHorizontalAlignment(JLabel.CENTER);
                     }
-
-                    Icon scaledIcon = getScaledIconTo(icon, imageSize);
-
-                    Object[] row = new Object[]{
-                            scaledIcon,
-                            inventory.getQuantity(i),
-                            i.getName(),
-                            i.getSerial(),
-                            i.getLowStockTrigger(),
-                            i.isComposite() ? "Yes" : "No",
-                            nullToNA(i.getAmazonSellerSKU()),
-                            nullToNA(i.getEbaySellerSKU()),
-                            nullToNA(i.getWalmartSellerSKU())
-                    };
-                    publish(row);
+                    if (isSelected) {
+                        label.setBackground(table.getSelectionBackground());
+                        label.setForeground(table.getSelectionForeground());
+                    } else {
+                        label.setBackground(table.getBackground());
+                        label.setForeground(table.getForeground());
+                    }
+                    label.setOpaque(true);
+                    return label;
                 }
-                return null;
+            });
+            if (!sortKeys.isEmpty() && itemTable.getRowSorter() != null) {
+                itemTable.getRowSorter().setSortKeys(sortKeys);
             }
 
-            @Override
-            protected void process(List<Object[]> chunks) {
-                for (Object[] row : chunks) {
-                    tableModel.addRow(row);
-                }
-            }
+            tableModel.setRowCount(0);
+            List<Item> items = new ArrayList<>(inventory.MainInventory.keySet());
 
-            @Override
-            protected void done() {
-                if (!sortKeys.isEmpty() && itemTable.getRowSorter() != null) {
-                    itemTable.getRowSorter().setSortKeys(sortKeys);
+            ImageIcon defaultIcon = new ImageIcon(Constants.NOT_FOUND_PNG);
+            long[] summary = new long[]{0, 0, 0};
+            new SwingWorker<Void, Object[]>() {
+                @Override
+                protected Void doInBackground() {
+                    for (Item i : items) {
+                        updateSummary(summary, i);
+                        ImageIcon icon;
+                        String iconPath = i.getImagePath();
+                        if (iconPath == null || iconPath.equals(Constants.NOT_FOUND_PNG) || !new File(iconPath).exists()) {
+                            icon = defaultIcon;
+                        } else {
+                            icon = new ImageIcon(iconPath);
+                        }
+
+                        Icon scaledIcon = getScaledIconTo(icon, imageSize);
+
+                        Object[] row = new Object[]{
+                                scaledIcon,
+                                inventory.getQuantity(i),
+                                i.getName(),
+                                i.getSerial(),
+                                i.getLowStockTrigger(),
+                                i.isComposite() ? "Yes" : "No",
+                                nullToNA(i.getAmazonSellerSKU()),
+                                nullToNA(i.getEbaySellerSKU()),
+                                nullToNA(i.getWalmartSellerSKU())
+                        };
+                        publish(row);
+                    }
+                    return null;
                 }
-            }
-        }.execute();
+
+                @Override
+                protected void process(List<Object[]> chunks) {
+                    for (Object[] row : chunks) {
+                        tableModel.addRow(row);
+                    }
+                }
+
+                @Override
+                protected void done() {
+                    if (!sortKeys.isEmpty() && itemTable.getRowSorter() != null) {
+                        itemTable.getRowSorter().setSortKeys(sortKeys);
+                    }
+                }
+            }.execute();
+        }finally {
+            isRefreshing = false;
+        }
     }
     private void updateSummary(long[] summary, Item i) {
         int quantity = inventory.getQuantity(i);
@@ -576,7 +581,7 @@ public class ViewWindow extends SubWindow {
     }
 
     private RowFilter<DefaultTableModel, Integer> createRowFilter(String searchText) {
-        return new RowFilter<DefaultTableModel, Integer>() {
+        return new RowFilter<>() {
             @Override
             public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
                 String name    = entry.getStringValue(2).toLowerCase(); //Name
