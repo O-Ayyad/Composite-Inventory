@@ -722,8 +722,10 @@ public class Inventory {
                     Item subItem = component.getKey();
                     int componentAmount = component.getValue();
 
-                    Map<Item, Integer> subMap = getBaseComposition(subItem, componentAmount);
-                    mergeInto(baseUnit, subMap);
+                    Map<Item, Integer> subMap = getBaseComposition(subItem, 1);
+                    for (Map.Entry<Item, Integer> entry : subMap.entrySet()) {
+                        baseUnit.merge(entry.getKey(), entry.getValue() * componentAmount, Integer::sum);
+                    }
                 }
             }
 
@@ -823,23 +825,33 @@ public class Inventory {
     }
     // Recursively checks stock availability for an item and its subcomponents.
     public boolean isItemInStockRecursive(Item item, int amountNeeded) {
+        Map<Item, Integer> totalReqs = new HashMap<>();
+        return isItemInStockRecHelper(item, amountNeeded, totalReqs);
+    }
+    private boolean isItemInStockRecHelper(Item item, int amountNeeded, Map<Item, Integer> totalRequirements) {
         int inStock = getAvailableQuantity(item);
 
-        if (!item.isComposite()) {
-            return inStock >= amountNeeded;
-        }
+        int alreadyReserved = totalRequirements.getOrDefault(item, 0);
+        int availableForUse = inStock - alreadyReserved;
 
-        if (inStock >= amountNeeded) {
+        int canUseDirectly = Math.min(availableForUse, amountNeeded);
+        int stillNeeded = amountNeeded - canUseDirectly;
+
+        if (canUseDirectly > 0) {
+            totalRequirements.put(item, alreadyReserved + canUseDirectly);
+        }
+        if (stillNeeded == 0) {
             return true;
         }
-
-        int shortage = amountNeeded - inStock;
+        if (!item.isComposite()) {
+            return false;
+        }
 
         for (Map.Entry<Item, Integer> entry : item.getComposedOf().entrySet()) {
             Item component = entry.getKey();
-            int componentNeeded = entry.getValue() * shortage;
+            int componentNeeded = entry.getValue() * stillNeeded;
 
-            if (!isItemInStockRecursive(component, componentNeeded)) {
+            if (!isItemInStockRecHelper(component, componentNeeded, totalRequirements)) {
                 return false;
             }
         }
