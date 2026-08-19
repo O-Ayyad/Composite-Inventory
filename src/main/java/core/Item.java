@@ -128,7 +128,7 @@ public class Item {
         }
         syncCompositionDependencies();
     }
-    public boolean isComposite(){ return composedOf != null && !composedOf.isEmpty();}
+    public boolean isComposite(){ return !composedOf.isEmpty();}
     //-------------------------------</Edit Composition>-------------------------------
 
 

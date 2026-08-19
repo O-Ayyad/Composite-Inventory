@@ -197,6 +197,9 @@ public class AmazonSeller extends BaseSeller {
             conn.disconnect();
 
             String json = sb.toString();
+            JsonObject ordersResponse = JsonParser.parseString(sb.toString()).getAsJsonObject();
+
+            JsonArray ordersList = ordersResponse.getAsJsonObject("payload").getAsJsonArray("Orders");
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
 
             if (!root.has("payload")) {
@@ -216,7 +219,7 @@ public class AmazonSeller extends BaseSeller {
 
             log("Fetched " + orders.size() + " orders");
 
-            for(JsonElement orderElement : orders) {
+            for(JsonElement orderElement : ordersList) {
                 JsonObject orderObj = orderElement.getAsJsonObject();
 
                 String orderId = getString(orderObj, "AmazonOrderId");

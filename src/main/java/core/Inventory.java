@@ -209,15 +209,13 @@ public class Inventory {
             throw new IllegalStateException("ERROR: Null item called in addItemAmount()");
         }
         addItemAmountSilent(item,amount);
-        if (logManager != null) {
-            logManager.createLog(Log.LogType.AddedItem,
-                    amount,
-                    "Added " + amount + " units of item '" + item.getName() +
-                            "' (Serial: " + item.getSerial() + "). " +
-                            "New quantity: " + MainInventory.get(item),
-                    item.getSerial()
-            );
-        }
+        logManager.createLog(Log.LogType.AddedItem,
+                amount,
+                "Added " + amount + " units of item '" + item.getName() +
+                        "' (Serial: " + item.getSerial() + "). " +
+                        "New quantity: " + MainInventory.get(item),
+                item.getSerial()
+        );
     }
     //Does the same without logs
     public void addItemAmountSilent(Item item, int amount){
@@ -239,15 +237,13 @@ public class Inventory {
         int quantity = MainInventory.get(item);
         quantity = Math.max(0,quantity-amount);
         MainInventory.put(item, quantity);
-        if (logManager != null) {
-            logManager.createLog(Log.LogType.ReducedStock,
-                    amount,
-                    "Removed " + amount + " units of item '" + item.getName() +
-                            "' (Serial: " + item.getSerial() + "). " +
-                            "New quantity: " + MainInventory.get(item),
-                    item.getSerial()
-            );
-        }
+        logManager.createLog(Log.LogType.ReducedStock,
+                amount,
+                "Removed " + amount + " units of item '" + item.getName() +
+                        "' (Serial: " + item.getSerial() + "). " +
+                        "New quantity: " + MainInventory.get(item),
+                item.getSerial()
+        );
     }
 
     public void decreaseItemAmountSilent(Item item, int amount){
@@ -407,7 +403,7 @@ public class Inventory {
                 0,
                 "Deleted item '" + item.getName() +
                         "' (Serial: " + item.getSerial() + ") from inventory and all associated logs.",
-                ""
+                item.getSerial()
         );
     }
 
@@ -445,16 +441,13 @@ public class Inventory {
         unregisterItemMapping(item);
 
         //Remove all logs
-        if (logManager != null) {
-            ArrayList<Log> logsToRemove = logManager.itemToLogs.get(item);
+        ArrayList<Log> logsToRemove = logManager.itemToLogs.get(item);
 
-            if (logsToRemove != null) {
-                ArrayList<Log> copy = new ArrayList<>(logsToRemove);
-                for (Log l : copy) {
-                    logManager.removeLog(l);
-                }
+        if (logsToRemove != null) {
+            ArrayList<Log> copy = new ArrayList<>(logsToRemove);
+            for (Log l : copy) {
+                logManager.removeLog(l);
             }
-            logManager.itemToLogs.remove(item);
         }
 
         if(!item.getImagePath().equals(Constants.NOT_FOUND_PNG)){
@@ -722,10 +715,8 @@ public class Inventory {
                     Item subItem = component.getKey();
                     int componentAmount = component.getValue();
 
-                    Map<Item, Integer> subMap = getBaseComposition(subItem, 1);
-                    for (Map.Entry<Item, Integer> entry : subMap.entrySet()) {
-                        baseUnit.merge(entry.getKey(), entry.getValue() * componentAmount, Integer::sum);
-                    }
+                    Map<Item, Integer> subMap = getBaseComposition(subItem, componentAmount);
+                    mergeInto(baseUnit, subMap);
                 }
             }
 
@@ -825,33 +816,23 @@ public class Inventory {
     }
     // Recursively checks stock availability for an item and its subcomponents.
     public boolean isItemInStockRecursive(Item item, int amountNeeded) {
-        Map<Item, Integer> totalReqs = new HashMap<>();
-        return isItemInStockRecHelper(item, amountNeeded, totalReqs);
-    }
-    private boolean isItemInStockRecHelper(Item item, int amountNeeded, Map<Item, Integer> totalRequirements) {
         int inStock = getAvailableQuantity(item);
 
-        int alreadyReserved = totalRequirements.getOrDefault(item, 0);
-        int availableForUse = inStock - alreadyReserved;
-
-        int canUseDirectly = Math.min(availableForUse, amountNeeded);
-        int stillNeeded = amountNeeded - canUseDirectly;
-
-        if (canUseDirectly > 0) {
-            totalRequirements.put(item, alreadyReserved + canUseDirectly);
+        if (!item.isComposite()) {
+            return inStock >= amountNeeded;
         }
-        if (stillNeeded == 0) {
+
+        if (inStock >= amountNeeded) {
             return true;
         }
-        if (!item.isComposite()) {
-            return false;
-        }
+
+        int shortage = amountNeeded - inStock;
 
         for (Map.Entry<Item, Integer> entry : item.getComposedOf().entrySet()) {
             Item component = entry.getKey();
-            int componentNeeded = entry.getValue() * stillNeeded;
+            int componentNeeded = entry.getValue() * shortage;
 
-            if (!isItemInStockRecHelper(component, componentNeeded, totalRequirements)) {
+            if (!isItemInStockRecursive(component, componentNeeded)) {
                 return false;
             }
         }
